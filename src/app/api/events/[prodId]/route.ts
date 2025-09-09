@@ -34,14 +34,14 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       );
     }
 
-    // Also fetch trainer splits
-    const splits = await DatabaseService.getTrainerSplits(prodId);
+    // Skip trainer splits for now since table doesn't exist
+    // const splits = await DatabaseService.getTrainerSplits(prodId);
 
     return NextResponse.json({
       success: true,
       data: {
         event,
-        splits,
+        splits: [], // Empty array for now
       },
     });
   } catch (error) {
