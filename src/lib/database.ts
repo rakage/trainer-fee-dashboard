@@ -380,8 +380,6 @@ export class DatabaseService {
 
     return event;
   }
-    return event;
-  }
 
   static async getTrainerSplits(prodId: number): Promise<TrainerSplit[]> {
     const pool = await getConnection();
