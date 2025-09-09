@@ -14,13 +14,13 @@ export async function requireAuth(request: NextRequest) {
     
     if (!token || !token.sub) {
       console.log('No token or sub found'); // Debug log
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return { success: false, error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
     }
     
-    return { user: { id: token.sub, role: (token.role as UserRole) || 'viewer' } };
+    return { success: true, user: { id: token.sub, role: (token.role as UserRole) || 'viewer' } };
   } catch (error) {
     console.error('Auth middleware error:', error);
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return { success: false, error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
   }
 }
 
