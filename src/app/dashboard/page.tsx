@@ -112,8 +112,92 @@ export default function DashboardPage() {
               commissions={commissions}
             />
 
-            {/* Data Table */}
-            <EventDataTable event={selectedEvent} />
+            {/* Tickets Table */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Event Tickets</CardTitle>
+                <CardDescription>
+                  Ticket sales data with calculated trainer fees based on fee parameters.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {selectedEvent.tickets && selectedEvent.tickets.length > 0 ? (
+                  <div className="border rounded-lg overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead className="bg-gray-50 border-b">
+                          <tr>
+                            <th className="text-left py-3 px-4 font-medium text-gray-900">Attendance</th>
+                            <th className="text-left py-3 px-4 font-medium text-gray-900">Payment Method</th>
+                            <th className="text-left py-3 px-4 font-medium text-gray-900">Tier Level</th>
+                            <th className="text-right py-3 px-4 font-medium text-gray-900">Quantity</th>
+                            <th className="text-right py-3 px-4 font-medium text-gray-900">Price Total</th>
+                            <th className="text-right py-3 px-4 font-medium text-gray-900">Trainer Fee %</th>
+                            <th className="text-right py-3 px-4 font-medium text-gray-900">Trainer Fee Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                          {selectedEvent.tickets.map((ticket, index) => {
+                            const trainerFeeAmount = ticket.PriceTotal * (ticket.TrainerFeePct || 0);
+                            return (
+                              <tr key={index} className="hover:bg-gray-50">
+                                <td className="py-3 px-4">
+                                  <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
+                                    ticket.Attendance === 'Attended' 
+                                      ? 'bg-green-100 text-green-800' 
+                                      : 'bg-gray-100 text-gray-800'
+                                  }`}>
+                                    {ticket.Attendance}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4">
+                                  <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
+                                    ticket.PaymentMethod === 'Paypal' 
+                                      ? 'bg-blue-100 text-blue-800'
+                                      : ticket.PaymentMethod === 'Cash'
+                                      ? 'bg-yellow-100 text-yellow-800'
+                                      : 'bg-gray-100 text-gray-800'
+                                  }`}>
+                                    {ticket.PaymentMethod}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4 text-gray-900">{ticket.TierLevel}</td>
+                                <td className="py-3 px-4 text-right text-gray-900">{ticket.Quantity}</td>
+                                <td className="py-3 px-4 text-right font-medium text-gray-900">
+                                  €{ticket.PriceTotal.toFixed(2)}
+                                </td>
+                                <td className="py-3 px-4 text-right text-gray-900">
+                                  {((ticket.TrainerFeePct || 0) * 100).toFixed(1)}%
+                                </td>
+                                <td className="py-3 px-4 text-right font-medium text-green-600">
+                                  €{trainerFeeAmount.toFixed(2)}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot className="bg-gray-50 border-t">
+                          <tr>
+                            <td colSpan={4} className="py-3 px-4 font-medium text-gray-900">Totals</td>
+                            <td className="py-3 px-4 text-right font-bold text-gray-900">
+                              €{selectedEvent.tickets.reduce((sum, ticket) => sum + ticket.PriceTotal, 0).toFixed(2)}
+                            </td>
+                            <td className="py-3 px-4"></td>
+                            <td className="py-3 px-4 text-right font-bold text-green-600">
+                              €{selectedEvent.tickets.reduce((sum, ticket) => sum + (ticket.PriceTotal * (ticket.TrainerFeePct || 0)), 0).toFixed(2)}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No ticket data available for this event.
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
             {/* Trainer Splits Editor */}
             <TrainerSplitsEditor
