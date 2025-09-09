@@ -54,120 +54,52 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    console.log('Connecting to real database...');
+    
     const pool = await getConnection();
     
-    console.log('Starting database seeding...');
-
-    // Create tables if they don't exist
-    await createTablesIfNotExists(pool);
-
-    // Clear existing sample data
-    await pool.request().query(`
-      DELETE FROM dbo.EventTrainerSplits WHERE ProdID IN (77619, 77620, 77621);
-      DELETE FROM dbo.EventTickets WHERE ProdID IN (77619, 77620, 77621);
-      DELETE FROM dbo.Events WHERE ProdID IN (77619, 77620, 77621);
+    // Test the connection by trying to get some events
+    const testQuery = await pool.request().query(`
+      SELECT TOP 5 
+        p.id as ProdID, 
+        p.name as ProdName
+      FROM product p
+      WHERE p.Published = 1
     `);
-
-    // Insert sample events
-    const allEvents = [sampleEvent, ...additionalEvents];
     
-    for (const event of allEvents) {
-      const request = pool.request();
-      request.input('ProdID', event.ProdID);
-      request.input('ProdName', event.ProdName);
-      request.input('EventDate', event.EventDate);
-      request.input('Country', event.Country);
-      request.input('Venue', event.Venue);
-      request.input('Trainer_1', event.Trainer_1);
-
-      await request.query(`
-        INSERT INTO dbo.Events (ProdID, ProdName, EventDate, Country, Venue, Trainer_1)
-        VALUES (@ProdID, @ProdName, @EventDate, @Country, @Venue, @Trainer_1)
-      `);
-    }
-
-    // Insert sample tickets for the main event
-    for (const ticket of sampleTickets) {
-      const request = pool.request();
-      request.input('ProdID', sampleEvent.ProdID);
-      request.input('Attendance', ticket.Attendance);
-      request.input('PaymentMethod', ticket.PaymentMethod);
-      request.input('TierLevel', ticket.TierLevel);
-      request.input('PriceTotal', ticket.PriceTotal);
-      request.input('TrainerFeePct', ticket.TrainerFeePct);
-      request.input('Quantity', ticket.Quantity);
-
-      await request.query(`
-        INSERT INTO dbo.EventTickets 
-        (ProdID, Attendance, PaymentMethod, TierLevel, PriceTotal, TrainerFeePct, Quantity, DeletedTicket)
-        VALUES (@ProdID, @Attendance, @PaymentMethod, @TierLevel, @PriceTotal, @TrainerFeePct, @Quantity, 0)
-      `);
-    }
-
-    // Add some tickets for additional events
-    const additionalTickets = [
-      { ProdID: 77620, Attendance: 'Attended', PaymentMethod: 'Paypal', TierLevel: 'Regular', PriceTotal: 75.00, TrainerFeePct: 0.65, Quantity: 25 },
-      { ProdID: 77620, Attendance: 'Attended', PaymentMethod: 'Cash', TierLevel: 'Regular', PriceTotal: 75.00, TrainerFeePct: 0.65, Quantity: 8 },
-      { ProdID: 77621, Attendance: 'Attended', PaymentMethod: 'Paypal', TierLevel: 'Premium', PriceTotal: 120.00, TrainerFeePct: 0.8, Quantity: 15 }
-    ];
-
-    for (const ticket of additionalTickets) {
-      const request = pool.request();
-      request.input('ProdID', ticket.ProdID);
-      request.input('Attendance', ticket.Attendance);
-      request.input('PaymentMethod', ticket.PaymentMethod);
-      request.input('TierLevel', ticket.TierLevel);
-      request.input('PriceTotal', ticket.PriceTotal);
-      request.input('TrainerFeePct', ticket.TrainerFeePct);
-      request.input('Quantity', ticket.Quantity);
-
-      await request.query(`
-        INSERT INTO dbo.EventTickets 
-        (ProdID, Attendance, PaymentMethod, TierLevel, PriceTotal, TrainerFeePct, Quantity, DeletedTicket)
-        VALUES (@ProdID, @Attendance, @PaymentMethod, @TierLevel, @PriceTotal, @TrainerFeePct, @Quantity, 0)
-      `);
-    }
-
-    // Add some sample trainer splits
-    const sampleSplits = [
-      { ProdID: 77619, RowId: 1, Name: 'Will', Percent: 70.0, CashReceived: 100.0 },
-      { ProdID: 77619, RowId: 2, Name: 'Assistant Trainer', Percent: 30.0, CashReceived: 50.0 }
-    ];
-
-    for (const split of sampleSplits) {
-      const request = pool.request();
-      request.input('ProdID', split.ProdID);
-      request.input('RowId', split.RowId);
-      request.input('Name', split.Name);
-      request.input('Percent', split.Percent);
-      request.input('CashReceived', split.CashReceived);
-
-      await request.query(`
-        INSERT INTO dbo.EventTrainerSplits 
-        (ProdID, RowId, Name, Percent, CashReceived, CreatedAt)
-        VALUES (@ProdID, @RowId, @Name, @Percent, @CashReceived, SYSDATETIME())
-      `);
-    }
-
-    console.log('Database seeding completed successfully');
-
-    // Get summary statistics
-    const statsRequest = pool.request();
-    const stats = await statsRequest.query(`
-      SELECT 
-        (SELECT COUNT(*) FROM dbo.Events WHERE ProdID IN (77619, 77620, 77621)) as EventCount,
-        (SELECT COUNT(*) FROM dbo.EventTickets WHERE ProdID IN (77619, 77620, 77621)) as TicketCount,
-        (SELECT COUNT(*) FROM dbo.EventTrainerSplits WHERE ProdID IN (77619, 77620, 77621)) as SplitCount
+    console.log('Found', testQuery.recordset.length, 'sample events in database');
+    
+    // Create trainer splits table if it doesn't exist (for our app-specific data)
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='EventTrainerSplits' AND xtype='U')
+      CREATE TABLE dbo.EventTrainerSplits (
+          ID INT IDENTITY(1,1) PRIMARY KEY,
+          ProdID INT,
+          RowId INT,
+          Name NVARCHAR(200),
+          Percent DECIMAL(5,2),
+          CashReceived MONEY,
+          CreatedAt DATETIME2,
+          UpdatedAt DATETIME2
+      );
     `);
 
+    // Get some real events count for statistics
+    const statsQuery = await pool.request().query(`
+      SELECT 
+        (SELECT COUNT(*) FROM product WHERE Published = 1) as TotalProducts,
+        (SELECT COUNT(*) FROM dbo.EventTrainerSplits) as ExistingSplits
+    `);
+
+    const stats = statsQuery.recordset[0];
+    
     return NextResponse.json({
       success: true,
-      message: 'Database seeded successfully',
+      message: 'Connected to real database successfully',
       data: {
-        events: stats.recordset[0].EventCount,
-        tickets: stats.recordset[0].TicketCount,
-        splits: stats.recordset[0].SplitCount,
-        sampleEventId: 77619
+        totalProducts: stats.TotalProducts,
+        existingSplits: stats.ExistingSplits,
+        note: 'Using your real product database - no sample data needed'
       }
     });
 
