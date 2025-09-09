@@ -392,7 +392,7 @@ export class DatabaseService {
         ProdID,
         RowId,
         Name,
-        Percent,
+        [Percent],
         CashReceived
       FROM dbo.EventTrainerSplits 
       WHERE ProdID = @prodId
@@ -428,12 +428,12 @@ export class DatabaseService {
       WHEN MATCHED THEN 
         UPDATE SET 
           Name = src.Name, 
-          Percent = src.Percent, 
+          [Percent] = src.[Percent], 
           CashReceived = src.CashReceived, 
           UpdatedAt = SYSDATETIME()
       WHEN NOT MATCHED THEN 
-        INSERT (ProdID, RowId, Name, Percent, CashReceived, CreatedAt) 
-        VALUES (src.ProdID, src.RowId, src.Name, src.Percent, src.CashReceived, SYSDATETIME())
+        INSERT (ProdID, RowId, Name, [Percent], CashReceived, CreatedAt) 
+        VALUES (src.ProdID, src.RowId, src.Name, src.[Percent], src.CashReceived, SYSDATETIME())
     `);
   }
 

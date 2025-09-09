@@ -3,7 +3,7 @@ import { DatabaseService } from '@/lib/database';
 import { requireAuth } from '@/lib/middleware';
 
 interface RouteContext {
-  params: { prodId: string };
+  params: Promise<{ prodId: string }>;
 }
 
 export async function GET(request: NextRequest, { params }: RouteContext) {
@@ -14,7 +14,8 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   }
 
   try {
-    const prodId = parseInt(params.prodId);
+    const { prodId: prodIdParam } = await params;
+    const prodId = parseInt(prodIdParam);
     if (isNaN(prodId)) {
       return NextResponse.json(
         { success: false, error: 'Invalid ProdID' },
