@@ -290,29 +290,69 @@ export class DatabaseService {
     if (orderResult.recordset.length === 0) {
       // If no orders found, still try to get basic event info
       const eventResult = await request.query(`
-        SELECT DISTINCT
-          p.id as ProdID, 
-          p.name as ProdName,  
-          c.name as Category, 
-          sao2.name as Program,
-          CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE) as EventDate, 
-          v.Name as Vendor,
-          sao.Name as Country
-        FROM product p
-        LEFT JOIN Product_Category_Mapping pcm ON p.id = pcm.ProductId
-        LEFT JOIN Product_ProductAttribute_Mapping pam ON p.id = pam.ProductId
-        LEFT JOIN SalsationEvent_Country_Mapping scm ON p.id = scm.ProductId
-        LEFT JOIN country cn ON scm.CountryId = cn.Id
-        LEFT JOIN ProductAttributeValue pav ON pam.id = pav.ProductAttributeMappingId
-        LEFT JOIN Category c ON pcm.CategoryId = c.id
-        LEFT JOIN Vendor v ON p.VendorId = v.Id
-        LEFT JOIN Product_SpecificationAttribute_Mapping psm ON p.Id = psm.productid
-        LEFT JOIN SpecificationAttributeOption sao ON psm.SpecificationAttributeOptionId = sao.Id 
-        LEFT JOIN SpecificationAttribute sa ON sao.SpecificationAttributeId = sa.Id
-        LEFT JOIN Product_SpecificationAttribute_Mapping psm2 ON p.Id = psm2.productid
-        LEFT JOIN SpecificationAttributeOption sao2 ON psm2.SpecificationAttributeOptionId = sao2.Id 
-        LEFT JOIN SpecificationAttribute sa2 ON sao2.SpecificationAttributeId = sa2.Id
-        WHERE sa.id = 10 AND sa2.id = 6 AND p.id = @prodId
+        WITH base AS (
+          SELECT DISTINCT
+            p.id as ProdID, 
+            p.name as ProdName,  
+            c.name as Category, 
+            sao2.name as Program,
+            NULL as ReportingGroup,
+            CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE) as EventDate, 
+            p.price as ProductPrice, 
+            v.Name as Vendor,
+            sao.Name as Country,
+            p.StockQuantity,
+            p.DisableBuyButton as Cancelled
+          FROM product p
+          LEFT JOIN Product_Category_Mapping pcm ON p.id = pcm.ProductId
+          LEFT JOIN Product_ProductAttribute_Mapping pam ON p.id = pam.ProductId
+          LEFT JOIN SalsationEvent_Country_Mapping scm ON p.id = scm.ProductId
+          LEFT JOIN country cn ON scm.CountryId = cn.Id
+          LEFT JOIN ProductAttributeValue pav ON pam.id = pav.ProductAttributeMappingId
+          LEFT JOIN Category c ON pcm.CategoryId = c.id
+          LEFT JOIN Vendor v ON p.VendorId = v.Id
+          LEFT JOIN Product_SpecificationAttribute_Mapping psm ON p.Id = psm.productid
+          LEFT JOIN SpecificationAttributeOption sao ON psm.SpecificationAttributeOptionId = sao.Id 
+          LEFT JOIN SpecificationAttribute sa ON sao.SpecificationAttributeId = sa.Id
+          LEFT JOIN Product_SpecificationAttribute_Mapping psm2 ON p.Id = psm2.productid
+          LEFT JOIN SpecificationAttributeOption sao2 ON psm2.SpecificationAttributeOptionId = sao2.Id 
+          LEFT JOIN SpecificationAttribute sa2 ON sao2.SpecificationAttributeId = sa2.Id
+          WHERE sa.id = 10
+            AND sa2.id = 6
+            AND (p.Published = 1 OR (p.id = '40963' AND p.Published = 0))
+            AND (pav.name LIKE '%2024%' OR pav.name LIKE '%2025%')
+            AND p.id NOT IN ('53000', '55053')
+            AND p.id = @prodId
+        ),
+        finals AS (
+          SELECT 
+            *,
+            CASE 
+              -- Case 1: "Online" + Location (e.g., "Online, Global" → "OnlineGlobal")
+              WHEN ProdName LIKE '%Online%' and ProdName LIKE '%Global%' THEN 'OnlineGlobal'
+              -- Case 2: "Online" without specific location
+              WHEN ProdName LIKE '%Online%' or ProdName LIKE '%En Linea%' or ProdName LIKE '%En Línea%' THEN 'Online'
+              -- Case 3: "Venue" present in string
+              WHEN ProdName LIKE '%Venue,%' THEN 'Venue'
+              -- Case 4: "Presencial" (Spanish version of "In-person Venue")
+              WHEN ProdName LIKE '%Presencial%' THEN 'Venue'
+              -- Case 5: "ON DEMAND!" (special case)
+              WHEN ProdName LIKE 'ON DEMAND!%' THEN 'On Demand'
+              -- Case 6: "ISOLATION INSPIRATION Workshop"
+              WHEN ProdName LIKE 'ISOLATION INSPIRATION Workshop%' or ProdName LIKE 'SALSATION Workshop with%' THEN 'Venue'
+              -- Case 7: "Cruise Training"
+              WHEN ProdID = 68513 THEN 'Venue'
+              -- Case 8: "Salsation Blast"
+              WHEN ProdName like '%THE SALSATION BLAST%' or ProdName like '%SALSATION Method Training%' THEN 'Venue'
+              -- Default case: NULL
+              ELSE NULL
+            END AS Location,
+            ROW_NUMBER() OVER(PARTITION BY ProdID ORDER BY EventDate ASC) as rn
+          FROM base
+        )
+        SELECT ProdID, ProdName, EventDate, Category, Program, Vendor, Country, Location
+        FROM finals
+        WHERE rn = 1
       `);
       
       if (eventResult.recordset.length === 0) {
@@ -325,7 +365,7 @@ export class DatabaseService {
         ProdName: eventRow.ProdName,
         EventDate: eventRow.EventDate,
         Country: eventRow.Country,
-        Venue: eventRow.Vendor,
+        Venue: eventRow.Location || 'Unknown', // Use calculated Location for Venue
         Trainer_1: eventRow.Vendor,
         tickets: [],
       };
@@ -373,8 +413,8 @@ export class DatabaseService {
       ProdName: eventRow.ProdName,
       EventDate: eventRow.EventDate,
       Country: eventRow.Country,
-      Venue: eventRow.Vendor,
-      Trainer_1: eventRow.Vendor,
+      Venue: eventRow.Location || 'Unknown', // Use calculated Location for Venue
+      Trainer_1: eventRow.Vendor, // Keep Vendor for trainer name
       tickets,
     };
 
