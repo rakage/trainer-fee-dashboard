@@ -131,7 +131,8 @@ export default function DashboardPage() {
                             <th className="text-left py-3 px-4 font-medium text-gray-900">Payment Method</th>
                             <th className="text-left py-3 px-4 font-medium text-gray-900">Tier Level</th>
                             <th className="text-right py-3 px-4 font-medium text-gray-900">Quantity</th>
-                            <th className="text-right py-3 px-4 font-medium text-gray-900">Price Total</th>
+                            <th className="text-right py-3 px-4 font-medium text-gray-900">Ticket Price</th>
+                            <th className="text-right py-3 px-4 font-medium text-gray-900">Ticket Price Total</th>
                             <th className="text-right py-3 px-4 font-medium text-gray-900">Trainer Fee %</th>
                             <th className="text-right py-3 px-4 font-medium text-gray-900">Trainer Fee Amount</th>
                           </tr>
@@ -164,6 +165,9 @@ export default function DashboardPage() {
                                 <td className="py-3 px-4 text-gray-900">{ticket.TierLevel}</td>
                                 <td className="py-3 px-4 text-right text-gray-900">{ticket.Quantity}</td>
                                 <td className="py-3 px-4 text-right font-medium text-gray-900">
+                                  €{ticket.UnitPrice.toFixed(2)}
+                                </td>
+                                <td className="py-3 px-4 text-right font-medium text-gray-900">
                                   €{ticket.PriceTotal.toFixed(2)}
                                 </td>
                                 <td className="py-3 px-4 text-right text-gray-900">
@@ -179,6 +183,7 @@ export default function DashboardPage() {
                         <tfoot className="bg-gray-50 border-t">
                           <tr>
                             <td colSpan={4} className="py-3 px-4 font-medium text-gray-900">Totals</td>
+                            <td className="py-3 px-4"></td>
                             <td className="py-3 px-4 text-right font-bold text-gray-900">
                               €{selectedEvent.tickets.reduce((sum, ticket) => sum + ticket.PriceTotal, 0).toFixed(2)}
                             </td>

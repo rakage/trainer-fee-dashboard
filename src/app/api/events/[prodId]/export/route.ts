@@ -111,8 +111,8 @@ async function generateXLSXExport(event: any, splits: any[], commissions: any, t
   
   // Headers for summary table
   worksheet.addRow([
-    'Attendance', 'Payment Method', 'Tier Level', 'Price Total', 
-    'Trainer Fee %', 'Quantity', 'Sum Price Total', 'Sum Trainer Fee'
+    'Attendance', 'Payment Method', 'Tier Level', 'Quantity',
+    'Ticket Price', 'Ticket Price Total', 'Trainer Fee %', 'Trainer Fee Amount'
   ]);
 
   // Add summary rows
@@ -121,10 +121,10 @@ async function generateXLSXExport(event: any, splits: any[], commissions: any, t
       row.Attendance,
       row.PaymentMethod || 'N/A',
       row.TierLevel || 'N/A',
-      row.PriceTotal,
-      row.TrainerFeePct,
       row.sumQuantity,
+      row.UnitPrice,
       row.sumPriceTotal,
+      row.TrainerFeePct,
       row.sumTrainerFee
     ]);
   });
@@ -169,15 +169,15 @@ async function generateCSVExport(event: any, splits: any[], commissions: any, tr
     ['Venue', event.Venue],
     ['Trainer', trainerOverride || event.Trainer_1],
     [],
-    ['Attendance', 'Payment Method', 'Tier Level', 'Price Total', 'Trainer Fee %', 'Quantity', 'Sum Price Total', 'Sum Trainer Fee'],
+    ['Attendance', 'Payment Method', 'Tier Level', 'Quantity', 'Ticket Price', 'Ticket Price Total', 'Trainer Fee %', 'Trainer Fee Amount'],
     ...summaryData.map(row => [
       row.Attendance,
       row.PaymentMethod || 'N/A',
       row.TierLevel || 'N/A',
-      row.PriceTotal,
-      row.TrainerFeePct,
       row.sumQuantity,
+      row.UnitPrice,
       row.sumPriceTotal,
+      row.TrainerFeePct,
       row.sumTrainerFee
     ])
   ];
@@ -236,11 +236,11 @@ async function generatePDFExport(event: any, splits: any[], commissions: any, tr
               <th>Attendance</th>
               <th>Payment Method</th>
               <th>Tier Level</th>
-              <th class="number">Price Total</th>
-              <th class="number">Trainer Fee %</th>
               <th class="number">Quantity</th>
-              <th class="number">Sum Price Total</th>
-              <th class="number">Sum Trainer Fee</th>
+              <th class="number">Ticket Price</th>
+              <th class="number">Ticket Price Total</th>
+              <th class="number">Trainer Fee %</th>
+              <th class="number">Trainer Fee Amount</th>
             </tr>
           </thead>
           <tbody>
@@ -249,10 +249,10 @@ async function generatePDFExport(event: any, splits: any[], commissions: any, tr
                 <td>${row.Attendance}</td>
                 <td>${row.PaymentMethod || 'N/A'}</td>
                 <td>${row.TierLevel || 'N/A'}</td>
-                <td class="number">€${row.PriceTotal.toFixed(2)}</td>
-                <td class="number">${(row.TrainerFeePct * 100).toFixed(1)}%</td>
                 <td class="number">${row.sumQuantity}</td>
+                <td class="number">€${row.UnitPrice.toFixed(2)}</td>
                 <td class="number">€${row.sumPriceTotal.toFixed(2)}</td>
+                <td class="number">${(row.TrainerFeePct * 100).toFixed(1)}%</td>
                 <td class="number">€${row.sumTrainerFee.toFixed(2)}</td>
               </tr>
             `).join('')}

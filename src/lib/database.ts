@@ -383,12 +383,12 @@ export class DatabaseService {
           Attendance: order.Attendance,
           PaymentMethod: order.PaymentMethod,
           TierLevel: order.TierLevel || 'Standard',
-          PriceTotal: 0,
+          UnitPrice: order.PriceTotal || 0, // Individual ticket price from PriceTotal column
           Quantity: 0,
           ConcatTrainerPercentKey: order.ConcatTrainerPercentKey,
         };
       }
-      acc[key].PriceTotal += order.PriceTotal || 0;
+      // For grouped items, we should use the same unit price and sum the quantities
       acc[key].Quantity += order.quantity || 0;
       return acc;
     }, {} as any);
@@ -402,7 +402,8 @@ export class DatabaseService {
         Attendance: group.Attendance,
         PaymentMethod: group.PaymentMethod,
         TierLevel: group.TierLevel,
-        PriceTotal: group.PriceTotal,
+        UnitPrice: group.UnitPrice,  // Individual ticket price
+        PriceTotal: group.UnitPrice * group.Quantity, // Total price = unit price × quantity
         TrainerFeePct: feePercent,
         Quantity: group.Quantity,
       });

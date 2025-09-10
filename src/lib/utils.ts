@@ -43,7 +43,8 @@ export function calculateEventSummary(tickets: EventTicket[]): EventSummaryRow[]
         Attendance: ticket.Attendance,
         PaymentMethod: ticket.PaymentMethod,
         TierLevel: ticket.TierLevel,
-        PriceTotal: ticket.PriceTotal,
+        UnitPrice: ticket.UnitPrice,      // Individual ticket price
+        PriceTotal: ticket.PriceTotal,    // Total price sum
         TrainerFeePct: ticket.TrainerFeePct,
         sumQuantity: 0,
         sumPriceTotal: 0,
@@ -53,8 +54,8 @@ export function calculateEventSummary(tickets: EventTicket[]): EventSummaryRow[]
 
     const row = groupedData.get(key)!;
     row.sumQuantity += ticket.Quantity;
-    row.sumPriceTotal += ticket.PriceTotal * ticket.Quantity;
-    row.sumTrainerFee += ticket.PriceTotal * ticket.Quantity * ticket.TrainerFeePct;
+    row.sumPriceTotal += ticket.PriceTotal; // PriceTotal is already calculated as UnitPrice * Quantity
+    row.sumTrainerFee += ticket.PriceTotal * ticket.TrainerFeePct; // Use PriceTotal for trainer fee calculation
   });
 
   return Array.from(groupedData.values()).sort((a, b) => {

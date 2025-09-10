@@ -24,7 +24,8 @@ export interface EventTicket {
   Attendance: string;
   PaymentMethod: string | null;
   TierLevel: string | null;
-  PriceTotal: number;
+  UnitPrice: number;  // Individual ticket price (from PriceTotal column)
+  PriceTotal: number; // Total price sum (UnitPrice * Quantity)
   TrainerFeePct: number;
   Quantity: number;
 }
@@ -38,7 +39,8 @@ export interface EventSummaryRow {
   Attendance: string;
   PaymentMethod: string | null;
   TierLevel: string | null;
-  PriceTotal: number;
+  UnitPrice: number;   // Individual ticket price
+  PriceTotal: number;  // Total price sum
   TrainerFeePct: number;
   sumQuantity: number;
   sumPriceTotal: number;
