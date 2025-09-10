@@ -4,7 +4,7 @@ import { requireRole } from '@/lib/middleware';
 import { TrainerSplit } from '@/types';
 
 interface RouteContext {
-  params: { prodId: string };
+  params: Promise<{ prodId: string }>;
 }
 
 export async function POST(request: NextRequest, { params }: RouteContext) {
@@ -15,7 +15,9 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   }
 
   try {
-    const prodId = parseInt(params.prodId);
+    // Await params before accessing properties (Next.js 15)
+    const { prodId: prodIdParam } = await params;
+    const prodId = parseInt(prodIdParam);
     if (isNaN(prodId)) {
       return NextResponse.json(
         { success: false, error: 'Invalid ProdID' },

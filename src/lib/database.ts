@@ -280,7 +280,30 @@ export class DatabaseService {
                 WHEN @prodId = 68513 THEN 'Venue'
                 WHEN ProdName like '%THE SALSATION BLAST%' or ProdName like '%SALSATION Method Training%' THEN 'Venue'
                 ELSE NULL
-            END AS Location
+            END AS Location,
+            -- Extract trainer name from ProdName
+            CASE 
+                -- Pattern: "[PROGRAM] [TYPE] with [TRAINER_NAME], [VENUE], [LOCATION] - [COUNTRY], [DATES]"
+                WHEN ProdName LIKE '% with %' THEN 
+                    LTRIM(RTRIM(
+                        CASE 
+                            -- Handle multiple trainers with & separator - take first trainer only
+                            WHEN CHARINDEX(' & ', SUBSTRING(ProdName, CHARINDEX(' with ', ProdName) + 6, LEN(ProdName))) > 0 THEN
+                                SUBSTRING(ProdName, 
+                                    CHARINDEX(' with ', ProdName) + 6, 
+                                    CHARINDEX(' & ', SUBSTRING(ProdName, CHARINDEX(' with ', ProdName) + 6, LEN(ProdName))) - 1
+                                )
+                            -- Single trainer
+                            ELSE
+                                SUBSTRING(ProdName, 
+                                    CHARINDEX(' with ', ProdName) + 6, 
+                                    CHARINDEX(',', ProdName, CHARINDEX(' with ', ProdName)) - CHARINDEX(' with ', ProdName) - 6
+                                )
+                        END
+                    ))
+                -- Fallback to Vendor if no "with" pattern found
+                ELSE COALESCE(Vendor, 'Unknown')
+            END AS TrainerName
         from finals
         where rn = 1
       )
@@ -348,10 +371,33 @@ export class DatabaseService {
               -- Default case: NULL
               ELSE NULL
             END AS Location,
+            -- Extract trainer name from ProdName
+            CASE 
+                -- Pattern: "[PROGRAM] [TYPE] with [TRAINER_NAME], [VENUE], [LOCATION] - [COUNTRY], [DATES]"
+                WHEN ProdName LIKE '% with %' THEN 
+                    LTRIM(RTRIM(
+                        CASE 
+                            -- Handle multiple trainers with & separator - take first trainer only
+                            WHEN CHARINDEX(' & ', SUBSTRING(ProdName, CHARINDEX(' with ', ProdName) + 6, LEN(ProdName))) > 0 THEN
+                                SUBSTRING(ProdName, 
+                                    CHARINDEX(' with ', ProdName) + 6, 
+                                    CHARINDEX(' & ', SUBSTRING(ProdName, CHARINDEX(' with ', ProdName) + 6, LEN(ProdName))) - 1
+                                )
+                            -- Single trainer
+                            ELSE
+                                SUBSTRING(ProdName, 
+                                    CHARINDEX(' with ', ProdName) + 6, 
+                                    CHARINDEX(',', ProdName, CHARINDEX(' with ', ProdName)) - CHARINDEX(' with ', ProdName) - 6
+                                )
+                        END
+                    ))
+                -- Fallback to Vendor if no "with" pattern found
+                ELSE COALESCE(Vendor, 'Unknown')
+            END AS TrainerName,
             ROW_NUMBER() OVER(PARTITION BY ProdID ORDER BY EventDate ASC) as rn
           FROM base
         )
-        SELECT ProdID, ProdName, EventDate, Category, Program, Vendor, Country, Location
+        SELECT ProdID, ProdName, EventDate, Category, Program, Vendor, Country, Location, TrainerName
         FROM finals
         WHERE rn = 1
       `);
@@ -367,7 +413,7 @@ export class DatabaseService {
         EventDate: eventRow.EventDate,
         Country: eventRow.Country,
         Venue: eventRow.Location || 'Unknown', // Use calculated Location for Venue
-        Trainer_1: eventRow.Vendor,
+        Trainer_1: eventRow.TrainerName || eventRow.Vendor || 'Unknown', // Use extracted trainer name
         tickets: [],
       };
     }
@@ -417,7 +463,7 @@ export class DatabaseService {
       EventDate: eventRow.EventDate,
       Country: eventRow.Country,
       Venue: eventRow.Location || 'Unknown', // Use calculated Location for Venue
-      Trainer_1: eventRow.Vendor, // Keep Vendor for trainer name
+      Trainer_1: eventRow.TrainerName || eventRow.Vendor || 'Unknown', // Use extracted trainer name from title
       tickets,
     };
 
