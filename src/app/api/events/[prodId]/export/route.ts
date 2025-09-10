@@ -96,11 +96,17 @@ async function generateXLSXExport(event: any, splits: any[], commissions: any, t
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet('Event Report');
 
+  // Format date properly
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('de-DE');
+  };
+
   // Add header information
   worksheet.addRow(['Event Report']);
   worksheet.addRow(['ProdID:', event.ProdID]);
   worksheet.addRow(['Event Name:', event.ProdName]);
-  worksheet.addRow(['Date:', event.EventDate]);
+  worksheet.addRow(['Date:', formatDate(event.EventDate)]);
   worksheet.addRow(['Country:', event.Country]);
   worksheet.addRow(['Venue:', event.Venue]);
   worksheet.addRow(['Trainer:', trainerOverride || event.Trainer_1]);
@@ -108,6 +114,15 @@ async function generateXLSXExport(event: any, splits: any[], commissions: any, t
 
   // Add summary data
   const summaryData = calculateEventSummary(event.tickets);
+  
+  // Calculate overview and totals
+  const { calculateEventOverview } = require('@/lib/utils');
+  const overview = calculateEventOverview(event.tickets, commissions, splits);
+  const totals = {
+    totalQuantity: summaryData.reduce((sum, row) => sum + row.sumQuantity, 0),
+    totalPriceTotal: summaryData.reduce((sum, row) => sum + row.sumPriceTotal, 0),
+    totalTrainerFee: summaryData.reduce((sum, row) => sum + row.sumTrainerFee, 0)
+  };
   
   // Headers for summary table
   worksheet.addRow([
@@ -128,6 +143,24 @@ async function generateXLSXExport(event: any, splits: any[], commissions: any, t
       row.sumTrainerFee
     ]);
   });
+
+  // Add grand total row
+  worksheet.addRow([
+    'Grand Total', '', '', 
+    totals.totalQuantity,
+    '',
+    totals.totalPriceTotal,
+    '',
+    totals.totalTrainerFee
+  ]);
+
+  // Add overview section
+  worksheet.addRow([]); // Empty row
+  worksheet.addRow(['Overview']);
+  worksheet.addRow(['Trainer Fee', overview.trainerFee]);
+  worksheet.addRow(['Cash Sales', overview.cashSales]);
+  worksheet.addRow(['Balance', overview.balance]);
+  worksheet.addRow(['Receivable from Trainer', overview.payableToTrainer]);
 
   // Add trainer splits if any
   if (splits.length > 0) {
@@ -197,6 +230,23 @@ async function generatePDFExport(event: any, splits: any[], commissions: any, tr
     const puppeteer = require('puppeteer');
     const summaryData = calculateEventSummary(event.tickets);
     
+    // Calculate overview metrics
+    const { calculateEventOverview } = require('@/lib/utils');
+    const overview = calculateEventOverview(event.tickets, commissions, splits);
+    
+    // Calculate totals for grand total row
+    const totals = {
+      totalQuantity: summaryData.reduce((sum, row) => sum + row.sumQuantity, 0),
+      totalPriceTotal: summaryData.reduce((sum, row) => sum + row.sumPriceTotal, 0),
+      totalTrainerFee: summaryData.reduce((sum, row) => sum + row.sumTrainerFee, 0)
+    };
+    
+    // Format date properly (remove GMT timezone)
+    const formatDate = (dateStr: string) => {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('de-DE');
+    };
+    
     // Create HTML content for PDF
     const htmlContent = `
       <!DOCTYPE html>
@@ -223,7 +273,7 @@ async function generatePDFExport(event: any, splits: any[], commissions: any, tr
         <div class="info-grid">
           <div class="info-label">ProdID:</div><div>${event.ProdID}</div>
           <div class="info-label">Event Name:</div><div>${event.ProdName}</div>
-          <div class="info-label">Date:</div><div>${event.EventDate}</div>
+          <div class="info-label">Date:</div><div>${formatDate(event.EventDate)}</div>
           <div class="info-label">Country:</div><div>${event.Country}</div>
           <div class="info-label">Venue:</div><div>${event.Venue}</div>
           <div class="info-label">Trainer:</div><div>${trainerOverride || event.Trainer_1}</div>
@@ -257,6 +307,38 @@ async function generatePDFExport(event: any, splits: any[], commissions: any, tr
               </tr>
             `).join('')}
           </tbody>
+          <tfoot style="background-color: #f8f9fa; border-top: 2px solid #dee2e6; font-weight: bold;">
+            <tr>
+              <td colspan="4" style="text-align: left; padding: 12px 8px;">Grand Total</td>
+              <td class="number" style="font-weight: bold;">${totals.totalQuantity}</td>
+              <td class="number"></td>
+              <td class="number" style="font-weight: bold;">€${totals.totalPriceTotal.toFixed(2)}</td>
+              <td class="number"></td>
+              <td class="number" style="font-weight: bold; color: #28a745;">€${totals.totalTrainerFee.toFixed(2)}</td>
+            </tr>
+          </tfoot>
+        </table>
+        
+        <h2>Overview</h2>
+        <table style="width: 50%; margin: 20px 0;">
+          <tbody>
+            <tr>
+              <td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">Trainer Fee</td>
+              <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">€${overview.trainerFee.toFixed(2)}</td>
+            </tr>
+            <tr>
+              <td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">Cash Sales</td>
+              <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">€${overview.cashSales.toFixed(2)}</td>
+            </tr>
+            <tr>
+              <td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">Balance</td>
+              <td style="border: 1px solid #ddd; padding: 8px; text-align: right; ${overview.balance < 0 ? 'color: #dc3545;' : ''}">€${overview.balance.toFixed(2)}</td>
+            </tr>
+            <tr>
+              <td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">Receivable from Trainer</td>
+              <td style="border: 1px solid #ddd; padding: 8px; text-align: right; font-weight: bold; ${overview.payableToTrainer < 0 ? 'color: #dc3545;' : 'color: #28a745;'}">€${overview.payableToTrainer.toFixed(2)}</td>
+            </tr>
+          </tbody>
         </table>
         
         ${splits.length > 0 ? `
@@ -286,7 +368,7 @@ async function generatePDFExport(event: any, splits: any[], commissions: any, tr
         ` : ''}
         
         <div class="footer">
-          Generated on: ${new Date().toLocaleString('de-DE')}<br>
+          Generated on: ${new Date().toLocaleDateString('de-DE')} ${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}<br>
           Salsation Event Reports Dashboard
         </div>
       </body>
