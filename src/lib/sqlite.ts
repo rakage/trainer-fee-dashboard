@@ -46,10 +46,43 @@ const createFeeParamsTable = db.prepare(`
 
 createFeeParamsTable.run();
 
+// Create trainer splits table (for app-specific data)
+const createTrainerSplitsTable = db.prepare(`
+  CREATE TABLE IF NOT EXISTS trainer_splits (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    prod_id INTEGER NOT NULL,
+    row_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    percent REAL NOT NULL,
+    cash_received REAL NOT NULL DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(prod_id, row_id)
+  )
+`);
+
+createTrainerSplitsTable.run();
+
+// Create audit log table
+const createAuditLogTable = db.prepare(`
+  CREATE TABLE IF NOT EXISTS audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,
+    action TEXT NOT NULL,
+    prod_id INTEGER NOT NULL,
+    details TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
+createAuditLogTable.run();
+
 // Create indexes
 db.prepare('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)').run();
 db.prepare('CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)').run();
 db.prepare('CREATE UNIQUE INDEX IF NOT EXISTS idx_fee_concat ON fee_params(concat_key)').run();
+db.prepare('CREATE INDEX IF NOT EXISTS idx_trainer_splits_prod_id ON trainer_splits(prod_id)').run();
+db.prepare('CREATE INDEX IF NOT EXISTS idx_audit_log_prod_id ON audit_log(prod_id)').run();
 
 // Prepared statements
 const insertUser = db.prepare(`
@@ -75,6 +108,45 @@ const getAllUsers = db.prepare(`
   FROM users 
   ORDER BY created_at DESC
 `);
+
+export class TrainerSplitService {
+  static getByProdId(prodId: number): any[] {
+    return db.prepare('SELECT * FROM trainer_splits WHERE prod_id = ? ORDER BY row_id').all(prodId);
+  }
+
+  static upsert(split: { prod_id: number; row_id: number; name: string; percent: number; cash_received: number; }): void {
+    const existing = db.prepare('SELECT id FROM trainer_splits WHERE prod_id = ? AND row_id = ?').get(split.prod_id, split.row_id) as any;
+    if (existing?.id) {
+      db.prepare(`
+        UPDATE trainer_splits 
+        SET name = ?, percent = ?, cash_received = ?, updated_at = CURRENT_TIMESTAMP 
+        WHERE prod_id = ? AND row_id = ?
+      `).run(split.name, split.percent, split.cash_received, split.prod_id, split.row_id);
+    } else {
+      db.prepare(`
+        INSERT INTO trainer_splits (prod_id, row_id, name, percent, cash_received) 
+        VALUES (?, ?, ?, ?, ?)
+      `).run(split.prod_id, split.row_id, split.name, split.percent, split.cash_received);
+    }
+  }
+
+  static delete(prodId: number, rowId: number): void {
+    db.prepare('DELETE FROM trainer_splits WHERE prod_id = ? AND row_id = ?').run(prodId, rowId);
+  }
+}
+
+export class AuditService {
+  static log(userId: string, action: string, prodId: number, details: string): void {
+    db.prepare(`
+      INSERT INTO audit_log (user_id, action, prod_id, details) 
+      VALUES (?, ?, ?, ?)
+    `).run(userId, action, prodId, details);
+  }
+
+  static getByProdId(prodId: number): any[] {
+    return db.prepare('SELECT * FROM audit_log WHERE prod_id = ? ORDER BY created_at DESC').all(prodId);
+  }
+}
 
 export class FeeParamService {
   static concatKey(program: string, category: string, venue: string, attendance: string): string {

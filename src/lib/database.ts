@@ -422,84 +422,53 @@ export class DatabaseService {
   }
 
   static async getTrainerSplits(prodId: number): Promise<TrainerSplit[]> {
-    const pool = await getConnection();
-    const request = pool.request();
-    
-    request.input('prodId', sql.Int, prodId);
-
     try {
-      // First ensure the table exists
-      await this.ensureTrainerSplitsTableExists();
+      // Use SQLite for trainer splits (app-specific data)
+      const { TrainerSplitService } = require('./sqlite');
+      const rows = TrainerSplitService.getByProdId(prodId);
       
-      const result = await request.query(`
-        SELECT 
-          ProdID,
-          RowId,
-          Name,
-          [Percent],
-          CashReceived
-        FROM dbo.EventTrainerSplits 
-        WHERE ProdID = @prodId
-        ORDER BY RowId
-      `);
-
-      return result.recordset.map((row, index): TrainerSplit => ({
+      return rows.map((row, index): TrainerSplit => ({
         id: index + 1,
-        ProdID: row.ProdID,
-        RowId: row.RowId,
-        Name: row.Name,
-        Percent: row.Percent,
+        ProdID: row.prod_id,
+        RowId: row.row_id,
+        Name: row.name,
+        Percent: row.percent,
         TrainerFee: 0, // Will be calculated in frontend
-        CashReceived: row.CashReceived,
+        CashReceived: row.cash_received,
         Payable: 0, // Will be calculated in frontend
       }));
     } catch (error: any) {
-      // If table doesn't exist, return empty array
-      if (error.number === 208) { // Invalid object name
-        console.log('EventTrainerSplits table does not exist, returning empty splits');
-        return [];
-      }
-      throw error;
+      console.error('Error getting trainer splits from SQLite:', error);
+      return [];
     }
   }
 
   static async saveTrainerSplit(split: TrainerSplit): Promise<void> {
-    const pool = await getConnection();
-    const request = pool.request();
-    
-    request.input('prodId', sql.Int, split.ProdID);
-    request.input('rowId', sql.Int, split.RowId);
-    request.input('name', sql.NVarChar(200), split.Name);
-    request.input('percent', sql.Decimal(5, 2), split.Percent);
-    request.input('cashReceived', sql.Money, split.CashReceived);
-
-    await request.query(`
-      MERGE dbo.EventTrainerSplits AS target
-      USING (VALUES (@prodId, @rowId, @name, @percent, @cashReceived)) AS src(ProdID, RowId, Name, Percent, CashReceived)
-      ON target.ProdID = src.ProdID AND target.RowId = src.RowId
-      WHEN MATCHED THEN 
-        UPDATE SET 
-          Name = src.Name, 
-          [Percent] = src.[Percent], 
-          CashReceived = src.CashReceived, 
-          UpdatedAt = SYSDATETIME()
-      WHEN NOT MATCHED THEN 
-        INSERT (ProdID, RowId, Name, [Percent], CashReceived, CreatedAt) 
-        VALUES (src.ProdID, src.RowId, src.Name, src.[Percent], src.CashReceived, SYSDATETIME())
-    `);
+    try {
+      // Use SQLite for trainer splits (app-specific data)
+      const { TrainerSplitService } = require('./sqlite');
+      TrainerSplitService.upsert({
+        prod_id: split.ProdID,
+        row_id: split.RowId,
+        name: split.Name,
+        percent: split.Percent,
+        cash_received: split.CashReceived
+      });
+    } catch (error) {
+      console.error('Error saving trainer split to SQLite:', error);
+      throw error;
+    }
   }
 
   static async deleteTrainerSplit(prodId: number, rowId: number): Promise<void> {
-    const pool = await getConnection();
-    const request = pool.request();
-    
-    request.input('prodId', sql.Int, prodId);
-    request.input('rowId', sql.Int, rowId);
-
-    await request.query(`
-      DELETE FROM dbo.EventTrainerSplits 
-      WHERE ProdID = @prodId AND RowId = @rowId
-    `);
+    try {
+      // Use SQLite for trainer splits (app-specific data)
+      const { TrainerSplitService } = require('./sqlite');
+      TrainerSplitService.delete(prodId, rowId);
+    } catch (error) {
+      console.error('Error deleting trainer split from SQLite:', error);
+      throw error;
+    }
   }
 
   static getTrainerFeePercent(concatKey: string): number {
@@ -519,52 +488,16 @@ export class DatabaseService {
     }
   }
 
-  static async ensureTrainerSplitsTableExists(): Promise<void> {
-    try {
-      const pool = await getConnection();
-      await pool.request().query(`
-        IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='EventTrainerSplits' AND xtype='U')
-        CREATE TABLE dbo.EventTrainerSplits (
-            ID INT IDENTITY(1,1) PRIMARY KEY,
-            ProdID INT,
-            RowId INT,
-            Name NVARCHAR(200),
-            [Percent] DECIMAL(5,2),
-            CashReceived MONEY,
-            CreatedAt DATETIME2 DEFAULT SYSDATETIME(),
-            UpdatedAt DATETIME2
-        );
-      `);
-    } catch (error) {
-      console.error('Failed to create EventTrainerSplits table:', error);
-      // Don't throw error to prevent blocking the main functionality
-    }
-  }
-
   static async logAuditEvent(userId: string, action: string, prodId: number, details: string): Promise<void> {
     try {
-      const pool = await getConnection();
-      const request = pool.request();
-      
-      request.input('userId', sql.NVarChar(50), userId);
-      request.input('action', sql.NVarChar(100), action);
-      request.input('prodId', sql.Int, prodId);
-      request.input('details', sql.NVarChar(sql.MAX), details);
-
-      await request.query(`
-        INSERT INTO dbo.AuditLog (UserId, Action, ProdId, Details, CreatedAt)
-        VALUES (@userId, @action, @prodId, @details, SYSDATETIME())
-      `);
+      // Use SQLite for audit logging (app-specific data)
+      const { AuditService } = require('./sqlite');
+      AuditService.log(userId, action, prodId, details);
     } catch (error) {
-      console.error('Failed to log audit event:', error);
+      console.error('Failed to log audit event to SQLite:', error);
       // Don't throw error for audit logging failures
     }
   }
-}
-
-// Utility function for parameterized queries
-export function createRequest(pool: ConnectionPool): Request {
-  return pool.request();
 }
 
 // Handle cleanup on process termination

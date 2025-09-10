@@ -193,30 +193,138 @@ async function generateCSVExport(event: any, splits: any[], commissions: any, tr
 }
 
 async function generatePDFExport(event: any, splits: any[], commissions: any, trainerOverride?: string, filename?: string) {
-  // For now, return a simple text-based PDF
-  // In production, you would use Puppeteer to generate HTML -> PDF
-  const textContent = `
-Event Report
+  try {
+    const puppeteer = require('puppeteer');
+    const summaryData = calculateEventSummary(event.tickets);
+    
+    // Create HTML content for PDF
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Event Report - ${event.ProdName}</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 40px; }
+          h1 { color: #333; border-bottom: 2px solid #333; }
+          h2 { color: #666; margin-top: 30px; }
+          .info-grid { display: grid; grid-template-columns: 200px 1fr; gap: 10px; margin: 20px 0; }
+          .info-label { font-weight: bold; }
+          table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+          th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+          th { background-color: #f2f2f2; font-weight: bold; }
+          .number { text-align: right; }
+          .footer { margin-top: 40px; font-size: 12px; color: #666; }
+        </style>
+      </head>
+      <body>
+        <h1>Event Report</h1>
+        
+        <div class="info-grid">
+          <div class="info-label">ProdID:</div><div>${event.ProdID}</div>
+          <div class="info-label">Event Name:</div><div>${event.ProdName}</div>
+          <div class="info-label">Date:</div><div>${event.EventDate}</div>
+          <div class="info-label">Country:</div><div>${event.Country}</div>
+          <div class="info-label">Venue:</div><div>${event.Venue}</div>
+          <div class="info-label">Trainer:</div><div>${trainerOverride || event.Trainer_1}</div>
+        </div>
+        
+        <h2>Event Summary</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Attendance</th>
+              <th>Payment Method</th>
+              <th>Tier Level</th>
+              <th class="number">Price Total</th>
+              <th class="number">Trainer Fee %</th>
+              <th class="number">Quantity</th>
+              <th class="number">Sum Price Total</th>
+              <th class="number">Sum Trainer Fee</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${summaryData.map(row => `
+              <tr>
+                <td>${row.Attendance}</td>
+                <td>${row.PaymentMethod || 'N/A'}</td>
+                <td>${row.TierLevel || 'N/A'}</td>
+                <td class="number">€${row.PriceTotal.toFixed(2)}</td>
+                <td class="number">${(row.TrainerFeePct * 100).toFixed(1)}%</td>
+                <td class="number">${row.sumQuantity}</td>
+                <td class="number">€${row.sumPriceTotal.toFixed(2)}</td>
+                <td class="number">€${row.sumTrainerFee.toFixed(2)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        
+        ${splits.length > 0 ? `
+          <h2>Trainer Splits</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th class="number">Percentage</th>
+                <th class="number">Trainer Fee</th>
+                <th class="number">Cash Received</th>
+                <th class="number">Payable</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${splits.map(split => `
+                <tr>
+                  <td>${split.Name}</td>
+                  <td class="number">${split.Percent.toFixed(1)}%</td>
+                  <td class="number">€${split.TrainerFee.toFixed(2)}</td>
+                  <td class="number">€${split.CashReceived.toFixed(2)}</td>
+                  <td class="number">€${split.Payable.toFixed(2)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        ` : ''}
+        
+        <div class="footer">
+          Generated on: ${new Date().toLocaleString('de-DE')}<br>
+          Salsation Event Reports Dashboard
+        </div>
+      </body>
+      </html>
+    `;
 
-ProdID: ${event.ProdID}
-Event Name: ${event.ProdName}
-Date: ${event.EventDate}
-Country: ${event.Country}
-Venue: ${event.Venue}
-Trainer: ${trainerOverride || event.Trainer_1}
+    // Launch Puppeteer and generate PDF
+    const browser = await puppeteer.launch({ 
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
+    const page = await browser.newPage();
+    await page.setContent(htmlContent);
+    
+    const pdfBuffer = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      margin: { top: '20px', right: '20px', bottom: '20px', left: '20px' }
+    });
+    
+    await browser.close();
 
-Event Summary:
-${calculateEventSummary(event.tickets).map(row => 
-  `${row.Attendance} | ${row.PaymentMethod || 'N/A'} | ${row.TierLevel || 'N/A'} | €${row.PriceTotal} | ${(row.TrainerFeePct * 100).toFixed(1)}% | ${row.sumQuantity} | €${row.sumPriceTotal.toFixed(2)} | €${row.sumTrainerFee.toFixed(2)}`
-).join('\n')}
-
-Generated on: ${new Date().toLocaleString('de-DE')}
-  `;
-
-  return new NextResponse(textContent, {
-    headers: {
-      'Content-Type': 'text/plain',
-      'Content-Disposition': `attachment; filename="${filename}"`,
-    },
-  });
+    return new NextResponse(pdfBuffer, {
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+      },
+    });
+  } catch (error) {
+    console.error('PDF generation error:', error);
+    // Fallback to text export if PDF generation fails
+    const textContent = `Event Report\n\nProdID: ${event.ProdID}\nEvent Name: ${event.ProdName}\nDate: ${event.EventDate}\nCountry: ${event.Country}\nVenue: ${event.Venue}\nTrainer: ${trainerOverride || event.Trainer_1}\n\nGenerated on: ${new Date().toLocaleString('de-DE')}`;
+    
+    return new NextResponse(textContent, {
+      headers: {
+        'Content-Type': 'text/plain',
+        'Content-Disposition': `attachment; filename="${filename}.txt"`,
+      },
+    });
+  }
 }
