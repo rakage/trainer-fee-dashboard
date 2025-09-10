@@ -62,9 +62,10 @@ export class DatabaseService {
     const request = pool.request();
     
     if (query) {
-      request.input('q', sql.NVarChar(100), query);
+      // Allow long search strings (event titles can be long)
+      request.input('q', sql.NVarChar(sql.MAX), query);
     } else {
-      request.input('q', sql.NVarChar(100), null);
+      request.input('q', sql.NVarChar(sql.MAX), null);
     }
 
     const result = await request.query(`
