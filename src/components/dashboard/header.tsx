@@ -54,6 +54,12 @@ export function DashboardHeader() {
               width={32} 
               height={32}
               className="object-contain"
+              priority
+              onError={(e) => {
+                console.error('Logo failed to load:', e);
+                // Hide the image if it fails to load
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
             />
             <h1 className="text-xl font-bold">Salsation Event Reports</h1>
           </div>

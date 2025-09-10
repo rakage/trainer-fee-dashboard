@@ -36,7 +36,8 @@ export function calculateEventSummary(tickets: EventTicket[]): EventSummaryRow[]
   const groupedData = new Map<string, EventSummaryRow>();
 
   tickets.forEach((ticket) => {
-    const key = `${ticket.Attendance}|${ticket.PaymentMethod}|${ticket.TierLevel}`;
+    // Group also by UnitPrice so different customer ticket prices form separate rows
+    const key = `${ticket.Attendance}|${ticket.PaymentMethod}|${ticket.TierLevel}|${ticket.UnitPrice.toFixed(2)}`;
     
     if (!groupedData.has(key)) {
       groupedData.set(key, {
@@ -44,7 +45,7 @@ export function calculateEventSummary(tickets: EventTicket[]): EventSummaryRow[]
         PaymentMethod: ticket.PaymentMethod,
         TierLevel: ticket.TierLevel,
         UnitPrice: ticket.UnitPrice,      // Individual ticket price
-        PriceTotal: ticket.PriceTotal,    // Total price sum
+        PriceTotal: 0,                    // Will accumulate total
         TrainerFeePct: ticket.TrainerFeePct,
         sumQuantity: 0,
         sumPriceTotal: 0,
@@ -54,8 +55,9 @@ export function calculateEventSummary(tickets: EventTicket[]): EventSummaryRow[]
 
     const row = groupedData.get(key)!;
     row.sumQuantity += ticket.Quantity;
-    row.sumPriceTotal += ticket.PriceTotal; // PriceTotal is already calculated as UnitPrice * Quantity
+    row.sumPriceTotal += ticket.PriceTotal; // Accumulate total for this unit price group
     row.sumTrainerFee += ticket.PriceTotal * ticket.TrainerFeePct; // Use PriceTotal for trainer fee calculation
+    row.PriceTotal = row.sumPriceTotal; // Keep compatibility: PriceTotal reflects sum for the row
   });
 
   return Array.from(groupedData.values()).sort((a, b) => {

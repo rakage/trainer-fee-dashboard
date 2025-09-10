@@ -375,15 +375,16 @@ export class DatabaseService {
     const tickets: EventTicket[] = [];
     const eventRow = orderResult.recordset[0];
     
-    // Group by Attendance, PaymentMethod, TierLevel
+    // Group by Attendance, PaymentMethod, TierLevel, and UnitPrice (ticket price can vary per customer)
     const groupedOrders = orderResult.recordset.reduce((acc, order) => {
-      const key = `${order.Attendance}-${order.PaymentMethod}-${order.TierLevel || 'Standard'}`;
+      const unitPrice = order.PriceTotal || 0; // individual ticket price
+      const key = `${order.Attendance}-${order.PaymentMethod}-${(order.TierLevel || 'Standard')}-${unitPrice.toFixed(2)}`;
       if (!acc[key]) {
         acc[key] = {
           Attendance: order.Attendance,
           PaymentMethod: order.PaymentMethod,
-          TierLevel: order.TierLevel || 'Standard',
-          UnitPrice: order.PriceTotal || 0, // Individual ticket price from PriceTotal column
+          TierLevel: order.TierLevel || '',
+          UnitPrice: unitPrice,
           Quantity: 0,
           ConcatTrainerPercentKey: order.ConcatTrainerPercentKey,
         };
