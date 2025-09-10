@@ -228,6 +228,8 @@ async function generateCSVExport(event: any, splits: any[], commissions: any, tr
 async function generatePDFExport(event: any, splits: any[], commissions: any, trainerOverride?: string, filename?: string) {
   try {
     const puppeteer = require('puppeteer');
+    const fs = require('fs');
+    const path = require('path');
     const summaryData = calculateEventSummary(event.tickets);
     
     // Calculate overview metrics
@@ -247,6 +249,16 @@ async function generatePDFExport(event: any, splits: any[], commissions: any, tr
       return date.toLocaleDateString('de-DE');
     };
     
+    // Convert logo to base64
+    let logoBase64 = '';
+    try {
+      const logoPath = path.join(process.cwd(), 'public', 'logo.png');
+      const logoBuffer = fs.readFileSync(logoPath);
+      logoBase64 = `data:image/png;base64,${logoBuffer.toString('base64')}`;
+    } catch (logoError) {
+      console.warn('Could not load logo for PDF:', logoError.message);
+    }
+    
     // Create HTML content for PDF
     const htmlContent = `
       <!DOCTYPE html>
@@ -256,9 +268,10 @@ async function generatePDFExport(event: any, splits: any[], commissions: any, tr
         <title>Event Report - ${event.ProdName}</title>
         <style>
           body { font-family: Arial, sans-serif; margin: 40px; }
-          .header { display: flex; align-items: center; margin-bottom: 30px; }
-          .logo { margin-right: 20px; }
-          h1 { color: #333; border-bottom: 2px solid #333; margin: 0; }
+          .logo-container { text-align: center; margin-bottom: 20px; }
+          .logo-container img { max-width: 120px; max-height: 80px; object-fit: contain; }
+          .title-container { text-align: center; margin-bottom: 30px; }
+          h1 { color: #333; border-bottom: 2px solid #333; margin: 0; padding-bottom: 10px; display: inline-block; }
           h2 { color: #666; margin-top: 30px; }
           .info-grid { display: grid; grid-template-columns: 200px 1fr; gap: 10px; margin: 20px 0; }
           .info-label { font-weight: bold; }
@@ -270,10 +283,12 @@ async function generatePDFExport(event: any, splits: any[], commissions: any, tr
         </style>
       </head>
       <body>
-        <div class="header">
-          <div class="logo">
-            <img src="file://${process.cwd()}/public/logo.png" alt="Salsation Logo" width="60" height="60" />
+        ${logoBase64 ? `
+          <div class="logo-container">
+            <img src="${logoBase64}" alt="Salsation Logo" />
           </div>
+        ` : ''}
+        <div class="title-container">
           <h1>Event Report</h1>
         </div>
         
