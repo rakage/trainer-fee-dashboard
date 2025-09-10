@@ -75,25 +75,26 @@ export function calculateEventOverview(
   commissions: Commission = {},
   trainerSplits: TrainerSplit[] = []
 ): EventOverview {
+  // Total Trainer Fee Amount (sum of all trainer fees from tickets)
   const trainerFee = tickets.reduce(
     (sum, ticket) => sum + ticket.PriceTotal * ticket.Quantity * ticket.TrainerFeePct,
     0
   );
 
+  // Cash Sales (sum of Price Total from Cash payment method only)
   const cashSales = tickets
     .filter((ticket) => ticket.PaymentMethod === 'Cash')
     .reduce((sum, ticket) => sum + ticket.PriceTotal * ticket.Quantity, 0);
 
+  // Balance = Trainer Fee - Cash Sales
+  const balance = trainerFee - cashSales;
+  
+  // Payable = Balance (simplified as requested)
+  const payableToTrainer = balance;
+
+  // Keep commission values for compatibility but don't use in main calculations
   const graceCommission = commissions.grace || 0;
   const nannaFee = commissions.nanna || 0;
-  const balance = trainerFee + cashSales - graceCommission - nannaFee;
-  
-  const totalCashReceived = trainerSplits.reduce(
-    (sum, split) => sum + (split.CashReceived || 0),
-    0
-  );
-  
-  const payableToTrainer = balance - totalCashReceived;
 
   return {
     trainerFee,
