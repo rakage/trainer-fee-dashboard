@@ -427,28 +427,40 @@ export class DatabaseService {
     
     request.input('prodId', sql.Int, prodId);
 
-    const result = await request.query(`
-      SELECT 
-        ProdID,
-        RowId,
-        Name,
-        [Percent],
-        CashReceived
-      FROM dbo.EventTrainerSplits 
-      WHERE ProdID = @prodId
-      ORDER BY RowId
-    `);
+    try {
+      // First ensure the table exists
+      await this.ensureTrainerSplitsTableExists();
+      
+      const result = await request.query(`
+        SELECT 
+          ProdID,
+          RowId,
+          Name,
+          [Percent],
+          CashReceived
+        FROM dbo.EventTrainerSplits 
+        WHERE ProdID = @prodId
+        ORDER BY RowId
+      `);
 
-    return result.recordset.map((row, index): TrainerSplit => ({
-      id: index + 1,
-      ProdID: row.ProdID,
-      RowId: row.RowId,
-      Name: row.Name,
-      Percent: row.Percent,
-      TrainerFee: 0, // Will be calculated in frontend
-      CashReceived: row.CashReceived,
-      Payable: 0, // Will be calculated in frontend
-    }));
+      return result.recordset.map((row, index): TrainerSplit => ({
+        id: index + 1,
+        ProdID: row.ProdID,
+        RowId: row.RowId,
+        Name: row.Name,
+        Percent: row.Percent,
+        TrainerFee: 0, // Will be calculated in frontend
+        CashReceived: row.CashReceived,
+        Payable: 0, // Will be calculated in frontend
+      }));
+    } catch (error: any) {
+      // If table doesn't exist, return empty array
+      if (error.number === 208) { // Invalid object name
+        console.log('EventTrainerSplits table does not exist, returning empty splits');
+        return [];
+      }
+      throw error;
+    }
   }
 
   static async saveTrainerSplit(split: TrainerSplit): Promise<void> {
@@ -504,6 +516,28 @@ export class DatabaseService {
     } catch (error) {
       console.error('Error getting trainer fee percent:', error);
       return 0;
+    }
+  }
+
+  static async ensureTrainerSplitsTableExists(): Promise<void> {
+    try {
+      const pool = await getConnection();
+      await pool.request().query(`
+        IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='EventTrainerSplits' AND xtype='U')
+        CREATE TABLE dbo.EventTrainerSplits (
+            ID INT IDENTITY(1,1) PRIMARY KEY,
+            ProdID INT,
+            RowId INT,
+            Name NVARCHAR(200),
+            [Percent] DECIMAL(5,2),
+            CashReceived MONEY,
+            CreatedAt DATETIME2 DEFAULT SYSDATETIME(),
+            UpdatedAt DATETIME2
+        );
+      `);
+    } catch (error) {
+      console.error('Failed to create EventTrainerSplits table:', error);
+      // Don't throw error to prevent blocking the main functionality
     }
   }
 

@@ -59,7 +59,9 @@ export function EventOverviewCards({ event, commissions }: EventOverviewCardsPro
           <span className="text-xs text-muted-foreground">Final</span>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold text-green-600">
+          <div className={`text-2xl font-bold ${
+            overview.payableToTrainer < 0 ? 'text-red-600' : 'text-green-600'
+          }`}>
             {formatCurrency(overview.payableToTrainer)}
           </div>
           <p className="text-xs text-muted-foreground">

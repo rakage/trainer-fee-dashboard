@@ -27,7 +27,9 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   }
 
   try {
-    const prodId = parseInt(params.prodId);
+    // Await params before accessing properties (Next.js 15 requirement)
+    const { prodId: prodIdStr } = await params;
+    const prodId = parseInt(prodIdStr);
     if (isNaN(prodId)) {
       return NextResponse.json(
         { success: false, error: 'Invalid ProdID' },

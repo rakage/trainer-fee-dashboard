@@ -143,20 +143,6 @@ export function ExportControls({ eventId, trainerOverride, commissions }: Export
             Generating export file... Please wait.
           </div>
         )}
-
-        <div className="mt-4 text-xs text-muted-foreground">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <strong>XLSX:</strong> Full formatted Excel report with multiple sheets and styling
-            </div>
-            <div>
-              <strong>CSV:</strong> Raw data suitable for further analysis and processing
-            </div>
-            <div>
-              <strong>PDF:</strong> Professional print-ready report with header and footer
-            </div>
-          </div>
-        </div>
       </CardContent>
     </Card>
   );
