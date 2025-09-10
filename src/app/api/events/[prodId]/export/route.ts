@@ -146,12 +146,12 @@ async function generateXLSXExport(event: any, splits: any[], commissions: any, t
 
   // Add grand total row
   worksheet.addRow([
-    'Grand Total', '', '', 
-    totals.totalQuantity,
-    '',
-    totals.totalPriceTotal,
-    '',
-    totals.totalTrainerFee
+    'Grand Total', '', // Attendance, Payment Method, Tier Level (merged)
+    totals.totalQuantity,  // Quantity
+    '',                    // Ticket Price (empty)
+    totals.totalPriceTotal, // Ticket Price Total
+    '',                    // Trainer Fee % (empty)
+    totals.totalTrainerFee // Trainer Fee Amount
   ]);
 
   // Add overview section
@@ -309,7 +309,7 @@ async function generatePDFExport(event: any, splits: any[], commissions: any, tr
           </tbody>
           <tfoot style="background-color: #f8f9fa; border-top: 2px solid #dee2e6; font-weight: bold;">
             <tr>
-              <td colspan="4" style="text-align: left; padding: 12px 8px;">Grand Total</td>
+              <td colspan="3" style="text-align: left; padding: 12px 8px;">Grand Total</td>
               <td class="number" style="font-weight: bold;">${totals.totalQuantity}</td>
               <td class="number"></td>
               <td class="number" style="font-weight: bold;">€${totals.totalPriceTotal.toFixed(2)}</td>
