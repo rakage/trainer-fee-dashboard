@@ -33,7 +33,27 @@ const nextConfig: NextConfig = {
       },
       {
         // Allow images to be served without CSP restrictions
-        source: '/(logo.png|favicon.ico|.*\.(jpg|jpeg|png|gif|svg|webp|avif))',
+        source: '/logo.png',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable'
+          }
+        ]
+      },
+      {
+        // Cache control for favicon
+        source: '/favicon.ico',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable'
+          }
+        ]
+      },
+      {
+        // Cache control for image files
+        source: '/:path*\.(jpg|jpeg|png|gif|svg|webp|avif)',
         headers: [
           {
             key: 'Cache-Control',
