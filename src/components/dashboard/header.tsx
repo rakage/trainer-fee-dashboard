@@ -4,6 +4,7 @@ import { signOut, useSession } from 'next-auth/react';
 import { User, LogOut, Settings, BarChart3, Percent } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,7 +47,16 @@ export function DashboardHeader() {
     <header className="border-b bg-background">
       <div className="flex h-16 items-center px-4 md:px-6">
         <div className="flex items-center space-x-4">
-          <h1 className="text-xl font-bold">Salsation Event Reports</h1>
+          <div className="flex items-center space-x-3">
+            <Image 
+              src="/logo.png" 
+              alt="Salsation Logo" 
+              width={32} 
+              height={32}
+              className="object-contain"
+            />
+            <h1 className="text-xl font-bold">Salsation Event Reports</h1>
+          </div>
           
           {/* Navigation Menu */}
           <nav className="hidden md:flex items-center space-x-4 ml-6">

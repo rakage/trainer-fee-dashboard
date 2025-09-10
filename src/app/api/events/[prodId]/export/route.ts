@@ -256,7 +256,9 @@ async function generatePDFExport(event: any, splits: any[], commissions: any, tr
         <title>Event Report - ${event.ProdName}</title>
         <style>
           body { font-family: Arial, sans-serif; margin: 40px; }
-          h1 { color: #333; border-bottom: 2px solid #333; }
+          .header { display: flex; align-items: center; margin-bottom: 30px; }
+          .logo { margin-right: 20px; }
+          h1 { color: #333; border-bottom: 2px solid #333; margin: 0; }
           h2 { color: #666; margin-top: 30px; }
           .info-grid { display: grid; grid-template-columns: 200px 1fr; gap: 10px; margin: 20px 0; }
           .info-label { font-weight: bold; }
@@ -268,7 +270,12 @@ async function generatePDFExport(event: any, splits: any[], commissions: any, tr
         </style>
       </head>
       <body>
-        <h1>Event Report</h1>
+        <div class="header">
+          <div class="logo">
+            <img src="file://${process.cwd()}/public/logo.png" alt="Salsation Logo" width="60" height="60" />
+          </div>
+          <h1>Event Report</h1>
+        </div>
         
         <div class="info-grid">
           <div class="info-label">ProdID:</div><div>${event.ProdID}</div>
