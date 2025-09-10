@@ -8,14 +8,17 @@ import { cn } from '@/lib/utils';
 
 interface EventPickerProps {
   onEventSelect: (event: EventDetail | null) => void;
+  onLoadingChange?: (loading: boolean) => void;
+  onErrorChange?: (error: string | null) => void;
 }
 
-export function EventPicker({ onEventSelect }: EventPickerProps) {
+export function EventPicker({ onEventSelect, onLoadingChange, onErrorChange }: EventPickerProps) {
   const [searchText, setSearchText] = useState('');
   const [events, setEvents] = useState<EventListResponse[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [loading, setLoading] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<EventDetail | null>(null);
+  const [fetchingDetail, setFetchingDetail] = useState(false);
 
   const fetchEvents = async (query: string) => {
     if (!query.trim() || query.length < 2) {
@@ -44,17 +47,36 @@ export function EventPicker({ onEventSelect }: EventPickerProps) {
   };
 
   const fetchEventDetail = async (prodId: number) => {
+    setFetchingDetail(true);
+    onLoadingChange?.(true);
+    onErrorChange?.(null);
+    
     try {
       const response = await fetch(`/api/events/${prodId}`);
-      if (!response.ok) throw new Error('Failed to fetch event details');
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error('Event not found');
+        }
+        throw new Error('Failed to fetch event details');
+      }
       
       const data: ApiResponse<{ event: EventDetail }> = await response.json();
       if (data.success && data.data) {
         setSelectedEvent(data.data.event);
         onEventSelect(data.data.event);
+        onErrorChange?.(null);
+      } else {
+        throw new Error('Event not found or invalid data');
       }
     } catch (error) {
       console.error('Error fetching event details:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load event details';
+      onErrorChange?.(errorMessage);
+      setSelectedEvent(null);
+      onEventSelect(null);
+    } finally {
+      setFetchingDetail(false);
+      onLoadingChange?.(false);
     }
   };
 
@@ -98,7 +120,7 @@ export function EventPicker({ onEventSelect }: EventPickerProps) {
             value={searchText}
             onChange={handleInputChange}
             className="pl-10 h-12"
-            disabled={loading}
+            disabled={loading || fetchingDetail}
           />
           
           {showDropdown && (

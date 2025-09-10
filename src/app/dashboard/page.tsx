@@ -7,6 +7,7 @@ import { EventOverviewCards } from '@/components/dashboard/overview-cards';
 import { EventDataTable } from '@/components/dashboard/data-table';
 import { TrainerSplitsEditor } from '@/components/dashboard/trainer-splits';
 import { ExportControls } from '@/components/dashboard/export-controls';
+import { EventReportSkeleton, NoEventFound } from '@/components/dashboard/event-report-skeleton';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,6 +17,8 @@ import { parseGermanDecimal, formatGermanDecimal } from '@/lib/utils';
 export default function DashboardPage() {
   const [selectedEvent, setSelectedEvent] = useState<EventDetail | null>(null);
   const [trainerOverride, setTrainerOverride] = useState('');
+  const [isLoadingEvent, setIsLoadingEvent] = useState(false);
+  const [eventError, setEventError] = useState<string | null>(null);
   const [commissions, setCommissions] = useState<Commission>({
     grace: 0,
     nanna: 0,
@@ -53,7 +56,11 @@ export default function DashboardPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <EventPicker onEventSelect={handleEventSelect} />
+            <EventPicker 
+              onEventSelect={handleEventSelect}
+              onLoadingChange={setIsLoadingEvent}
+              onErrorChange={setEventError}
+            />
             
             {selectedEvent && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
@@ -97,7 +104,14 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {selectedEvent && (
+        {/* Show loading skeleton while fetching event details */}
+        {isLoadingEvent && <EventReportSkeleton />}
+        
+        {/* Show error state if event not found */}
+        {eventError && !isLoadingEvent && <NoEventFound />}
+        
+        {/* Show event details when loaded successfully */}
+        {selectedEvent && !isLoadingEvent && !eventError && (
           <>
             {/* Export Controls */}
             <ExportControls
@@ -213,7 +227,8 @@ export default function DashboardPage() {
           </>
         )}
 
-        {!selectedEvent && (
+        {/* Show empty state when no event selected and not loading */}
+        {!selectedEvent && !isLoadingEvent && !eventError && (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12">
               <div className="text-center space-y-2">
