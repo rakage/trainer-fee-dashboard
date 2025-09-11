@@ -6,6 +6,7 @@ import { EventPicker } from '@/components/dashboard/event-picker';
 import { EventOverviewCards } from '@/components/dashboard/overview-cards';
 import { EventDataTable } from '@/components/dashboard/data-table';
 import { TrainerSplitsEditor } from '@/components/dashboard/trainer-splits';
+import { ExpensesEditor } from '@/components/dashboard/expenses-editor';
 import { ExportControls } from '@/components/dashboard/export-controls';
 import { EventReportSkeleton, NoEventFound } from '@/components/dashboard/event-report-skeleton';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -226,6 +227,19 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
 
+            {/* Expenses Editor */}
+            <ExpensesEditor
+              eventId={selectedEvent.ProdID}
+              event={selectedEvent}
+              trainerFee={(() => {
+                const currentTrainerName = trainerOverride || selectedEvent.Trainer_1 || '';
+                return selectedEvent.tickets.reduce((sum, ticket) => {
+                  const { amount } = getCustomTrainerFee(currentTrainerName, ticket);
+                  return sum + amount;
+                }, 0);
+              })()}
+            />
+            
             {/* Trainer Splits Editor */}
             <TrainerSplitsEditor
               eventId={selectedEvent.ProdID}

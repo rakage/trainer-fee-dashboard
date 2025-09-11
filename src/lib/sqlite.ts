@@ -63,6 +63,22 @@ const createTrainerSplitsTable = db.prepare(`
 
 createTrainerSplitsTable.run();
 
+// Create expenses table (for app-specific data)
+const createExpensesTable = db.prepare(`
+  CREATE TABLE IF NOT EXISTS expenses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    prod_id INTEGER NOT NULL,
+    row_id INTEGER NOT NULL,
+    description TEXT NOT NULL,
+    amount REAL NOT NULL DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(prod_id, row_id)
+  )
+`);
+
+createExpensesTable.run();
+
 // Create audit log table
 const createAuditLogTable = db.prepare(`
   CREATE TABLE IF NOT EXISTS audit_log (
@@ -82,6 +98,7 @@ db.prepare('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)').run();
 db.prepare('CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)').run();
 db.prepare('CREATE UNIQUE INDEX IF NOT EXISTS idx_fee_concat ON fee_params(concat_key)').run();
 db.prepare('CREATE INDEX IF NOT EXISTS idx_trainer_splits_prod_id ON trainer_splits(prod_id)').run();
+db.prepare('CREATE INDEX IF NOT EXISTS idx_expenses_prod_id ON expenses(prod_id)').run();
 db.prepare('CREATE INDEX IF NOT EXISTS idx_audit_log_prod_id ON audit_log(prod_id)').run();
 
 // Prepared statements
@@ -132,6 +149,32 @@ export class TrainerSplitService {
 
   static delete(prodId: number, rowId: number): void {
     db.prepare('DELETE FROM trainer_splits WHERE prod_id = ? AND row_id = ?').run(prodId, rowId);
+  }
+}
+
+export class ExpenseService {
+  static getByProdId(prodId: number): any[] {
+    return db.prepare('SELECT * FROM expenses WHERE prod_id = ? ORDER BY row_id').all(prodId);
+  }
+
+  static upsert(expense: { prod_id: number; row_id: number; description: string; amount: number; }): void {
+    const existing = db.prepare('SELECT id FROM expenses WHERE prod_id = ? AND row_id = ?').get(expense.prod_id, expense.row_id) as any;
+    if (existing?.id) {
+      db.prepare(`
+        UPDATE expenses 
+        SET description = ?, amount = ?, updated_at = CURRENT_TIMESTAMP 
+        WHERE prod_id = ? AND row_id = ?
+      `).run(expense.description, expense.amount, expense.prod_id, expense.row_id);
+    } else {
+      db.prepare(`
+        INSERT INTO expenses (prod_id, row_id, description, amount) 
+        VALUES (?, ?, ?, ?)
+      `).run(expense.prod_id, expense.row_id, expense.description, expense.amount);
+    }
+  }
+
+  static delete(prodId: number, rowId: number): void {
+    db.prepare('DELETE FROM expenses WHERE prod_id = ? AND row_id = ?').run(prodId, rowId);
   }
 }
 

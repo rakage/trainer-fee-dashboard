@@ -139,12 +139,7 @@ export function TrainerSplitsEditor({ eventId, event, commissions }: TrainerSpli
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center space-x-2">
-          <span>Trainer Splits</span>
-          <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">
-            Blue Cells
-          </span>
-        </CardTitle>
+        <CardTitle>Trainer Splits</CardTitle>
         <CardDescription>
           Manage trainer fee splits for shared events. Percentages must not exceed 100%.
         </CardDescription>

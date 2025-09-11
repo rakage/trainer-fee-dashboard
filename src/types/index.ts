@@ -47,7 +47,7 @@ export interface EventSummaryRow {
   sumTrainerFee: number;
 }
 
-// Trainer Splits (Blue Cells) Types
+// Trainer Splits Types
 export interface TrainerSplit {
   id?: number;
   ProdID: number;
@@ -57,6 +57,15 @@ export interface TrainerSplit {
   TrainerFee: number;
   CashReceived: number;
   Payable: number;
+}
+
+// Expenses Types
+export interface Expense {
+  id?: number;
+  ProdID: number;
+  RowId: number;
+  Description: string;
+  Amount: number;
 }
 
 // Calculation Types

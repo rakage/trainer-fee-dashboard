@@ -520,6 +520,52 @@ export class DatabaseService {
     }
   }
 
+  static async getEventExpenses(prodId: number): Promise<any[]> {
+    try {
+      // Use SQLite for expenses (app-specific data)
+      const { ExpenseService } = require('./sqlite');
+      const rows = ExpenseService.getByProdId(prodId);
+      
+      return rows.map((row, index): any => ({
+        id: index + 1,
+        ProdID: row.prod_id,
+        RowId: row.row_id,
+        Description: row.description,
+        Amount: row.amount,
+      }));
+    } catch (error: any) {
+      console.error('Error getting expenses from SQLite:', error);
+      return [];
+    }
+  }
+
+  static async saveEventExpense(expense: any): Promise<void> {
+    try {
+      // Use SQLite for expenses (app-specific data)
+      const { ExpenseService } = require('./sqlite');
+      ExpenseService.upsert({
+        prod_id: expense.ProdID,
+        row_id: expense.RowId,
+        description: expense.Description,
+        amount: expense.Amount
+      });
+    } catch (error) {
+      console.error('Error saving expense to SQLite:', error);
+      throw error;
+    }
+  }
+
+  static async deleteEventExpense(prodId: number, rowId: number): Promise<void> {
+    try {
+      // Use SQLite for expenses (app-specific data)
+      const { ExpenseService } = require('./sqlite');
+      ExpenseService.delete(prodId, rowId);
+    } catch (error) {
+      console.error('Error deleting expense from SQLite:', error);
+      throw error;
+    }
+  }
+
   static getTrainerFeePercent(concatKey: string): number {
     try {
       // Import SQLite service to get fee percentage
