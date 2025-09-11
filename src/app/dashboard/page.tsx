@@ -186,18 +186,7 @@ export default function DashboardPage() {
                                   €{ticket.PriceTotal.toFixed(2)}
                                 </td>
                                 <td className="py-3 px-4 text-right text-gray-900">
-                                  <span className={`${
-                                    trainerFeePercentage !== (ticket.TrainerFeePct || 0) 
-                                      ? 'bg-yellow-100 text-yellow-800 px-2 py-1 rounded font-semibold' 
-                                      : ''
-                                  }`}>
-                                    {(trainerFeePercentage * 100).toFixed(1)}%
-                                  </span>
-                                  {trainerFeePercentage !== (ticket.TrainerFeePct || 0) && (
-                                    <span className="text-xs text-yellow-600 ml-1" title="Custom rate applied">
-                                      ★
-                                    </span>
-                                  )}
+                                  {(trainerFeePercentage * 100).toFixed(1)}%
                                 </td>
                                 <td className="py-3 px-4 text-right font-medium text-green-600">
                                   €{trainerFeeAmount.toFixed(2)}
@@ -234,20 +223,6 @@ export default function DashboardPage() {
                     No ticket data available for this event.
                   </div>
                 )}
-                
-                {/* Custom Trainer Rates Legend */}
-                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                  <h4 className="text-sm font-semibold text-yellow-800 mb-2 flex items-center">
-                    <span className="text-yellow-600 mr-1">★</span>
-                    Custom Trainer Rates Applied
-                  </h4>
-                  <div className="text-xs text-yellow-700 space-y-1">
-                    <div><strong>Alejandro:</strong> 100% of ticket revenue</div>
-                    <div><strong>Sofie/Mikaela:</strong> 65% for attended, 45% for unattended</div>
-                    <div><strong>Natasha:</strong> 45% for attended instructor training events</div>
-                    <div className="text-yellow-600 mt-2">★ indicates custom rate override</div>
-                  </div>
-                </div>
               </CardContent>
             </Card>
 
