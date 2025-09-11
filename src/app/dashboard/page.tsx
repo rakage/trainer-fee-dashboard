@@ -153,9 +153,16 @@ export default function DashboardPage() {
                         <tbody className="divide-y divide-gray-200">
                           {selectedEvent.tickets.map((ticket, index) => {
                             const currentTrainerName = trainerOverride || selectedEvent.Trainer_1 || '';
+                            const isAlejandro = currentTrainerName.toLowerCase().includes('alejandro');
                             
-                            // Get custom trainer fee percentage and amount using centralized function
-                            const { percentage: trainerFeePercentage, amount: trainerFeeAmount } = getCustomTrainerFee(currentTrainerName, ticket);
+                            // For Alejandro: show original percentage but calculate amount as 100%
+                            const trainerFeePercentage = isAlejandro 
+                              ? (ticket.TrainerFeePct || 0) // Show original percentage from query
+                              : getCustomTrainerFee(currentTrainerName, ticket).percentage;
+                              
+                            const trainerFeeAmount = isAlejandro
+                              ? ticket.PriceTotal // 100% of ticket price for Alejandro
+                              : getCustomTrainerFee(currentTrainerName, ticket).amount;
                             return (
                               <tr key={index} className="hover:bg-gray-50">
                                 <td className="py-3 px-4">
