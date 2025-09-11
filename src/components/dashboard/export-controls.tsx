@@ -3,8 +3,7 @@
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Download, FileSpreadsheet, FileText, File } from 'lucide-react';
+import { FileSpreadsheet, FileText, File } from 'lucide-react';
 import { Commission, ExportFormat } from '@/types';
 import { useSession } from 'next-auth/react';
 
@@ -79,9 +78,6 @@ export function ExportControls({ eventId, trainerOverride, commissions }: Export
     <Card>
       <CardHeader>
         <CardTitle>Export Report</CardTitle>
-        <CardDescription>
-          Generate reports in various formats with current settings
-        </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="flex flex-wrap gap-2">
@@ -113,29 +109,6 @@ export function ExportControls({ eventId, trainerOverride, commissions }: Export
             <File className="h-4 w-4" />
             <span>Export PDF</span>
           </Button>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="secondary" disabled={isExporting}>
-                <Download className="h-4 w-4 mr-2" />
-                More Options
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => handleExport('xlsx')}>
-                <FileSpreadsheet className="h-4 w-4 mr-2" />
-                Excel with formatting
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleExport('csv')}>
-                <FileText className="h-4 w-4 mr-2" />
-                CSV for analysis
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleExport('pdf')}>
-                <File className="h-4 w-4 mr-2" />
-                PDF report
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
         </div>
 
         {isExporting && (

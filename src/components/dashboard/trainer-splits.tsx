@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,8 +27,31 @@ export function TrainerSplitsEditor({ eventId, event, commissions }: TrainerSpli
       Payable: 0,
     }
   ]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  const overview = calculateEventOverview(event.tickets, commissions, splits);
+  // Load existing splits when component mounts
+  useEffect(() => {
+    const loadSplits = async () => {
+      try {
+        const response = await fetch(`/api/events/${eventId}/splits`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.data.splits && data.data.splits.length > 0) {
+            setSplits(data.data.splits);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load trainer splits:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadSplits();
+  }, [eventId]);
+
+  const overview = calculateEventOverview(event.tickets, commissions, splits, event.Trainer_1);
   
   const addRow = () => {
     const newRow: TrainerSplit = {
@@ -69,6 +92,7 @@ export function TrainerSplitsEditor({ eventId, event, commissions }: TrainerSpli
   const isValidTotal = totalPercent <= 100;
 
   const handleSave = async () => {
+    setSaving(true);
     try {
       const response = await fetch(`/api/events/${eventId}/splits`, {
         method: 'POST',
@@ -78,17 +102,39 @@ export function TrainerSplitsEditor({ eventId, event, commissions }: TrainerSpli
         body: JSON.stringify({ splits }),
       });
 
-      if (response.ok) {
+      const data = await response.json();
+      
+      if (response.ok && data.success) {
         // Show success message
-        console.log('Splits saved successfully');
+        alert('Splits saved successfully!');
       } else {
         // Show error message
-        console.error('Failed to save splits');
+        alert(`Failed to save splits: ${data.error || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Error saving splits:', error);
+      alert('Error saving splits. Please try again.');
+    } finally {
+      setSaving(false);
     }
   };
+
+  if (loading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Trainer Splits</CardTitle>
+          <CardDescription>Loading trainer splits...</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="animate-pulse space-y-4">
+            <div className="h-4 bg-muted rounded w-1/4"></div>
+            <div className="h-32 bg-muted rounded"></div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>
@@ -130,8 +176,12 @@ export function TrainerSplitsEditor({ eventId, event, commissions }: TrainerSpli
                   <TableCell className="text-right">
                     <Input
                       type="text"
-                      value={formatGermanDecimal(split.Percent)}
-                      onChange={(e) => updateSplit(index, 'Percent', parseGermanDecimal(e.target.value))}
+                      value={split.Percent.toString().replace('.', ',')}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        const numValue = parseFloat(value.replace(',', '.')) || 0;
+                        updateSplit(index, 'Percent', numValue);
+                      }}
                       placeholder="0,0"
                       className="w-20 text-right bg-blue-50"
                     />
@@ -142,8 +192,12 @@ export function TrainerSplitsEditor({ eventId, event, commissions }: TrainerSpli
                   <TableCell className="text-right">
                     <Input
                       type="text"
-                      value={formatGermanDecimal(split.CashReceived || 0)}
-                      onChange={(e) => updateSplit(index, 'CashReceived', parseGermanDecimal(e.target.value))}
+                      value={(split.CashReceived || 0).toFixed(2).replace('.', ',')}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        const numValue = parseFloat(value.replace(',', '.')) || 0;
+                        updateSplit(index, 'CashReceived', numValue);
+                      }}
                       placeholder="0,00"
                       className="w-24 text-right bg-blue-50"
                     />
@@ -173,15 +227,15 @@ export function TrainerSplitsEditor({ eventId, event, commissions }: TrainerSpli
               <Plus className="h-4 w-4 mr-2" />
               Add Row
             </Button>
-            <Button onClick={handleSave}>
+            <Button onClick={handleSave} disabled={saving || !isValidTotal}>
               <Save className="h-4 w-4 mr-2" />
-              Save Splits
+              {saving ? 'Saving...' : 'Save Splits'}
             </Button>
           </div>
           
           <div className="text-sm">
             <span className={`font-medium ${!isValidTotal ? 'text-destructive' : ''}`}>
-              Total: {formatGermanDecimal(totalPercent)}%
+              Total: {totalPercent.toFixed(1).replace('.', ',')}%
             </span>
             {!isValidTotal && (
               <span className="text-destructive ml-2">(Exceeds 100%)</span>

@@ -65,16 +65,13 @@ export default function DashboardPage() {
             {selectedEvent && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
                 <div>
-                  <Label htmlFor="trainer-override">Trainer Name Override</Label>
+                  <Label htmlFor="trainer-override">Trainer Name</Label>
                   <Input
                     id="trainer-override"
                     value={trainerOverride}
                     onChange={(e) => setTrainerOverride(e.target.value)}
                     placeholder="Override trainer name"
                   />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Leave empty to use default: {selectedEvent.Trainer_1}
-                  </p>
                 </div>
                 
                 <div className="grid grid-cols-2 gap-2">
@@ -124,6 +121,7 @@ export default function DashboardPage() {
             <EventOverviewCards
               event={selectedEvent}
               commissions={commissions}
+              trainerName={trainerOverride || selectedEvent.Trainer_1}
             />
 
             {/* Tickets Table */}
@@ -153,7 +151,11 @@ export default function DashboardPage() {
                         </thead>
                         <tbody className="divide-y divide-gray-200">
                           {selectedEvent.tickets.map((ticket, index) => {
-                            const trainerFeeAmount = ticket.PriceTotal * (ticket.TrainerFeePct || 0);
+                            // Special case for Alejandro: use full ticket price as trainer fee
+                            const isAlejandro = (trainerOverride || selectedEvent.Trainer_1)?.toLowerCase().includes('alejandro');
+                            const trainerFeeAmount = isAlejandro 
+                              ? ticket.PriceTotal 
+                              : ticket.PriceTotal * (ticket.TrainerFeePct || 0);
                             return (
                               <tr key={index} className="hover:bg-gray-50">
                                 <td className="py-3 px-4">
@@ -203,7 +205,12 @@ export default function DashboardPage() {
                             </td>
                             <td className="py-3 px-4"></td>
                             <td className="py-3 px-4 text-right font-bold text-green-600">
-                              €{selectedEvent.tickets.reduce((sum, ticket) => sum + (ticket.PriceTotal * (ticket.TrainerFeePct || 0)), 0).toFixed(2)}
+                              €{(() => {
+                                const isAlejandro = (trainerOverride || selectedEvent.Trainer_1)?.toLowerCase().includes('alejandro');
+                                return selectedEvent.tickets.reduce((sum, ticket) => {
+                                  return sum + (isAlejandro ? ticket.PriceTotal : ticket.PriceTotal * (ticket.TrainerFeePct || 0));
+                                }, 0).toFixed(2);
+                              })()}
                             </td>
                           </tr>
                         </tfoot>

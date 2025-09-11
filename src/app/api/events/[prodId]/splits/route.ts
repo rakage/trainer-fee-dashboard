@@ -7,6 +7,39 @@ interface RouteContext {
   params: Promise<{ prodId: string }>;
 }
 
+export async function GET(request: NextRequest, { params }: RouteContext) {
+  // Check authentication
+  const authResult = await requireRole(request, ['admin', 'finance', 'trainer', 'viewer']);
+  if (authResult instanceof NextResponse) {
+    return authResult;
+  }
+
+  try {
+    // Await params before accessing properties (Next.js 15)
+    const { prodId: prodIdParam } = await params;
+    const prodId = parseInt(prodIdParam);
+    if (isNaN(prodId)) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid ProdID' },
+        { status: 400 }
+      );
+    }
+
+    const splits = await DatabaseService.getTrainerSplits(prodId);
+
+    return NextResponse.json({
+      success: true,
+      data: { splits },
+    });
+  } catch (error) {
+    console.error('Get trainer splits API error:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to fetch trainer splits' },
+      { status: 500 }
+    );
+  }
+}
+
 export async function POST(request: NextRequest, { params }: RouteContext) {
   // Check authentication and role
   const authResult = await requireRole(request, ['admin', 'finance', 'trainer']);

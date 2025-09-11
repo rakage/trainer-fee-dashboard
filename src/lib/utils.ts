@@ -76,13 +76,16 @@ export function calculateEventSummary(tickets: EventTicket[]): EventSummaryRow[]
 export function calculateEventOverview(
   tickets: EventTicket[],
   commissions: Commission = {},
-  trainerSplits: TrainerSplit[] = []
+  trainerSplits: TrainerSplit[] = [],
+  trainerName?: string
 ): EventOverview {
-  // Total Trainer Fee Amount (sum of all trainer fee amounts - matches table's Trainer Fee Amount column)
-  const trainerFee = tickets.reduce(
-    (sum, ticket) => sum + (ticket.PriceTotal * ticket.TrainerFeePct),
-    0
-  );
+  // Special case for Alejandro: use total ticket price without percentage
+  const isAlejandro = trainerName?.toLowerCase().includes('alejandro');
+  
+  // Total Trainer Fee Amount 
+  const trainerFee = isAlejandro 
+    ? tickets.reduce((sum, ticket) => sum + ticket.PriceTotal, 0)  // Total without percentage for Alejandro
+    : tickets.reduce((sum, ticket) => sum + (ticket.PriceTotal * ticket.TrainerFeePct), 0);  // Normal calculation
 
   // Cash Sales (Price Total from Cash payment method only, without multiplying by quantity)
   const cashSales = tickets
