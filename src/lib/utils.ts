@@ -72,6 +72,59 @@ export function calculateEventSummary(tickets: EventTicket[]): EventSummaryRow[]
   });
 }
 
+// Get custom trainer fee percentage and amount based on trainer name and event conditions
+export function getCustomTrainerFee(
+  trainerName: string,
+  ticket: EventTicket
+): { percentage: number; amount: number } {
+  const lowerName = trainerName.toLowerCase();
+  
+  // Special case for Alejandro: use full ticket price as trainer fee
+  if (lowerName.includes('alejandro')) {
+    return {
+      percentage: 1.0, // 100%
+      amount: ticket.PriceTotal
+    };
+  }
+  
+  // Sofie/Mikaela rules: 65% if attended, 45% if unattended
+  if (lowerName.includes('sofie') || lowerName.includes('mikaela')) {
+    const percentage = ticket.Attendance === 'Attended' ? 0.65 : 0.45;
+    return {
+      percentage,
+      amount: ticket.PriceTotal * percentage
+    };
+  }
+  
+  // Natasha rules: 45% for instructor training when attended
+  if (lowerName.includes('natasha')) {
+    // Check if it's instructor training and attended
+    if (ticket.Attendance === 'Attended') {
+      // Check if it's an instructor training event
+      // This could be enhanced with more specific event type detection from the event data
+      return {
+        percentage: 0.45,
+        amount: ticket.PriceTotal * 0.45
+      };
+    }
+  }
+  
+  // Return the original percentage from the fee parameters
+  const percentage = ticket.TrainerFeePct || 0;
+  return {
+    percentage,
+    amount: ticket.PriceTotal * percentage
+  };
+}
+
+// Get custom trainer fee percentage (legacy function for backward compatibility)
+function getCustomTrainerFeePercentage(
+  trainerName: string,
+  ticket: EventTicket
+): number {
+  return getCustomTrainerFee(trainerName, ticket).percentage;
+}
+
 // Calculate event overview metrics
 export function calculateEventOverview(
   tickets: EventTicket[],
@@ -79,13 +132,43 @@ export function calculateEventOverview(
   trainerSplits: TrainerSplit[] = [],
   trainerName?: string
 ): EventOverview {
-  // Special case for Alejandro: use total ticket price without percentage
-  const isAlejandro = trainerName?.toLowerCase().includes('alejandro');
+  if (!trainerName) {
+    // Fallback to normal calculation if no trainer name provided
+    const trainerFee = tickets.reduce(
+      (sum, ticket) => sum + (ticket.PriceTotal * ticket.TrainerFeePct),
+      0
+    );
+    
+    const cashSales = tickets
+      .filter((ticket) => ticket.PaymentMethod === 'Cash')
+      .reduce((sum, ticket) => sum + ticket.PriceTotal, 0);
+    
+    const balance = trainerFee - cashSales;
+    const payableToTrainer = balance;
+    
+    return {
+      trainerFee,
+      cashSales,
+      graceCommission: commissions.grace || 0,
+      nannaFee: commissions.nanna || 0,
+      balance,
+      payableToTrainer,
+    };
+  }
   
-  // Total Trainer Fee Amount 
+  const lowerName = trainerName.toLowerCase();
+  
+  // Special case for Alejandro: use total ticket price without percentage
+  const isAlejandro = lowerName.includes('alejandro');
+  
+  // Calculate trainer fee based on trainer name
   const trainerFee = isAlejandro 
     ? tickets.reduce((sum, ticket) => sum + ticket.PriceTotal, 0)  // Total without percentage for Alejandro
-    : tickets.reduce((sum, ticket) => sum + (ticket.PriceTotal * ticket.TrainerFeePct), 0);  // Normal calculation
+    : tickets.reduce((sum, ticket) => {
+        // Use custom percentage for special trainers, otherwise use normal calculation
+        const customPercentage = getCustomTrainerFeePercentage(trainerName, ticket);
+        return sum + (ticket.PriceTotal * customPercentage);
+      }, 0);
 
   // Cash Sales (Price Total from Cash payment method only, without multiplying by quantity)
   const cashSales = tickets

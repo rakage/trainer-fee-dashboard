@@ -12,7 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { EventDetail, Commission } from '@/types';
-import { parseGermanDecimal, formatGermanDecimal } from '@/lib/utils';
+import { parseGermanDecimal, formatGermanDecimal, getCustomTrainerFee } from '@/lib/utils';
 
 export default function DashboardPage() {
   const [selectedEvent, setSelectedEvent] = useState<EventDetail | null>(null);
@@ -151,11 +151,10 @@ export default function DashboardPage() {
                         </thead>
                         <tbody className="divide-y divide-gray-200">
                           {selectedEvent.tickets.map((ticket, index) => {
-                            // Special case for Alejandro: use full ticket price as trainer fee
-                            const isAlejandro = (trainerOverride || selectedEvent.Trainer_1)?.toLowerCase().includes('alejandro');
-                            const trainerFeeAmount = isAlejandro 
-                              ? ticket.PriceTotal 
-                              : ticket.PriceTotal * (ticket.TrainerFeePct || 0);
+                            const currentTrainerName = trainerOverride || selectedEvent.Trainer_1 || '';
+                            
+                            // Get custom trainer fee percentage and amount using centralized function
+                            const { percentage: trainerFeePercentage, amount: trainerFeeAmount } = getCustomTrainerFee(currentTrainerName, ticket);
                             return (
                               <tr key={index} className="hover:bg-gray-50">
                                 <td className="py-3 px-4">
@@ -187,7 +186,18 @@ export default function DashboardPage() {
                                   €{ticket.PriceTotal.toFixed(2)}
                                 </td>
                                 <td className="py-3 px-4 text-right text-gray-900">
-                                  {((ticket.TrainerFeePct || 0) * 100).toFixed(1)}%
+                                  <span className={`${
+                                    trainerFeePercentage !== (ticket.TrainerFeePct || 0) 
+                                      ? 'bg-yellow-100 text-yellow-800 px-2 py-1 rounded font-semibold' 
+                                      : ''
+                                  }`}>
+                                    {(trainerFeePercentage * 100).toFixed(1)}%
+                                  </span>
+                                  {trainerFeePercentage !== (ticket.TrainerFeePct || 0) && (
+                                    <span className="text-xs text-yellow-600 ml-1" title="Custom rate applied">
+                                      ★
+                                    </span>
+                                  )}
                                 </td>
                                 <td className="py-3 px-4 text-right font-medium text-green-600">
                                   €{trainerFeeAmount.toFixed(2)}
@@ -206,9 +216,11 @@ export default function DashboardPage() {
                             <td className="py-3 px-4"></td>
                             <td className="py-3 px-4 text-right font-bold text-green-600">
                               €{(() => {
-                                const isAlejandro = (trainerOverride || selectedEvent.Trainer_1)?.toLowerCase().includes('alejandro');
+                                const currentTrainerName = trainerOverride || selectedEvent.Trainer_1 || '';
+                                
                                 return selectedEvent.tickets.reduce((sum, ticket) => {
-                                  return sum + (isAlejandro ? ticket.PriceTotal : ticket.PriceTotal * (ticket.TrainerFeePct || 0));
+                                  const { amount } = getCustomTrainerFee(currentTrainerName, ticket);
+                                  return sum + amount;
                                 }, 0).toFixed(2);
                               })()}
                             </td>
@@ -222,6 +234,20 @@ export default function DashboardPage() {
                     No ticket data available for this event.
                   </div>
                 )}
+                
+                {/* Custom Trainer Rates Legend */}
+                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <h4 className="text-sm font-semibold text-yellow-800 mb-2 flex items-center">
+                    <span className="text-yellow-600 mr-1">★</span>
+                    Custom Trainer Rates Applied
+                  </h4>
+                  <div className="text-xs text-yellow-700 space-y-1">
+                    <div><strong>Alejandro:</strong> 100% of ticket revenue</div>
+                    <div><strong>Sofie/Mikaela:</strong> 65% for attended, 45% for unattended</div>
+                    <div><strong>Natasha:</strong> 45% for attended instructor training events</div>
+                    <div className="text-yellow-600 mt-2">★ indicates custom rate override</div>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
