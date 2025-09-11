@@ -155,13 +155,13 @@ export default function DashboardPage() {
                             const currentTrainerName = trainerOverride || selectedEvent.Trainer_1 || '';
                             const isAlejandro = currentTrainerName.toLowerCase().includes('alejandro');
                             
-                            // For Alejandro: show original percentage but calculate amount as 100%
+                            // For Alejandro: show original percentage and calculate amount using that percentage
                             const trainerFeePercentage = isAlejandro 
                               ? (ticket.TrainerFeePct || 0) // Show original percentage from query
                               : getCustomTrainerFee(currentTrainerName, ticket).percentage;
                               
                             const trainerFeeAmount = isAlejandro
-                              ? ticket.PriceTotal // 100% of ticket price for Alejandro
+                              ? ticket.PriceTotal * (ticket.TrainerFeePct || 0) // Use percentage calculation for table
                               : getCustomTrainerFee(currentTrainerName, ticket).amount;
                             return (
                               <tr key={index} className="hover:bg-gray-50">
@@ -214,10 +214,17 @@ export default function DashboardPage() {
                             <td className="py-3 px-4 text-right font-bold text-green-600">
                               €{(() => {
                                 const currentTrainerName = trainerOverride || selectedEvent.Trainer_1 || '';
+                                const isAlejandro = currentTrainerName.toLowerCase().includes('alejandro');
                                 
                                 return selectedEvent.tickets.reduce((sum, ticket) => {
-                                  const { amount } = getCustomTrainerFee(currentTrainerName, ticket);
-                                  return sum + amount;
+                                  if (isAlejandro) {
+                                    // For Alejandro: use percentage calculation in table
+                                    return sum + (ticket.PriceTotal * (ticket.TrainerFeePct || 0));
+                                  } else {
+                                    // For others: use custom calculation
+                                    const { amount } = getCustomTrainerFee(currentTrainerName, ticket);
+                                    return sum + amount;
+                                  }
                                 }, 0).toFixed(2);
                               })()}
                             </td>
@@ -240,9 +247,17 @@ export default function DashboardPage() {
               event={selectedEvent}
               trainerFee={(() => {
                 const currentTrainerName = trainerOverride || selectedEvent.Trainer_1 || '';
+                const isAlejandro = currentTrainerName.toLowerCase().includes('alejandro');
+                
                 return selectedEvent.tickets.reduce((sum, ticket) => {
-                  const { amount } = getCustomTrainerFee(currentTrainerName, ticket);
-                  return sum + amount;
+                  if (isAlejandro) {
+                    // For Alejandro: use full ticket price for overview calculations
+                    return sum + ticket.PriceTotal;
+                  } else {
+                    // For others: use custom calculation
+                    const { amount } = getCustomTrainerFee(currentTrainerName, ticket);
+                    return sum + amount;
+                  }
                 }, 0);
               })()}
             />
