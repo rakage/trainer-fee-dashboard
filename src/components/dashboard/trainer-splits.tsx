@@ -174,33 +174,37 @@ export function TrainerSplitsEditor({ eventId, event, commissions }: TrainerSpli
                     />
                   </TableCell>
                   <TableCell className="text-right">
-                    <Input
-                      type="text"
-                      value={split.Percent.toString().replace('.', ',')}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        const numValue = parseFloat(value.replace(',', '.')) || 0;
-                        updateSplit(index, 'Percent', numValue);
-                      }}
-                      placeholder="0,0"
-                      className="w-20 text-right bg-blue-50"
-                    />
+                    <div className="flex justify-end">
+                      <Input
+                        type="text"
+                        value={split.Percent.toString().replace('.', ',')}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          const numValue = parseFloat(value.replace(',', '.')) || 0;
+                          updateSplit(index, 'Percent', numValue);
+                        }}
+                        placeholder="0,0"
+                        className="w-16 text-right bg-blue-50 text-sm"
+                      />
+                    </div>
                   </TableCell>
                   <TableCell className="text-right font-mono">
                     {formatCurrency(overview.balance * (split.Percent / 100))}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Input
-                      type="text"
-                      value={(split.CashReceived || 0).toFixed(2).replace('.', ',')}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        const numValue = parseFloat(value.replace(',', '.')) || 0;
-                        updateSplit(index, 'CashReceived', numValue);
-                      }}
-                      placeholder="0,00"
-                      className="w-24 text-right bg-blue-50"
-                    />
+                    <div className="flex justify-end">
+                      <Input
+                        type="text"
+                        value={(split.CashReceived || 0).toFixed(2).replace('.', ',')}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          const numValue = parseFloat(value.replace(',', '.')) || 0;
+                          updateSplit(index, 'CashReceived', numValue);
+                        }}
+                        placeholder="0,00"
+                        className="w-20 text-right bg-blue-50 text-sm"
+                      />
+                    </div>
                   </TableCell>
                   <TableCell className="text-right font-mono">
                     {formatCurrency((overview.balance * (split.Percent / 100)) - (split.CashReceived || 0))}
