@@ -27,6 +27,7 @@ export function ExpensesEditor({ eventId, event, trainerFee, onExpensesChange }:
   ]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [amountDisplays, setAmountDisplays] = useState<string[]>(['0,00']);
 
   // Load existing expenses when component mounts
   useEffect(() => {
@@ -37,6 +38,11 @@ export function ExpensesEditor({ eventId, event, trainerFee, onExpensesChange }:
           const data = await response.json();
           if (data.success && data.data.expenses && data.data.expenses.length > 0) {
             setExpenses(data.data.expenses);
+            // Set display values for loaded expenses
+            const displays = data.data.expenses.map((exp: any) => 
+              (exp.Amount || 0).toFixed(2).replace('.', ',')
+            );
+            setAmountDisplays(displays);
           }
         }
       } catch (error) {
@@ -65,10 +71,12 @@ export function ExpensesEditor({ eventId, event, trainerFee, onExpensesChange }:
       Amount: 0,
     };
     setExpenses([...expenses, newRow]);
+    setAmountDisplays([...amountDisplays, '0,00']);
   };
 
   const removeRow = (index: number) => {
     setExpenses(expenses.filter((_, i) => i !== index));
+    setAmountDisplays(amountDisplays.filter((_, i) => i !== index));
   };
 
   const updateExpense = (index: number, field: keyof Expense, value: any) => {
@@ -79,6 +87,25 @@ export function ExpensesEditor({ eventId, event, trainerFee, onExpensesChange }:
       return expense;
     });
     setExpenses(updatedExpenses);
+  };
+
+  const handleAmountChange = (index: number, value: string) => {
+    // Update display value immediately (allows free typing)
+    const newDisplays = [...amountDisplays];
+    newDisplays[index] = value;
+    setAmountDisplays(newDisplays);
+  };
+
+  const handleAmountBlur = (index: number, value: string) => {
+    // Parse and update actual amount value on blur
+    const numValue = parseFloat(value.replace(',', '.')) || 0;
+    updateExpense(index, 'Amount', numValue);
+    
+    // Format the display value properly
+    const formattedValue = numValue.toFixed(2).replace('.', ',');
+    const newDisplays = [...amountDisplays];
+    newDisplays[index] = formattedValue;
+    setAmountDisplays(newDisplays);
   };
 
   const handleSave = async () => {
@@ -157,12 +184,9 @@ export function ExpensesEditor({ eventId, event, trainerFee, onExpensesChange }:
                     <div className="flex justify-end">
                       <Input
                         type="text"
-                        value={(expense.Amount || 0).toFixed(2).replace('.', ',')}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          const numValue = parseFloat(value.replace(',', '.')) || 0;
-                          updateExpense(index, 'Amount', numValue);
-                        }}
+                        value={amountDisplays[index] || '0,00'}
+                        onChange={(e) => handleAmountChange(index, e.target.value)}
+                        onBlur={(e) => handleAmountBlur(index, e.target.value)}
                         placeholder="0,00"
                         className="w-24 text-right text-sm"
                       />
