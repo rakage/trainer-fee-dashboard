@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { DatabaseService } from '@/lib/database';
 import { requireRole, rateLimit } from '@/lib/middleware';
 import { ExportRequest } from '@/types';
-import { generateExportFilename, calculateEventSummary } from '@/lib/utils';
+import { generateExportFilename, calculateEventSummary, getCustomTrainerFee } from '@/lib/utils';
 import ExcelJS from 'exceljs';
 import { stringify } from 'csv-stringify/sync';
 
@@ -56,8 +56,9 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       );
     }
 
-    // Fetch trainer splits
+    // Fetch trainer splits and expenses
     const splits = await DatabaseService.getTrainerSplits(prodId);
+    const expenses = await DatabaseService.getEventExpenses(prodId);
 
     // Generate filename
     const filename = generateExportFilename(prodId, event.ProdName, format);
@@ -72,11 +73,11 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
     switch (format) {
       case 'xlsx':
-        return await generateXLSXExport(event, splits, commissions, trainerOverride, filename);
+        return await generateXLSXExport(event, splits, expenses, commissions, trainerOverride, filename);
       case 'csv':
-        return await generateCSVExport(event, splits, commissions, trainerOverride, filename);
+        return await generateCSVExport(event, splits, expenses, commissions, trainerOverride, filename);
       case 'pdf':
-        return await generatePDFExport(event, splits, commissions, trainerOverride, filename);
+        return await generatePDFExport(event, splits, expenses, commissions, trainerOverride, filename);
       default:
         return NextResponse.json(
           { success: false, error: 'Unsupported format' },
@@ -92,7 +93,49 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   }
 }
 
-async function generateXLSXExport(event: any, splits: any[], commissions: any, trainerOverride?: string, filename?: string) {
+// Helper function to calculate trainer fee after expenses and percentage
+function calculateAdjustedTrainerFee(event: any, expenses: any[], trainerName?: string): { originalTrainerFee: number, totalExpenses: number, margin: number, trainerFeePercentage: number, adjustedTrainerFee: number } {
+  const currentTrainerName = trainerName || event.Trainer_1 || '';
+  const isAlejandro = currentTrainerName.toLowerCase().includes('alejandro');
+  
+  // Calculate original trainer fee
+  const originalTrainerFee = event.tickets.reduce((sum: number, ticket: any) => {
+    if (isAlejandro) {
+      return sum + ticket.PriceTotal;
+    } else {
+      const { amount } = getCustomTrainerFee(currentTrainerName, ticket);
+      return sum + amount;
+    }
+  }, 0);
+  
+  // Calculate total expenses
+  const totalExpenses = expenses.reduce((sum: number, expense: any) => sum + (expense.Amount || 0), 0);
+  
+  // Calculate margin
+  const margin = originalTrainerFee - totalExpenses;
+  
+  // Calculate trainer fee percentage from attended tickets (for Alejandro)
+  const attendedTickets = event.tickets?.filter((ticket: any) => ticket.Attendance === 'Attended') || [];
+  let trainerFeePercentage = 100; // Default 100% for non-Alejandro
+  
+  if (isAlejandro && attendedTickets.length > 0) {
+    trainerFeePercentage = attendedTickets.reduce((sum: number, ticket: any) => sum + (ticket.TrainerFeePct || 0) * ticket.PriceTotal, 0) / 
+      attendedTickets.reduce((sum: number, ticket: any) => sum + ticket.PriceTotal, 0) * 100;
+  }
+  
+  // Calculate final adjusted trainer fee
+  const adjustedTrainerFee = margin * (trainerFeePercentage / 100);
+  
+  return {
+    originalTrainerFee,
+    totalExpenses,
+    margin,
+    trainerFeePercentage,
+    adjustedTrainerFee
+  };
+}
+
+async function generateXLSXExport(event: any, splits: any[], expenses: any[], commissions: any, trainerOverride?: string, filename?: string) {
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet('Event Report');
 
@@ -154,13 +197,42 @@ async function generateXLSXExport(event: any, splits: any[], commissions: any, t
     totals.totalTrainerFee // Trainer Fee Amount
   ]);
 
+  // Calculate adjusted trainer fee and expenses
+  const adjustedCalc = calculateAdjustedTrainerFee(event, expenses, trainerOverride);
+  
+  // Add expenses section if there are expenses
+  if (expenses.length > 0) {
+    worksheet.addRow([]); // Empty row
+    worksheet.addRow(['Expenses']);
+    worksheet.addRow(['Description', 'Amount']);
+    
+    expenses.forEach(expense => {
+      worksheet.addRow([
+        expense.Description,
+        expense.Amount
+      ]);
+    });
+    
+    // Add expenses total
+    worksheet.addRow(['Total Expenses', adjustedCalc.totalExpenses]);
+    worksheet.addRow(['Margin (Original Fee - Expenses)', adjustedCalc.margin]);
+    
+    const currentTrainerName = trainerOverride || event.Trainer_1 || '';
+    const isAlejandro = currentTrainerName.toLowerCase().includes('alejandro');
+    if (isAlejandro) {
+      worksheet.addRow(['Trainer Fee %', adjustedCalc.trainerFeePercentage]);
+    }
+  }
+  
   // Add overview section
   worksheet.addRow([]); // Empty row
   worksheet.addRow(['Overview']);
-  worksheet.addRow(['Trainer Fee', overview.trainerFee]);
+  worksheet.addRow(['Trainer Fee', adjustedCalc.adjustedTrainerFee]);
   worksheet.addRow(['Cash Sales', overview.cashSales]);
-  worksheet.addRow(['Balance', overview.balance]);
-  worksheet.addRow(['Receivable from Trainer', overview.payableToTrainer]);
+  const adjustedBalance = overview.cashSales - adjustedCalc.adjustedTrainerFee;
+  const adjustedPayable = adjustedCalc.adjustedTrainerFee - overview.cashSales;
+  worksheet.addRow(['Balance', adjustedBalance]);
+  worksheet.addRow(['Receivable from Trainer', adjustedPayable]);
 
   // Add trainer splits if any
   if (splits.length > 0) {
@@ -190,7 +262,7 @@ async function generateXLSXExport(event: any, splits: any[], commissions: any, t
   });
 }
 
-async function generateCSVExport(event: any, splits: any[], commissions: any, trainerOverride?: string, filename?: string) {
+async function generateCSVExport(event: any, splits: any[], expenses: any[], commissions: any, trainerOverride?: string, filename?: string) {
   const summaryData = calculateEventSummary(event.tickets);
   
   const csvData = [
@@ -225,16 +297,21 @@ async function generateCSVExport(event: any, splits: any[], commissions: any, tr
   });
 }
 
-async function generatePDFExport(event: any, splits: any[], commissions: any, trainerOverride?: string, filename?: string) {
+async function generatePDFExport(event: any, splits: any[], expenses: any[], commissions: any, trainerOverride?: string, filename?: string) {
   try {
     const puppeteer = require('puppeteer');
     const fs = require('fs');
     const path = require('path');
     const summaryData = calculateEventSummary(event.tickets);
     
-    // Calculate overview metrics
+    // Calculate overview metrics and adjusted trainer fee
     const { calculateEventOverview } = require('@/lib/utils');
     const overview = calculateEventOverview(event.tickets, commissions, splits);
+    const adjustedCalc = calculateAdjustedTrainerFee(event, expenses, trainerOverride);
+    
+    // Calculate adjusted balance and payable
+    const adjustedBalance = overview.cashSales - adjustedCalc.adjustedTrainerFee;
+    const adjustedPayable = adjustedCalc.adjustedTrainerFee - overview.cashSales;
     
     // Calculate totals for grand total row
     const totals = {
@@ -341,12 +418,52 @@ async function generatePDFExport(event: any, splits: any[], commissions: any, tr
           </tfoot>
         </table>
         
+        ${expenses.length > 0 ? `
+          <h2>Expenses</h2>
+          <table style="width: 70%; margin: 20px 0;">
+            <thead>
+              <tr>
+                <th>Description</th>
+                <th class="number">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${expenses.map((expense: any) => `
+                <tr>
+                  <td>${expense.Description}</td>
+                  <td class="number">€${expense.Amount.toFixed(2)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+            <tfoot style="background-color: #f8f9fa; border-top: 2px solid #dee2e6; font-weight: bold;">
+              <tr>
+                <td style="text-align: left; padding: 8px;">Total Expenses</td>
+                <td class="number" style="font-weight: bold;">€${adjustedCalc.totalExpenses.toFixed(2)}</td>
+              </tr>
+              <tr>
+                <td style="text-align: left; padding: 8px;">Margin (Fee - Expenses)</td>
+                <td class="number" style="font-weight: bold;">€${adjustedCalc.margin.toFixed(2)}</td>
+              </tr>
+              ${(() => {
+                const currentTrainerName = trainerOverride || event.Trainer_1 || '';
+                const isAlejandro = currentTrainerName.toLowerCase().includes('alejandro');
+                return isAlejandro ? `
+                  <tr>
+                    <td style="text-align: left; padding: 8px;">Trainer Fee %</td>
+                    <td class="number" style="font-weight: bold;">${adjustedCalc.trainerFeePercentage.toFixed(1)}%</td>
+                  </tr>
+                ` : '';
+              })()}
+            </tfoot>
+          </table>
+        ` : ''}
+        
         <h2>Overview</h2>
         <table style="width: 50%; margin: 20px 0;">
           <tbody>
             <tr>
               <td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">Trainer Fee</td>
-              <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">€${overview.trainerFee.toFixed(2)}</td>
+              <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">€${adjustedCalc.adjustedTrainerFee.toFixed(2)}</td>
             </tr>
             <tr>
               <td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">Cash Sales</td>
@@ -354,11 +471,11 @@ async function generatePDFExport(event: any, splits: any[], commissions: any, tr
             </tr>
             <tr>
               <td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">Balance</td>
-              <td style="border: 1px solid #ddd; padding: 8px; text-align: right; ${overview.balance < 0 ? 'color: #dc3545;' : ''}">€${overview.balance.toFixed(2)}</td>
+              <td style="border: 1px solid #ddd; padding: 8px; text-align: right; ${adjustedBalance < 0 ? 'color: #dc3545;' : ''}">€${adjustedBalance.toFixed(2)}</td>
             </tr>
             <tr>
               <td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">Receivable from Trainer</td>
-              <td style="border: 1px solid #ddd; padding: 8px; text-align: right; font-weight: bold; ${overview.payableToTrainer < 0 ? 'color: #dc3545;' : 'color: #28a745;'}">€${overview.payableToTrainer.toFixed(2)}</td>
+              <td style="border: 1px solid #ddd; padding: 8px; text-align: right; font-weight: bold; ${adjustedPayable < 0 ? 'color: #dc3545;' : 'color: #28a745;'}">€${adjustedPayable.toFixed(2)}</td>
             </tr>
           </tbody>
         </table>
