@@ -16,23 +16,20 @@ export function EventOverviewCards({ event, commissions, trainerName, trainerFee
   
   // Use provided trainerFeeTotal if available, otherwise use calculated overview value
   const displayTrainerFee = trainerFeeTotal !== undefined ? trainerFeeTotal : overview.trainerFee;
+  
+  // Recalculate balance and payable with the new trainer fee
+  const adjustedBalance = overview.cashSales - displayTrainerFee;
+  const adjustedPayable = displayTrainerFee - overview.cashSales;
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Trainer Fee</CardTitle>
-          <span className="text-xs text-muted-foreground">
-            {trainerFeeTotal !== undefined ? 'After Expenses & %' : 'Total'}
-          </span>
+          <span className="text-xs text-muted-foreground">Total</span>
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">{formatCurrency(displayTrainerFee)}</div>
-          {trainerFeeTotal !== undefined && (
-            <p className="text-xs text-muted-foreground mt-1">
-              Calculated with expenses deducted
-            </p>
-          )}
         </CardContent>
       </Card>
 
@@ -50,7 +47,7 @@ export function EventOverviewCards({ event, commissions, trainerName, trainerFee
           <CardTitle className="text-sm font-medium">Balance</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{formatCurrency(overview.balance)}</div>
+          <div className="text-2xl font-bold">{formatCurrency(adjustedBalance)}</div>
         </CardContent>
       </Card>
 
@@ -60,9 +57,9 @@ export function EventOverviewCards({ event, commissions, trainerName, trainerFee
         </CardHeader>
         <CardContent>
           <div className={`text-2xl font-bold ${
-            overview.payableToTrainer < 0 ? 'text-red-600' : 'text-green-600'
+            adjustedPayable < 0 ? 'text-red-600' : 'text-green-600'
           }`}>
-            {formatCurrency(overview.payableToTrainer)}
+            {formatCurrency(adjustedPayable)}
           </div>
           <p className="text-xs text-muted-foreground">
             Amount to pay trainer
