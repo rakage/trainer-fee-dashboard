@@ -15,9 +15,10 @@ interface ExpensesEditorProps {
   trainerFee: number;
   trainerName?: string;
   onExpensesChange?: (totalExpenses: number) => void;
+  onTrainerFeeTotalChange?: (trainerFeeTotal: number) => void;
 }
 
-export function ExpensesEditor({ eventId, event, trainerFee, trainerName, onExpensesChange }: ExpensesEditorProps) {
+export function ExpensesEditor({ eventId, event, trainerFee, trainerName, onExpensesChange, onTrainerFeeTotalChange }: ExpensesEditorProps) {
   const [expenses, setExpenses] = useState<Expense[]>([
     {
       ProdID: eventId,
@@ -92,6 +93,10 @@ export function ExpensesEditor({ eventId, event, trainerFee, trainerName, onExpe
   useEffect(() => {
     onExpensesChange?.(totalExpenses);
   }, [totalExpenses, onExpensesChange]);
+
+  useEffect(() => {
+    onTrainerFeeTotalChange?.(trainerFeeTotal);
+  }, [trainerFeeTotal, onTrainerFeeTotalChange]);
 
   const addRow = () => {
     const newRow: Expense = {

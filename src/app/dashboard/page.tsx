@@ -24,10 +24,12 @@ export default function DashboardPage() {
     grace: 0,
     nanna: 0,
   });
+  const [trainerFeeTotal, setTrainerFeeTotal] = useState<number | undefined>(undefined);
 
   const handleEventSelect = (event: EventDetail | null) => {
     setSelectedEvent(event);
     setTrainerOverride(event?.Trainer_1 || '');
+    setTrainerFeeTotal(undefined); // Reset trainer fee total for new event
   };
 
   const handleCommissionChange = (field: keyof Commission, value: string) => {
@@ -123,6 +125,7 @@ export default function DashboardPage() {
               event={selectedEvent}
               commissions={commissions}
               trainerName={trainerOverride || selectedEvent.Trainer_1}
+              trainerFeeTotal={trainerFeeTotal}
             />
 
             {/* Tickets Table */}
@@ -261,6 +264,7 @@ export default function DashboardPage() {
                   }
                 }, 0);
               })()}
+              onTrainerFeeTotalChange={setTrainerFeeTotal}
             />
             
             {/* Trainer Splits Editor */}
