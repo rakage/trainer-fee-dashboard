@@ -63,12 +63,20 @@ function initializeTables() {
       row_id INTEGER NOT NULL,
       name TEXT NOT NULL,
       percent REAL NOT NULL,
+      trainer_fee REAL NOT NULL DEFAULT 0,
       cash_received REAL NOT NULL DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(prod_id, row_id)
     )
   `).run();
+  
+  // Add trainer_fee column if it doesn't exist (for existing databases)
+  try {
+    db.prepare('ALTER TABLE trainer_splits ADD COLUMN trainer_fee REAL NOT NULL DEFAULT 0').run();
+  } catch (error) {
+    // Column already exists, ignore error
+  }
   
   // Create expenses table (for app-specific data)
   db.prepare(`
@@ -151,20 +159,20 @@ export class TrainerSplitService {
     return getDatabase().prepare('SELECT * FROM trainer_splits WHERE prod_id = ? ORDER BY row_id').all(prodId);
   }
 
-  static upsert(split: { prod_id: number; row_id: number; name: string; percent: number; cash_received: number; }): void {
+  static upsert(split: { prod_id: number; row_id: number; name: string; percent: number; trainer_fee: number; cash_received: number; }): void {
     const database = getDatabase();
     const existing = database.prepare('SELECT id FROM trainer_splits WHERE prod_id = ? AND row_id = ?').get(split.prod_id, split.row_id) as any;
     if (existing?.id) {
       database.prepare(`
         UPDATE trainer_splits 
-        SET name = ?, percent = ?, cash_received = ?, updated_at = CURRENT_TIMESTAMP 
+        SET name = ?, percent = ?, trainer_fee = ?, cash_received = ?, updated_at = CURRENT_TIMESTAMP 
         WHERE prod_id = ? AND row_id = ?
-      `).run(split.name, split.percent, split.cash_received, split.prod_id, split.row_id);
+      `).run(split.name, split.percent, split.trainer_fee, split.cash_received, split.prod_id, split.row_id);
     } else {
       database.prepare(`
-        INSERT INTO trainer_splits (prod_id, row_id, name, percent, cash_received) 
-        VALUES (?, ?, ?, ?, ?)
-      `).run(split.prod_id, split.row_id, split.name, split.percent, split.cash_received);
+        INSERT INTO trainer_splits (prod_id, row_id, name, percent, trainer_fee, cash_received) 
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(split.prod_id, split.row_id, split.name, split.percent, split.trainer_fee, split.cash_received);
     }
   }
 

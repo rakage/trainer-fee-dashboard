@@ -482,9 +482,9 @@ export class DatabaseService {
         RowId: row.row_id,
         Name: row.name,
         Percent: row.percent,
-        TrainerFee: 0, // Will be calculated in frontend
+        TrainerFee: row.trainer_fee || 0,
         CashReceived: row.cash_received,
-        Payable: 0, // Will be calculated in frontend
+        Payable: (row.trainer_fee || 0) - (row.cash_received || 0), // Calculate payable from saved values
       }));
     } catch (error: any) {
       console.error('Error getting trainer splits from SQLite:', error);
@@ -501,6 +501,7 @@ export class DatabaseService {
         row_id: split.RowId,
         name: split.Name,
         percent: split.Percent,
+        trainer_fee: split.TrainerFee || 0,
         cash_received: split.CashReceived
       });
     } catch (error) {
