@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DatabaseService } from '@/lib/database';
 import { requireRole } from '@/lib/middleware';
+import { ActivityLogger } from '@/lib/activity-logger';
 import { Expense } from '@/types';
 
 interface RouteContext {
@@ -84,12 +85,13 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       await DatabaseService.saveEventExpense(expense);
     }
 
-    // Log audit event
-    await DatabaseService.logAuditEvent(
+    // Log activity
+    const expenseDetails = expenses.map(e => `${e.Description}: $${e.Amount}`).join(', ');
+    await ActivityLogger.log(
       authResult.user.id,
-      'UPDATE_EXPENSES',
+      'update_event_expenses',
       prodId,
-      `Updated event expenses: ${expenses.length} entries`
+      `Updated expenses for event ${prodId}: ${expenseDetails}`
     );
 
     return NextResponse.json({

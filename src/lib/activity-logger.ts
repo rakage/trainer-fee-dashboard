@@ -93,54 +93,67 @@ export class ActivityLogger {
 
       // Build WHERE clause based on filters
       if (filters.search) {
-        whereClause += ` AND (details LIKE ? OR action LIKE ?)`;
-        params.push(`%${filters.search}%`, `%${filters.search}%`);
+        whereClause += ` AND (al.details LIKE ? OR al.action LIKE ? OR u.name LIKE ? OR u.email LIKE ?)`;
+        params.push(`%${filters.search}%`, `%${filters.search}%`, `%${filters.search}%`, `%${filters.search}%`);
       }
 
       if (filters.action) {
-        whereClause += ` AND action LIKE ?`;
+        whereClause += ` AND al.action LIKE ?`;
         params.push(`%${filters.action}%`);
       }
 
       if (filters.userId) {
-        whereClause += ` AND userId = ?`;
+        whereClause += ` AND al.userId = ?`;
         params.push(filters.userId);
       }
 
       if (filters.dateFrom) {
-        whereClause += ` AND date(createdAt) >= ?`;
+        whereClause += ` AND date(al.createdAt) >= ?`;
         params.push(filters.dateFrom);
       }
 
       if (filters.dateTo) {
-        whereClause += ` AND date(createdAt) <= ?`;
+        whereClause += ` AND date(al.createdAt) <= ?`;
         params.push(filters.dateTo);
       }
 
       // Get total count
       const countStmt = db.prepare(`
         SELECT COUNT(*) as total 
-        FROM audit_logs 
+        FROM audit_logs al
+        LEFT JOIN users u ON al.userId = u.id
         WHERE ${whereClause}
       `);
       const { total } = countStmt.get(...params) as { total: number };
 
-      // Build main query with pagination
+      // Build main query with pagination - join with users table to get user names
       let query = `
-        SELECT id, userId, action, prodId, details, createdAt
-        FROM audit_logs 
+        SELECT 
+          al.id, 
+          al.userId, 
+          u.name as userName,
+          u.email as userEmail,
+          al.action, 
+          al.prodId, 
+          al.details, 
+          al.createdAt
+        FROM audit_logs al
+        LEFT JOIN users u ON al.userId = u.id
         WHERE ${whereClause}
-        ORDER BY createdAt DESC
+        ORDER BY al.createdAt DESC
       `;
 
+      // Create a copy of params for the main query
+      const queryParams = [...params];
+      
       if (filters.page && filters.limit) {
         const offset = (filters.page - 1) * filters.limit;
         query += ` LIMIT ? OFFSET ?`;
-        params.push(filters.limit, offset);
+        queryParams.push(filters.limit, offset);
       }
 
       const stmt = db.prepare(query);
-      const logs = stmt.all(...params) as AuditLog[];
+      const logs = stmt.all(...queryParams) as AuditLog[];
 
       return {
         data: logs.map(log => ({

@@ -32,6 +32,7 @@ export function ActivityLog() {
   const [filters, setFilters] = useState<ActivityLogFilters>({
     page: 1,
     limit: 20,
+    action: 'all',
   });
   const [showFilters, setShowFilters] = useState(false);
 
@@ -46,7 +47,7 @@ export function ActivityLog() {
     queryFn: async () => {
       const params = new URLSearchParams();
       if (filters.search) params.append('search', filters.search);
-      if (filters.action) params.append('action', filters.action);
+      if (filters.action && filters.action !== 'all') params.append('action', filters.action);
       if (filters.userId) params.append('userId', filters.userId);
       if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
       if (filters.dateTo) params.append('dateTo', filters.dateTo);
@@ -81,6 +82,11 @@ export function ActivityLog() {
     setFilters({
       page: 1,
       limit: 20,
+      search: '',
+      action: 'all',
+      userId: '',
+      dateFrom: '',
+      dateTo: '',
     });
   };
 
@@ -88,7 +94,7 @@ export function ActivityLog() {
     try {
       const params = new URLSearchParams();
       if (filters.search) params.append('search', filters.search);
-      if (filters.action) params.append('action', filters.action);
+      if (filters.action && filters.action !== 'all') params.append('action', filters.action);
       if (filters.userId) params.append('userId', filters.userId);
       if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
       if (filters.dateTo) params.append('dateTo', filters.dateTo);
@@ -119,7 +125,9 @@ export function ActivityLog() {
     if (actionLower.includes('update') || actionLower.includes('edit')) return 'bg-blue-100 text-blue-800';
     if (actionLower.includes('delete')) return 'bg-red-100 text-red-800';
     if (actionLower.includes('login') || actionLower.includes('signin')) return 'bg-purple-100 text-purple-800';
+    if (actionLower.includes('logout') || actionLower.includes('signout')) return 'bg-purple-100 text-purple-800';
     if (actionLower.includes('export')) return 'bg-orange-100 text-orange-800';
+    if (actionLower.includes('view')) return 'bg-cyan-100 text-cyan-800';
     return 'bg-gray-100 text-gray-800';
   };
 
@@ -188,11 +196,13 @@ export function ActivityLog() {
                     <SelectValue placeholder="All actions" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All actions</SelectItem>
+                    <SelectItem value="all">All actions</SelectItem>
+                    <SelectItem value="login">Login</SelectItem>
+                    <SelectItem value="logout">Logout</SelectItem>
+                    <SelectItem value="view">View</SelectItem>
                     <SelectItem value="create">Create</SelectItem>
                     <SelectItem value="update">Update</SelectItem>
                     <SelectItem value="delete">Delete</SelectItem>
-                    <SelectItem value="login">Login</SelectItem>
                     <SelectItem value="export">Export</SelectItem>
                   </SelectContent>
                 </Select>
@@ -243,15 +253,15 @@ export function ActivityLog() {
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto max-h-[600px] overflow-y-auto border rounded-md">
                 <Table>
-                  <TableHeader>
+                  <TableHeader className="sticky top-0 bg-background z-10">
                     <TableRow>
-                      <TableHead>Date & Time</TableHead>
-                      <TableHead>User</TableHead>
-                      <TableHead>Action</TableHead>
-                      <TableHead>Event ID</TableHead>
-                      <TableHead>Details</TableHead>
+                      <TableHead className="bg-background">Date & Time</TableHead>
+                      <TableHead className="bg-background">User</TableHead>
+                      <TableHead className="bg-background">Action</TableHead>
+                      <TableHead className="bg-background">Event ID</TableHead>
+                      <TableHead className="bg-background">Details</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -261,7 +271,12 @@ export function ActivityLog() {
                           {formatDate(log.createdAt)}
                         </TableCell>
                         <TableCell className="font-medium">
-                          {log.userId}
+                          <div className="flex flex-col">
+                            <span>{log.userName || 'Unknown User'}</span>
+                            {log.userEmail && (
+                              <span className="text-xs text-muted-foreground">{log.userEmail}</span>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <span 

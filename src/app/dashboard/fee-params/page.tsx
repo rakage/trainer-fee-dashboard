@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
 import { DashboardLayout } from '@/components/dashboard/layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -36,6 +37,7 @@ interface FeeParam {
 }
 
 export default function FeeParamsPage() {
+  const { data: session } = useSession();
   const [params, setParams] = useState<FeeParam[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -90,7 +92,18 @@ export default function FeeParamsPage() {
 
   useEffect(() => {
     loadParams();
-  }, []);
+    // Log page view
+    if (session?.user?.id) {
+      fetch('/api/activity-log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'view_fee_parameters',
+          details: `User viewed fee parameters page`
+        })
+      }).catch(console.error);
+    }
+  }, [session]);
 
 
   const handleSubmit = async (e: React.FormEvent) => {

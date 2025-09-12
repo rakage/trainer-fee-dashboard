@@ -35,10 +35,18 @@ function initializeTables() {
       password TEXT,
       role TEXT NOT NULL DEFAULT 'viewer',
       provider TEXT DEFAULT 'credentials',
+      last_active_at DATETIME,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `).run();
+  
+  // Add last_active_at column if it doesn't exist (for existing databases)
+  try {
+    db.prepare('ALTER TABLE users ADD COLUMN last_active_at DATETIME').run();
+  } catch (error) {
+    // Column already exists, ignore error
+  }
   
   // Fee parameters table
   db.prepare(`
@@ -148,7 +156,7 @@ function getUpdateUser() {
 
 function getGetAllUsers() {
   return getDatabase().prepare(`
-    SELECT id, email, name, role, provider, created_at, updated_at 
+    SELECT id, email, name, role, provider, last_active_at, created_at, updated_at 
     FROM users 
     ORDER BY created_at DESC
   `);
@@ -327,6 +335,7 @@ export class UserService {
       email: row.email,
       name: row.name,
       role: row.role as UserRole,
+      lastActiveAt: row.last_active_at ? new Date(row.last_active_at) : undefined,
       createdAt: new Date(row.created_at),
       updatedAt: new Date(row.updated_at)
     };
@@ -342,6 +351,7 @@ export class UserService {
       email: row.email,
       name: row.name,
       role: row.role as UserRole,
+      lastActiveAt: row.last_active_at ? new Date(row.last_active_at) : undefined,
       createdAt: new Date(row.created_at),
       updatedAt: new Date(row.updated_at)
     };
@@ -349,10 +359,21 @@ export class UserService {
 
   // Verify user credentials
   static async verifyCredentials(email: string, password: string): Promise<User | null> {
+    console.log('UserService.verifyCredentials called for email:', email);
     const row = getFindUserByEmail().get(email) as any;
-    if (!row || !row.password) return null;
+    if (!row) {
+      console.log('No user found with email:', email);
+      return null;
+    }
+    if (!row.password) {
+      console.log('User found but no password stored for:', email);
+      return null;
+    }
 
+    console.log('Comparing password for user:', email);
     const isValid = await bcrypt.compare(password, row.password);
+    console.log('Password comparison result:', isValid);
+    
     if (!isValid) return null;
 
     return {
@@ -360,6 +381,7 @@ export class UserService {
       email: row.email,
       name: row.name,
       role: row.role as UserRole,
+      lastActiveAt: row.last_active_at ? new Date(row.last_active_at) : undefined,
       createdAt: new Date(row.created_at),
       updatedAt: new Date(row.updated_at)
     };
@@ -389,10 +411,36 @@ export class UserService {
     return result.changes > 0;
   }
 
+  // Update user password
+  static async updatePassword(id: string, hashedPassword: string): Promise<boolean> {
+    try {
+      const result = getDatabase().prepare(
+        'UPDATE users SET password = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+      ).run(hashedPassword, id);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error updating password:', error);
+      return false;
+    }
+  }
+
+  // Update user last active timestamp
+  static async updateLastActive(id: string): Promise<boolean> {
+    try {
+      const result = getDatabase().prepare(
+        'UPDATE users SET last_active_at = CURRENT_TIMESTAMP WHERE id = ?'
+      ).run(id);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error updating last active:', error);
+      return false;
+    }
+  }
+
   // Get all users (admin only)
   static getAllUsers(search?: string): Omit<User, 'password'>[] {
     let query = `
-      SELECT id, email, name, role, provider, created_at, updated_at 
+      SELECT id, email, name, role, provider, last_active_at, created_at, updated_at 
       FROM users
     `;
     const params: any[] = [];
@@ -410,6 +458,7 @@ export class UserService {
       email: row.email,
       name: row.name,
       role: row.role as UserRole,
+      lastActiveAt: row.last_active_at ? new Date(row.last_active_at) : undefined,
       createdAt: new Date(row.created_at),
       updatedAt: new Date(row.updated_at)
     }));

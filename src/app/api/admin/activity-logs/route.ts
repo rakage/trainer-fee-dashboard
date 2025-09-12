@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { ActivityLogger } from '@/lib/activity-logger';
+import { trackUserActivityThrottled } from '@/lib/track-activity';
 import { stringify } from 'csv-stringify/sync';
 
 // GET /api/admin/activity-logs - Fetch activity logs with filtering and pagination
@@ -39,7 +40,8 @@ export async function GET(request: NextRequest) {
     if (isExport) {
       const csvData = stringify(result.data.map(log => ({
         'Date & Time': new Date(log.createdAt).toLocaleString(),
-        'User ID': log.userId,
+        'User': log.userName || 'Unknown User',
+        'User Email': log.userEmail || '',
         'Action': log.action,
         'Event ID': log.prodId || '',
         'Details': log.details,
@@ -63,6 +65,9 @@ export async function GET(request: NextRequest) {
         `Admin viewed activity logs${search ? ` (search: ${search})` : ''}${action ? ` (action: ${action})` : ''}`
       );
     }
+
+    // Track user activity
+    await trackUserActivityThrottled(session.user.id);
 
     return NextResponse.json(result);
   } catch (error) {

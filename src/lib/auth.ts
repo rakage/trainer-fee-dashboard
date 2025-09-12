@@ -14,16 +14,21 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
+          console.log('Missing credentials');
           return null;
         }
+
+        console.log('Attempting to authenticate user:', credentials.email);
 
         try {
           const user = await UserService.verifyCredentials(credentials.email, credentials.password);
           
           if (!user) {
+            console.log('User verification failed for:', credentials.email);
             return null;
           }
 
+          console.log('User authenticated successfully:', user.email);
           return {
             id: user.id,
             email: user.email,
@@ -76,16 +81,52 @@ export const authOptions: NextAuthOptions = {
               provider: 'google',
             });
             user.role = newUser.role;
+            // Log new user creation via Google OAuth
+            const { ActivityLogger } = await import('./activity-logger');
+            await ActivityLogger.logLogin(newUser.id, `New user created via Google OAuth: ${user.name} (${user.email})`);
           } else {
             user.role = existingUser.role;
+            // Log existing user login via Google
+            const { ActivityLogger } = await import('./activity-logger');
+            await ActivityLogger.logLogin(existingUser.id, `User logged in via Google OAuth: ${user.name} (${user.email})`);
+            // Update last active time
+            await UserService.updateLastActive(existingUser.id);
           }
           return true;
         } catch (error) {
           console.error('Google sign-in error:', error);
           return false;
         }
+      } else if (account?.provider === 'credentials') {
+        // Log credentials login
+        try {
+          const existingUser = UserService.findByEmail(user.email!);
+          if (existingUser) {
+            const { ActivityLogger } = await import('./activity-logger');
+            await ActivityLogger.logLogin(existingUser.id, `User logged in via credentials: ${user.name} (${user.email})`);
+            // Update last active time
+            await UserService.updateLastActive(existingUser.id);
+          }
+        } catch (error) {
+          console.error('Error logging credentials login:', error);
+        }
       }
       return true;
+    },
+  },
+  events: {
+    async signOut({ session, token }) {
+      try {
+        if (token?.sub) {
+          const { ActivityLogger } = await import('./activity-logger');
+          const user = UserService.findById(token.sub);
+          if (user) {
+            await ActivityLogger.logLogout(user.id, `User logged out: ${user.name} (${user.email})`);
+          }
+        }
+      } catch (error) {
+        console.error('Error logging signout:', error);
+      }
     },
   },
   pages: {

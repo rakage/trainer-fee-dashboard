@@ -4,7 +4,6 @@ import { authOptions } from '@/lib/auth';
 import { UserService } from '@/lib/sqlite';
 import { ActivityLogger } from '@/lib/activity-logger';
 import { UserRole } from '@/types';
-import bcrypt from 'bcryptjs';
 
 // GET /api/admin/users - Fetch users with optional search
 export async function GET(request: NextRequest) {
@@ -76,15 +75,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 12);
-
-    // Create user
+    // Create user (UserService.createUser will handle password hashing)
     const newUser = await UserService.createUser({
       email,
       name,
       role,
-      password: hashedPassword,
+      password: password,
       provider: 'credentials'
     });
 
@@ -96,10 +92,8 @@ export async function POST(request: NextRequest) {
       `Admin created new user: ${name} (${email}) with role: ${role}`
     );
 
-    // Remove password from response
-    const { password: _, ...userResponse } = newUser;
-    
-    return NextResponse.json(userResponse, { status: 201 });
+    // User object already excludes password
+    return NextResponse.json(newUser, { status: 201 });
   } catch (error) {
     console.error('Error creating user:', error);
     return NextResponse.json(

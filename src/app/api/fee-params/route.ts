@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { FeeParamService } from '@/lib/sqlite';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { ActivityLogger } from '@/lib/activity-logger';
 
 export async function GET(request: NextRequest) {
   try {
@@ -62,6 +63,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check if parameter already exists to determine if it's create or update
+    const concatKey = FeeParamService.concatKey(
+      program.trim(),
+      category.trim(),
+      venue.trim(),
+      attendance.trim()
+    );
+    
+    const existing = FeeParamService.list().find(p => p.concat_key === concatKey);
+    const isUpdate = !!existing;
+
     // Convert percentage to decimal
     const percentDecimal = percent / 100;
 
@@ -72,6 +84,16 @@ export async function POST(request: NextRequest) {
       attendance: attendance.trim(),
       percent: percentDecimal
     });
+
+    // Log the activity
+    const action = isUpdate ? 'update_fee_parameter' : 'create_fee_parameter';
+    const paramDetails = `${program}-${category}-${venue}-${attendance}: ${percent}%`;
+    await ActivityLogger.log(
+      session.user.id,
+      action,
+      null,
+      `${isUpdate ? 'Updated' : 'Created'} fee parameter: ${paramDetails}`
+    );
 
     return NextResponse.json({
       success: true,
@@ -120,6 +142,15 @@ export async function DELETE(request: NextRequest) {
     }
 
     FeeParamService.delete(paramId);
+
+    // Log the activity
+    const paramDetails = `${existing.program}-${existing.category}-${existing.venue}-${existing.attendance}: ${Math.round(existing.percent * 100)}%`;
+    await ActivityLogger.log(
+      session.user.id,
+      'delete_fee_parameter',
+      null,
+      `Deleted fee parameter: ${paramDetails}`
+    );
 
     return NextResponse.json({
       success: true,

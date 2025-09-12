@@ -6,6 +6,7 @@ export interface User {
   email: string;
   name: string;
   role: UserRole;
+  lastActiveAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -134,6 +135,8 @@ export interface CurrencyOptions {
 export interface AuditLog {
   id: number;
   userId: string;
+  userName?: string;
+  userEmail?: string;
   action: string;
   prodId: number;
   details: string;

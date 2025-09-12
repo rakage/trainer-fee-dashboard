@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DatabaseService } from '@/lib/database';
 import { requireAuth } from '@/lib/middleware';
+import { ActivityLogger } from '@/lib/activity-logger';
 
 interface RouteContext {
   params: Promise<{ prodId: string }>;
@@ -36,6 +37,16 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
 
     // Skip trainer splits for now since table doesn't exist
     // const splits = await DatabaseService.getTrainerSplits(prodId);
+
+    // Log activity
+    if (authResult.user?.id) {
+      await ActivityLogger.log(
+        authResult.user.id,
+        'view_event_details',
+        prodId,
+        `Viewed event details: ${event.ProdName} (${event.EventDate})`
+      );
+    }
 
     return NextResponse.json({
       success: true,

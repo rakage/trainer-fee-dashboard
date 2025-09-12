@@ -308,15 +308,16 @@ export function UserManagement() {
               Error loading users: {error.message}
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto max-h-[600px] overflow-y-auto border rounded-md">
               <Table>
-                <TableHeader>
+                <TableHeader className="sticky top-0 bg-background z-10">
                   <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead className="bg-background">Name</TableHead>
+                    <TableHead className="bg-background">Email</TableHead>
+                    <TableHead className="bg-background">Role</TableHead>
+                    <TableHead className="bg-background">Last Active</TableHead>
+                    <TableHead className="bg-background">Created</TableHead>
+                    <TableHead className="bg-background text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -328,6 +329,23 @@ export function UserManagement() {
                         <Badge variant={getRoleBadgeVariant(user.role)}>
                           {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {user.lastActiveAt ? (
+                          <div className="flex flex-col">
+                            <span className="text-sm">
+                              {new Date(user.lastActiveAt).toLocaleDateString()}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {new Date(user.lastActiveAt).toLocaleTimeString([], {
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">Never</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         {new Date(user.createdAt).toLocaleDateString()}
@@ -355,7 +373,7 @@ export function UserManagement() {
                   ))}
                   {filteredUsers.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                         No users found
                       </TableCell>
                     </TableRow>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DatabaseService } from '@/lib/database';
 import { requireRole } from '@/lib/middleware';
+import { ActivityLogger } from '@/lib/activity-logger';
 import { TrainerSplit } from '@/types';
 
 interface RouteContext {
@@ -93,12 +94,13 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       await DatabaseService.saveTrainerSplit(split);
     }
 
-    // Log audit event
-    await DatabaseService.logAuditEvent(
+    // Log activity
+    const splitDetails = splits.map(s => `${s.Name}: ${s.Percent}%`).join(', ');
+    await ActivityLogger.log(
       authResult.user.id,
-      'UPDATE_SPLITS',
+      'update_trainer_splits',
       prodId,
-      `Updated trainer splits: ${splits.length} entries`
+      `Updated trainer splits for event ${prodId}: ${splitDetails}`
     );
 
     return NextResponse.json({
