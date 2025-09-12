@@ -244,22 +244,6 @@ export default function DashboardPage() {
             {/* Expenses Editor */}
             <ExpensesEditor
               eventId={selectedEvent.ProdID}
-              event={selectedEvent}
-              trainerFee={(() => {
-                const currentTrainerName = trainerOverride || selectedEvent.Trainer_1 || '';
-                const isAlejandro = currentTrainerName.toLowerCase().includes('alejandro');
-                
-                return selectedEvent.tickets.reduce((sum, ticket) => {
-                  if (isAlejandro) {
-                    // For Alejandro: use full ticket price for overview calculations
-                    return sum + ticket.PriceTotal;
-                  } else {
-                    // For others: use custom calculation
-                    const { amount } = getCustomTrainerFee(currentTrainerName, ticket);
-                    return sum + amount;
-                  }
-                }, 0);
-              })()}
             />
             
             {/* Trainer Splits Editor */}

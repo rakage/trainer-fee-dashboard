@@ -6,17 +6,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Plus, Trash2, Save } from 'lucide-react';
-import { EventDetail, Expense } from '@/types';
+import { Expense } from '@/types';
 import { formatCurrency } from '@/lib/utils';
 
 interface ExpensesEditorProps {
   eventId: number;
-  event: EventDetail;
-  trainerFee: number;
   onExpensesChange?: (totalExpenses: number) => void;
 }
 
-export function ExpensesEditor({ eventId, event, trainerFee, onExpensesChange }: ExpensesEditorProps) {
+export function ExpensesEditor({ eventId, onExpensesChange }: ExpensesEditorProps) {
   const [expenses, setExpenses] = useState<Expense[]>([
     {
       ProdID: eventId,
@@ -57,7 +55,6 @@ export function ExpensesEditor({ eventId, event, trainerFee, onExpensesChange }:
 
   // Calculate total expenses and notify parent
   const totalExpenses = expenses.reduce((sum, expense) => sum + (expense.Amount || 0), 0);
-  const margin = trainerFee - totalExpenses;
 
   useEffect(() => {
     onExpensesChange?.(totalExpenses);
@@ -156,56 +153,58 @@ export function ExpensesEditor({ eventId, event, trainerFee, onExpensesChange }:
       <CardHeader>
         <CardTitle>Expenses</CardTitle>
         <CardDescription>
-          Manage expenses related to this event. These will be deducted from trainer fee to calculate margin.
+          Manage expenses related to this event.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Description</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
-                <TableHead className="w-[50px]"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {expenses.map((expense, index) => (
-                <TableRow key={index}>
-                  <TableCell>
-                    <Input
-                      value={expense.Description}
-                      onChange={(e) => updateExpense(index, 'Description', e.target.value)}
-                      placeholder="Expense description"
-                      className="min-w-[200px]"
-                    />
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end">
-                      <Input
-                        type="text"
-                        value={amountDisplays[index] || '0,00'}
-                        onChange={(e) => handleAmountChange(index, e.target.value)}
-                        onBlur={(e) => handleAmountBlur(index, e.target.value)}
-                        placeholder="0,00"
-                        className="w-24 text-right text-sm"
-                      />
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeRow(index)}
-                      disabled={expenses.length === 1}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
+        <div className="border rounded-lg">
+          <div className="max-h-96 overflow-auto">
+            <Table>
+              <TableHeader className="sticky top-0 bg-white z-10">
+                <TableRow>
+                  <TableHead>Description</TableHead>
+                  <TableHead className="text-right">Amount</TableHead>
+                  <TableHead className="w-[50px]"></TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {expenses.map((expense, index) => (
+                  <TableRow key={index}>
+                    <TableCell>
+                      <Input
+                        value={expense.Description}
+                        onChange={(e) => updateExpense(index, 'Description', e.target.value)}
+                        placeholder="Expense description"
+                        className="min-w-[200px]"
+                      />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end">
+                        <Input
+                          type="text"
+                          value={amountDisplays[index] || '0,00'}
+                          onChange={(e) => handleAmountChange(index, e.target.value)}
+                          onBlur={(e) => handleAmountBlur(index, e.target.value)}
+                          placeholder="0,00"
+                          className="w-24 text-right text-sm"
+                        />
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeRow(index)}
+                        disabled={expenses.length === 1}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </div>
 
         <div className="flex items-center justify-between pt-4 border-t">
@@ -220,16 +219,10 @@ export function ExpensesEditor({ eventId, event, trainerFee, onExpensesChange }:
             </Button>
           </div>
           
-          <div className="text-sm space-y-1">
+          <div className="text-sm">
             <div className="flex justify-between items-center min-w-[200px]">
-              <span>Total Expenses:</span>
-              <span className="font-medium text-red-600">{formatCurrency(totalExpenses)}</span>
-            </div>
-            <div className="flex justify-between items-center min-w-[200px] pt-1 border-t">
-              <span className="font-semibold">Margin (Fee - Expenses):</span>
-              <span className={`font-bold ${margin < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                {formatCurrency(margin)}
-              </span>
+              <span className="font-semibold">Total Expenses:</span>
+              <span className="font-bold text-red-600">{formatCurrency(totalExpenses)}</span>
             </div>
           </div>
         </div>
