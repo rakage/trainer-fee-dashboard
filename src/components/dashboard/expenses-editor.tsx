@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,8 +28,9 @@ export function ExpensesEditor({ eventId, event, trainerFee, onExpensesChange }:
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [amountDisplays, setAmountDisplays] = useState<string[]>(['0,00']);
-  const [trainerFeePercentage, setTrainerFeePercentage] = useState<number>(100);
-  const [trainerFeePercentageDisplay, setTrainerFeePercentageDisplay] = useState<string>('100,0');
+  const [trainerFeePercentage, setTrainerFeePercentage] = useState<number>(0);
+  const [trainerFeePercentageDisplay, setTrainerFeePercentageDisplay] = useState<string>('0,0');
+  const [isPercentageInitialized, setIsPercentageInitialized] = useState(false);
 
   // Load existing expenses when component mounts
   useEffect(() => {
@@ -56,6 +57,22 @@ export function ExpensesEditor({ eventId, event, trainerFee, onExpensesChange }:
     
     loadExpenses();
   }, [eventId]);
+
+  // Calculate default trainer fee percentage from attended tickets
+  const attendedTickets = event.tickets?.filter(ticket => ticket.Attendance === 'Attended') || [];
+  const calculatedPercentage = attendedTickets.length > 0 
+    ? attendedTickets.reduce((sum, ticket) => sum + (ticket.TrainerFeePct || 0) * ticket.PriceTotal, 0) / 
+      attendedTickets.reduce((sum, ticket) => sum + ticket.PriceTotal, 0) * 100
+    : 0;
+
+  // Initialize percentage from calculated value (only once)
+  React.useEffect(() => {
+    if (!isPercentageInitialized && calculatedPercentage > 0) {
+      setTrainerFeePercentage(calculatedPercentage);
+      setTrainerFeePercentageDisplay(calculatedPercentage.toFixed(1).replace('.', ','));
+      setIsPercentageInitialized(true);
+    }
+  }, [calculatedPercentage, isPercentageInitialized]);
 
   // Calculate total expenses and notify parent
   const totalExpenses = expenses.reduce((sum, expense) => sum + (expense.Amount || 0), 0);
@@ -119,13 +136,19 @@ export function ExpensesEditor({ eventId, event, trainerFee, onExpensesChange }:
   const handleTrainerFeePercentageBlur = (value: string) => {
     // Parse and update actual percentage value on blur
     const numValue = parseFloat(value.replace(',', '.'));
-    const validValue = isNaN(numValue) ? 100 : Math.max(0, Math.min(100, numValue)); // Clamp between 0-100
+    const validValue = isNaN(numValue) ? 0 : Math.max(0, Math.min(100, numValue)); // Clamp between 0-100
     setTrainerFeePercentage(validValue);
     
     // Format the display value properly
     const formattedValue = validValue.toFixed(1).replace('.', ',');
     setTrainerFeePercentageDisplay(formattedValue);
   };
+
+  const resetToCalculatedPercentage = () => {
+    setTrainerFeePercentage(calculatedPercentage);
+    setTrainerFeePercentageDisplay(calculatedPercentage.toFixed(1).replace('.', ','));
+  };
+
 
   const handleSave = async () => {
     setSaving(true);
@@ -260,10 +283,22 @@ export function ExpensesEditor({ eventId, event, trainerFee, onExpensesChange }:
                   value={trainerFeePercentageDisplay}
                   onChange={(e) => handleTrainerFeePercentageChange(e.target.value)}
                   onBlur={(e) => handleTrainerFeePercentageBlur(e.target.value)}
-                  placeholder="100,0"
+                  placeholder="0,0"
                   className="w-16 text-right text-sm"
+                  title={`Manually editable. Default from tickets: ${calculatedPercentage.toFixed(1)}%`}
                 />
                 <span className="text-xs">%</span>
+                {calculatedPercentage > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={resetToCalculatedPercentage}
+                    className="h-6 w-6 p-0 text-xs"
+                    title={`Reset to calculated value: ${calculatedPercentage.toFixed(1)}%`}
+                  >
+                    ↻
+                  </Button>
+                )}
               </div>
             </div>
             <div className="flex justify-between items-center min-w-[250px] pt-1 border-t">
