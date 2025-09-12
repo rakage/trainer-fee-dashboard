@@ -1,7 +1,7 @@
 'use client';
 
 import { signOut, useSession } from 'next-auth/react';
-import { User, LogOut, Settings, BarChart3, Percent } from 'lucide-react';
+import { User, LogOut, Settings, BarChart3, Percent, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -73,12 +73,20 @@ export function DashboardHeader() {
               </Button>
             </Link>
             {session?.user?.role === 'admin' && (
-              <Link href="/dashboard/fee-params">
-                <Button variant="ghost" size="sm" className="flex items-center gap-2">
-                  <Percent className="h-4 w-4" />
-                  Fee Parameters
-                </Button>
-              </Link>
+              <>
+                <Link href="/dashboard/fee-params">
+                  <Button variant="ghost" size="sm" className="flex items-center gap-2">
+                    <Percent className="h-4 w-4" />
+                    Fee Parameters
+                  </Button>
+                </Link>
+                <Link href="/admin">
+                  <Button variant="ghost" size="sm" className="flex items-center gap-2">
+                    <Shield className="h-4 w-4" />
+                    Admin
+                  </Button>
+                </Link>
+              </>
             )}
           </nav>
         </div>

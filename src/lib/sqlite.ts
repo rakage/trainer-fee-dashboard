@@ -366,22 +366,45 @@ export class UserService {
   }
 
   // Update user
-  static updateUser(id: string, updates: { name?: string; role?: UserRole }): boolean {
+  static async updateUser(id: string, updates: { name?: string; role?: UserRole }): Promise<User | null> {
     const user = this.findById(id);
-    if (!user) return false;
+    if (!user) return null;
 
-    getUpdateUser().run(
+    const success = getUpdateUser().run(
       updates.name || user.name,
       updates.role || user.role,
       id
     );
 
-    return true;
+    if (success.changes > 0) {
+      return this.findById(id);
+    }
+    
+    return null;
+  }
+
+  // Delete user
+  static async deleteUser(id: string): Promise<boolean> {
+    const result = getDatabase().prepare('DELETE FROM users WHERE id = ?').run(id);
+    return result.changes > 0;
   }
 
   // Get all users (admin only)
-  static getAllUsers(): Omit<User, 'password'>[] {
-    const rows = getGetAllUsers().all() as any[];
+  static getAllUsers(search?: string): Omit<User, 'password'>[] {
+    let query = `
+      SELECT id, email, name, role, provider, created_at, updated_at 
+      FROM users
+    `;
+    const params: any[] = [];
+    
+    if (search) {
+      query += ` WHERE name LIKE ? OR email LIKE ?`;
+      params.push(`%${search}%`, `%${search}%`);
+    }
+    
+    query += ` ORDER BY created_at DESC`;
+    
+    const rows = getDatabase().prepare(query).all(...params) as any[];
     return rows.map(row => ({
       id: row.id,
       email: row.email,
@@ -465,4 +488,5 @@ if (process.env.NODE_ENV === 'development') {
   }
 }
 
+export { getDatabase };
 export default getDatabase;
