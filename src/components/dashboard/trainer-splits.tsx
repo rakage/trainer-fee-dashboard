@@ -75,10 +75,9 @@ export function TrainerSplitsEditor({ eventId, event, commissions }: TrainerSpli
       if (i === index) {
         const updated = { ...split, [field]: value };
         
-        // Recalculate trainer fee and payable when percent or cash received changes
-        if (field === 'Percent' || field === 'CashReceived') {
-          updated.TrainerFee = overview.balance * (updated.Percent / 100);
-          updated.Payable = updated.TrainerFee - (updated.CashReceived || 0);
+        // Recalculate payable when trainer fee or cash received changes
+        if (field === 'TrainerFee' || field === 'CashReceived') {
+          updated.Payable = (updated.TrainerFee || 0) - (updated.CashReceived || 0);
         }
         
         return updated;
@@ -183,8 +182,20 @@ export function TrainerSplitsEditor({ eventId, event, commissions }: TrainerSpli
                       />
                     </div>
                   </TableCell>
-                  <TableCell className="text-right font-mono">
-                    {formatCurrency(overview.balance * (split.Percent / 100))}
+                  <TableCell className="text-right">
+                    <div className="flex justify-end">
+                      <Input
+                        type="text"
+                        value={(split.TrainerFee || 0).toFixed(2).replace('.', ',')}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          const numValue = parseFloat(value.replace(',', '.')) || 0;
+                          updateSplit(index, 'TrainerFee', numValue);
+                        }}
+                        placeholder="0,00"
+                        className="w-24 text-right bg-blue-50 text-sm"
+                      />
+                    </div>
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end">
@@ -202,7 +213,7 @@ export function TrainerSplitsEditor({ eventId, event, commissions }: TrainerSpli
                     </div>
                   </TableCell>
                   <TableCell className="text-right font-mono">
-                    {formatCurrency((overview.balance * (split.Percent / 100)) - (split.CashReceived || 0))}
+                    {formatCurrency((split.TrainerFee || 0) - split.CashReceived)}
                   </TableCell>
                   <TableCell>
                     <Button
