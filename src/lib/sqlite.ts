@@ -3,144 +3,165 @@ import bcrypt from 'bcryptjs';
 import path from 'path';
 import { User, UserRole } from '@/types';
 
-// Initialize SQLite database
-const dbPath = process.env.NODE_ENV === 'production' 
-  ? path.join(process.cwd(), 'users.db')
-  : path.join(process.cwd(), 'dev-users.db');
+// Initialize SQLite database lazily to avoid build-time issues
+let db: Database.Database | null = null;
 
-const db = new Database(dbPath);
+function getDatabase(): Database.Database {
+  if (db === null) {
+    const dbPath = process.env.NODE_ENV === 'production' 
+      ? path.join(process.cwd(), 'users.db')
+      : path.join(process.cwd(), 'dev-users.db');
+    
+    db = new Database(dbPath);
+    
+    // Enable WAL mode for better performance
+    db.pragma('journal_mode = WAL');
+    
+    // Initialize tables
+    initializeTables();
+  }
+  return db;
+}
 
-// Enable WAL mode for better performance
-db.pragma('journal_mode = WAL');
+function initializeTables() {
+  if (!db) return;
+  
+  // Create users table
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      email TEXT UNIQUE NOT NULL,
+      name TEXT NOT NULL,
+      password TEXT,
+      role TEXT NOT NULL DEFAULT 'viewer',
+      provider TEXT DEFAULT 'credentials',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `).run();
+  
+  // Fee parameters table
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS fee_params (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      program TEXT NOT NULL,
+      category TEXT NOT NULL,
+      venue TEXT NOT NULL,
+      attendance TEXT NOT NULL,
+      percent REAL NOT NULL,
+      concat_key TEXT NOT NULL UNIQUE,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `).run();
+  
+  // Create trainer splits table (for app-specific data)
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS trainer_splits (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      prod_id INTEGER NOT NULL,
+      row_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      percent REAL NOT NULL,
+      cash_received REAL NOT NULL DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(prod_id, row_id)
+    )
+  `).run();
+  
+  // Create expenses table (for app-specific data)
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS expenses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      prod_id INTEGER NOT NULL,
+      row_id INTEGER NOT NULL,
+      description TEXT NOT NULL,
+      amount REAL NOT NULL DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(prod_id, row_id)
+    )
+  `).run();
+  
+  // Create audit log table
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS audit_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL,
+      action TEXT NOT NULL,
+      prod_id INTEGER NOT NULL,
+      details TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `).run();
+  
+  // Create indexes
+  db.prepare('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)').run();
+  db.prepare('CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)').run();
+  db.prepare('CREATE UNIQUE INDEX IF NOT EXISTS idx_fee_concat ON fee_params(concat_key)').run();
+  db.prepare('CREATE INDEX IF NOT EXISTS idx_trainer_splits_prod_id ON trainer_splits(prod_id)').run();
+  db.prepare('CREATE INDEX IF NOT EXISTS idx_expenses_prod_id ON expenses(prod_id)').run();
+  db.prepare('CREATE INDEX IF NOT EXISTS idx_audit_log_prod_id ON audit_log(prod_id)').run();
+}
 
-// Create users table
-const createUsersTable = db.prepare(`
-  CREATE TABLE IF NOT EXISTS users (
-    id TEXT PRIMARY KEY,
-    email TEXT UNIQUE NOT NULL,
-    name TEXT NOT NULL,
-    password TEXT,
-    role TEXT NOT NULL DEFAULT 'viewer',
-    provider TEXT DEFAULT 'credentials',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )
-`);
 
-createUsersTable.run();
 
-// Fee parameters table
-const createFeeParamsTable = db.prepare(`
-  CREATE TABLE IF NOT EXISTS fee_params (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    program TEXT NOT NULL,
-    category TEXT NOT NULL,
-    venue TEXT NOT NULL,
-    attendance TEXT NOT NULL,
-    percent REAL NOT NULL,
-    concat_key TEXT NOT NULL UNIQUE,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )
-`);
 
-createFeeParamsTable.run();
 
-// Create trainer splits table (for app-specific data)
-const createTrainerSplitsTable = db.prepare(`
-  CREATE TABLE IF NOT EXISTS trainer_splits (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    prod_id INTEGER NOT NULL,
-    row_id INTEGER NOT NULL,
-    name TEXT NOT NULL,
-    percent REAL NOT NULL,
-    cash_received REAL NOT NULL DEFAULT 0,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(prod_id, row_id)
-  )
-`);
 
-createTrainerSplitsTable.run();
 
-// Create expenses table (for app-specific data)
-const createExpensesTable = db.prepare(`
-  CREATE TABLE IF NOT EXISTS expenses (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    prod_id INTEGER NOT NULL,
-    row_id INTEGER NOT NULL,
-    description TEXT NOT NULL,
-    amount REAL NOT NULL DEFAULT 0,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(prod_id, row_id)
-  )
-`);
+// Helper functions for prepared statements
+function getInsertUser() {
+  return getDatabase().prepare(`
+    INSERT INTO users (id, email, name, password, role, provider)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `);
+}
 
-createExpensesTable.run();
+function getFindUserByEmail() {
+  return getDatabase().prepare(`
+    SELECT * FROM users WHERE email = ?
+  `);
+}
 
-// Create audit log table
-const createAuditLogTable = db.prepare(`
-  CREATE TABLE IF NOT EXISTS audit_log (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id TEXT NOT NULL,
-    action TEXT NOT NULL,
-    prod_id INTEGER NOT NULL,
-    details TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )
-`);
+function getFindUserById() {
+  return getDatabase().prepare(`
+    SELECT * FROM users WHERE id = ?
+  `);
+}
 
-createAuditLogTable.run();
+function getUpdateUser() {
+  return getDatabase().prepare(`
+    UPDATE users SET name = ?, role = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `);
+}
 
-// Create indexes
-db.prepare('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)').run();
-db.prepare('CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)').run();
-db.prepare('CREATE UNIQUE INDEX IF NOT EXISTS idx_fee_concat ON fee_params(concat_key)').run();
-db.prepare('CREATE INDEX IF NOT EXISTS idx_trainer_splits_prod_id ON trainer_splits(prod_id)').run();
-db.prepare('CREATE INDEX IF NOT EXISTS idx_expenses_prod_id ON expenses(prod_id)').run();
-db.prepare('CREATE INDEX IF NOT EXISTS idx_audit_log_prod_id ON audit_log(prod_id)').run();
-
-// Prepared statements
-const insertUser = db.prepare(`
-  INSERT INTO users (id, email, name, password, role, provider)
-  VALUES (?, ?, ?, ?, ?, ?)
-`);
-
-const findUserByEmail = db.prepare(`
-  SELECT * FROM users WHERE email = ?
-`);
-
-const findUserById = db.prepare(`
-  SELECT * FROM users WHERE id = ?
-`);
-
-const updateUser = db.prepare(`
-  UPDATE users SET name = ?, role = ?, updated_at = CURRENT_TIMESTAMP
-  WHERE id = ?
-`);
-
-const getAllUsers = db.prepare(`
-  SELECT id, email, name, role, provider, created_at, updated_at 
-  FROM users 
-  ORDER BY created_at DESC
-`);
+function getGetAllUsers() {
+  return getDatabase().prepare(`
+    SELECT id, email, name, role, provider, created_at, updated_at 
+    FROM users 
+    ORDER BY created_at DESC
+  `);
+}
 
 export class TrainerSplitService {
   static getByProdId(prodId: number): any[] {
-    return db.prepare('SELECT * FROM trainer_splits WHERE prod_id = ? ORDER BY row_id').all(prodId);
+    return getDatabase().prepare('SELECT * FROM trainer_splits WHERE prod_id = ? ORDER BY row_id').all(prodId);
   }
 
   static upsert(split: { prod_id: number; row_id: number; name: string; percent: number; cash_received: number; }): void {
-    const existing = db.prepare('SELECT id FROM trainer_splits WHERE prod_id = ? AND row_id = ?').get(split.prod_id, split.row_id) as any;
+    const database = getDatabase();
+    const existing = database.prepare('SELECT id FROM trainer_splits WHERE prod_id = ? AND row_id = ?').get(split.prod_id, split.row_id) as any;
     if (existing?.id) {
-      db.prepare(`
+      database.prepare(`
         UPDATE trainer_splits 
         SET name = ?, percent = ?, cash_received = ?, updated_at = CURRENT_TIMESTAMP 
         WHERE prod_id = ? AND row_id = ?
       `).run(split.name, split.percent, split.cash_received, split.prod_id, split.row_id);
     } else {
-      db.prepare(`
+      database.prepare(`
         INSERT INTO trainer_splits (prod_id, row_id, name, percent, cash_received) 
         VALUES (?, ?, ?, ?, ?)
       `).run(split.prod_id, split.row_id, split.name, split.percent, split.cash_received);
@@ -148,25 +169,26 @@ export class TrainerSplitService {
   }
 
   static delete(prodId: number, rowId: number): void {
-    db.prepare('DELETE FROM trainer_splits WHERE prod_id = ? AND row_id = ?').run(prodId, rowId);
+    getDatabase().prepare('DELETE FROM trainer_splits WHERE prod_id = ? AND row_id = ?').run(prodId, rowId);
   }
 }
 
 export class ExpenseService {
   static getByProdId(prodId: number): any[] {
-    return db.prepare('SELECT * FROM expenses WHERE prod_id = ? ORDER BY row_id').all(prodId);
+    return getDatabase().prepare('SELECT * FROM expenses WHERE prod_id = ? ORDER BY row_id').all(prodId);
   }
 
   static upsert(expense: { prod_id: number; row_id: number; description: string; amount: number; }): void {
-    const existing = db.prepare('SELECT id FROM expenses WHERE prod_id = ? AND row_id = ?').get(expense.prod_id, expense.row_id) as any;
+    const database = getDatabase();
+    const existing = database.prepare('SELECT id FROM expenses WHERE prod_id = ? AND row_id = ?').get(expense.prod_id, expense.row_id) as any;
     if (existing?.id) {
-      db.prepare(`
+      database.prepare(`
         UPDATE expenses 
         SET description = ?, amount = ?, updated_at = CURRENT_TIMESTAMP 
         WHERE prod_id = ? AND row_id = ?
       `).run(expense.description, expense.amount, expense.prod_id, expense.row_id);
     } else {
-      db.prepare(`
+      database.prepare(`
         INSERT INTO expenses (prod_id, row_id, description, amount) 
         VALUES (?, ?, ?, ?)
       `).run(expense.prod_id, expense.row_id, expense.description, expense.amount);
@@ -174,20 +196,20 @@ export class ExpenseService {
   }
 
   static delete(prodId: number, rowId: number): void {
-    db.prepare('DELETE FROM expenses WHERE prod_id = ? AND row_id = ?').run(prodId, rowId);
+    getDatabase().prepare('DELETE FROM expenses WHERE prod_id = ? AND row_id = ?').run(prodId, rowId);
   }
 }
 
 export class AuditService {
   static log(userId: string, action: string, prodId: number, details: string): void {
-    db.prepare(`
+    getDatabase().prepare(`
       INSERT INTO audit_log (user_id, action, prod_id, details) 
       VALUES (?, ?, ?, ?)
     `).run(userId, action, prodId, details);
   }
 
   static getByProdId(prodId: number): any[] {
-    return db.prepare('SELECT * FROM audit_log WHERE prod_id = ? ORDER BY created_at DESC').all(prodId);
+    return getDatabase().prepare('SELECT * FROM audit_log WHERE prod_id = ? ORDER BY created_at DESC').all(prodId);
   }
 }
 
@@ -197,43 +219,45 @@ export class FeeParamService {
   }
 
   static upsertParam(param: { program: string; category: string; venue: string; attendance: string; percent: number; }): void {
+    const database = getDatabase();
     const concat = this.concatKey(param.program, param.category, param.venue, param.attendance);
-    const existing = db.prepare('SELECT id FROM fee_params WHERE concat_key = ?').get(concat) as any;
+    const existing = database.prepare('SELECT id FROM fee_params WHERE concat_key = ?').get(concat) as any;
     if (existing?.id) {
-      db.prepare(`UPDATE fee_params SET program=?, category=?, venue=?, attendance=?, percent=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`)
+      database.prepare(`UPDATE fee_params SET program=?, category=?, venue=?, attendance=?, percent=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`)
         .run(param.program, param.category, param.venue, param.attendance, param.percent, existing.id);
     } else {
-      db.prepare(`INSERT INTO fee_params (program, category, venue, attendance, percent, concat_key) VALUES (?,?,?,?,?,?)`)
+      database.prepare(`INSERT INTO fee_params (program, category, venue, attendance, percent, concat_key) VALUES (?,?,?,?,?,?)`)
         .run(param.program, param.category, param.venue, param.attendance, param.percent, concat);
     }
   }
 
   static list(): { id: number; program: string; category: string; venue: string; attendance: string; percent: number; concat_key: string; }[] {
-    return db.prepare('SELECT * FROM fee_params ORDER BY program, category, venue, attendance').all() as any[];
+    return getDatabase().prepare('SELECT * FROM fee_params ORDER BY program, category, venue, attendance').all() as any[];
   }
 
   static getPercent(program: string, category: string, venue: string, attendance: string): number | null {
     const concat = this.concatKey(program, category, venue, attendance);
-    const row = db.prepare('SELECT percent FROM fee_params WHERE concat_key = ?').get(concat) as any;
+    const row = getDatabase().prepare('SELECT percent FROM fee_params WHERE concat_key = ?').get(concat) as any;
     return row?.percent ?? null;
   }
 
   static delete(id: number): void {
-    db.prepare('DELETE FROM fee_params WHERE id = ?').run(id);
+    getDatabase().prepare('DELETE FROM fee_params WHERE id = ?').run(id);
   }
 
   static getById(id: number): { id: number; program: string; category: string; venue: string; attendance: string; percent: number; concat_key: string; } | null {
-    return db.prepare('SELECT * FROM fee_params WHERE id = ?').get(id) as any;
+    return getDatabase().prepare('SELECT * FROM fee_params WHERE id = ?').get(id) as any;
   }
 
   static seedFromPairs(pairs: { concat: string; percent: number; }[]) {
-    const insert = db.prepare(`INSERT OR IGNORE INTO fee_params (program, category, venue, attendance, percent, concat_key) VALUES (?,?,?,?,?,?)`);
-    const update = db.prepare(`UPDATE fee_params SET percent=?, updated_at=CURRENT_TIMESTAMP WHERE concat_key=?`);
-    const trx = db.transaction(() => {
+    const database = getDatabase();
+    const insert = database.prepare(`INSERT OR IGNORE INTO fee_params (program, category, venue, attendance, percent, concat_key) VALUES (?,?,?,?,?,?)`);
+    const update = database.prepare(`UPDATE fee_params SET percent=?, updated_at=CURRENT_TIMESTAMP WHERE concat_key=?`);
+    const trx = database.transaction(() => {
       for (const p of pairs) {
         const [program, category, venue, attendance] = p.concat.split('-');
         const concat = this.concatKey(program, category, venue, attendance);
-        const existing = db.prepare('SELECT id FROM fee_params WHERE concat_key = ?').get(concat) as any;
+        const existing = database.prepare('SELECT id FROM fee_params WHERE concat_key = ?').get(concat) as any;
         if (existing?.id) {
           update.run(p.percent, concat);
         } else {
@@ -266,7 +290,7 @@ export class UserService {
       provider: userData.provider || 'credentials'
     };
 
-    insertUser.run(
+    getInsertUser().run(
       user.id,
       user.email,
       user.name,
@@ -287,7 +311,7 @@ export class UserService {
 
   // Find user by email
   static findByEmail(email: string): User | null {
-    const row = findUserByEmail.get(email) as any;
+    const row = getFindUserByEmail().get(email) as any;
     if (!row) return null;
 
     return {
@@ -302,7 +326,7 @@ export class UserService {
 
   // Find user by ID
   static findById(id: string): User | null {
-    const row = findUserById.get(id) as any;
+    const row = getFindUserById().get(id) as any;
     if (!row) return null;
 
     return {
@@ -317,7 +341,7 @@ export class UserService {
 
   // Verify user credentials
   static async verifyCredentials(email: string, password: string): Promise<User | null> {
-    const row = findUserByEmail.get(email) as any;
+    const row = getFindUserByEmail().get(email) as any;
     if (!row || !row.password) return null;
 
     const isValid = await bcrypt.compare(password, row.password);
@@ -338,7 +362,7 @@ export class UserService {
     const user = this.findById(id);
     if (!user) return false;
 
-    updateUser.run(
+    getUpdateUser().run(
       updates.name || user.name,
       updates.role || user.role,
       id
@@ -349,7 +373,7 @@ export class UserService {
 
   // Get all users (admin only)
   static getAllUsers(): Omit<User, 'password'>[] {
-    const rows = getAllUsers.all() as any[];
+    const rows = getGetAllUsers().all() as any[];
     return rows.map(row => ({
       id: row.id,
       email: row.email,
@@ -433,4 +457,4 @@ if (process.env.NODE_ENV === 'development') {
   }
 }
 
-export default db;
+export default getDatabase;

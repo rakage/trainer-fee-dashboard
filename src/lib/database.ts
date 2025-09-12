@@ -476,7 +476,7 @@ export class DatabaseService {
       const { TrainerSplitService } = require('./sqlite');
       const rows = TrainerSplitService.getByProdId(prodId);
       
-      return rows.map((row, index): TrainerSplit => ({
+      return rows.map((row: any, index: number): TrainerSplit => ({
         id: index + 1,
         ProdID: row.prod_id,
         RowId: row.row_id,
@@ -526,7 +526,7 @@ export class DatabaseService {
       const { ExpenseService } = require('./sqlite');
       const rows = ExpenseService.getByProdId(prodId);
       
-      return rows.map((row, index): any => ({
+      return rows.map((row: any, index: number): any => ({
         id: index + 1,
         ProdID: row.prod_id,
         RowId: row.row_id,

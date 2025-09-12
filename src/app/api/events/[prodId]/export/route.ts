@@ -7,7 +7,7 @@ import ExcelJS from 'exceljs';
 import { stringify } from 'csv-stringify/sync';
 
 interface RouteContext {
-  params: { prodId: string };
+  params: Promise<{ prodId: string }>;
 }
 
 export async function POST(request: NextRequest, { params }: RouteContext) {
@@ -256,7 +256,7 @@ async function generatePDFExport(event: any, splits: any[], commissions: any, tr
       const logoBuffer = fs.readFileSync(logoPath);
       logoBase64 = `data:image/png;base64,${logoBuffer.toString('base64')}`;
     } catch (logoError) {
-      console.warn('Could not load logo for PDF:', logoError.message);
+      console.warn('Could not load logo for PDF:', logoError instanceof Error ? logoError.message : String(logoError));
     }
     
     // Create HTML content for PDF
