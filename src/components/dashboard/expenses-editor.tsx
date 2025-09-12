@@ -28,6 +28,8 @@ export function ExpensesEditor({ eventId, event, trainerFee, onExpensesChange }:
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [amountDisplays, setAmountDisplays] = useState<string[]>(['0,00']);
+  const [trainerFeePercentage, setTrainerFeePercentage] = useState<number>(100);
+  const [trainerFeePercentageDisplay, setTrainerFeePercentageDisplay] = useState<string>('100,0');
 
   // Load existing expenses when component mounts
   useEffect(() => {
@@ -58,6 +60,7 @@ export function ExpensesEditor({ eventId, event, trainerFee, onExpensesChange }:
   // Calculate total expenses and notify parent
   const totalExpenses = expenses.reduce((sum, expense) => sum + (expense.Amount || 0), 0);
   const margin = trainerFee - totalExpenses;
+  const trainerFeeTotal = margin * (trainerFeePercentage / 100);
 
   useEffect(() => {
     onExpensesChange?.(totalExpenses);
@@ -106,6 +109,22 @@ export function ExpensesEditor({ eventId, event, trainerFee, onExpensesChange }:
     const newDisplays = [...amountDisplays];
     newDisplays[index] = formattedValue;
     setAmountDisplays(newDisplays);
+  };
+
+  const handleTrainerFeePercentageChange = (value: string) => {
+    // Update display value immediately (allows free typing)
+    setTrainerFeePercentageDisplay(value);
+  };
+
+  const handleTrainerFeePercentageBlur = (value: string) => {
+    // Parse and update actual percentage value on blur
+    const numValue = parseFloat(value.replace(',', '.'));
+    const validValue = isNaN(numValue) ? 100 : Math.max(0, Math.min(100, numValue)); // Clamp between 0-100
+    setTrainerFeePercentage(validValue);
+    
+    // Format the display value properly
+    const formattedValue = validValue.toFixed(1).replace('.', ',');
+    setTrainerFeePercentageDisplay(formattedValue);
   };
 
   const handleSave = async () => {
@@ -222,15 +241,35 @@ export function ExpensesEditor({ eventId, event, trainerFee, onExpensesChange }:
             </Button>
           </div>
           
-          <div className="text-sm space-y-1">
-            <div className="flex justify-between items-center min-w-[200px]">
+          <div className="text-sm space-y-2">
+            <div className="flex justify-between items-center min-w-[250px]">
               <span>Total Expenses:</span>
               <span className="font-medium text-red-600">{formatCurrency(totalExpenses)}</span>
             </div>
-            <div className="flex justify-between items-center min-w-[200px] pt-1 border-t">
+            <div className="flex justify-between items-center min-w-[250px] pt-1 border-t">
               <span className="font-semibold">Margin:</span>
               <span className={`font-bold ${margin < 0 ? 'text-red-600' : 'text-green-600'}`}>
                 {formatCurrency(margin)}
+              </span>
+            </div>
+            <div className="flex justify-between items-center min-w-[250px]">
+              <span className="font-semibold">Trainer Fee % of attended:</span>
+              <div className="flex items-center space-x-1">
+                <Input
+                  type="text"
+                  value={trainerFeePercentageDisplay}
+                  onChange={(e) => handleTrainerFeePercentageChange(e.target.value)}
+                  onBlur={(e) => handleTrainerFeePercentageBlur(e.target.value)}
+                  placeholder="100,0"
+                  className="w-16 text-right text-sm"
+                />
+                <span className="text-xs">%</span>
+              </div>
+            </div>
+            <div className="flex justify-between items-center min-w-[250px] pt-1 border-t">
+              <span className="font-semibold">Trainer Fee Total:</span>
+              <span className={`font-bold ${trainerFeeTotal < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                {formatCurrency(trainerFeeTotal)}
               </span>
             </div>
           </div>
