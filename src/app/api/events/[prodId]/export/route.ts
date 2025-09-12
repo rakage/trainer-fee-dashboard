@@ -241,12 +241,14 @@ async function generateXLSXExport(event: any, splits: any[], expenses: any[], co
     worksheet.addRow(['Name', 'Percentage', 'Trainer Fee', 'Cash Received', 'Payable']);
     
     splits.forEach(split => {
+      const payable = split.Payable || 0;
+      const payableFormatted = payable >= 0 ? `+${payable.toFixed(2)}` : `-${Math.abs(payable).toFixed(2)}`;
       worksheet.addRow([
         split.Name,
-        split.Percent,
-        split.TrainerFee,
-        split.CashReceived,
-        split.Payable
+        `${split.Percent.toFixed(1)}%`,
+        split.TrainerFee.toFixed(2),
+        split.CashReceived.toFixed(2),
+        payableFormatted
       ]);
     });
   }
@@ -493,15 +495,20 @@ async function generatePDFExport(event: any, splits: any[], expenses: any[], com
               </tr>
             </thead>
             <tbody>
-              ${splits.map(split => `
+              ${splits.map(split => {
+                const payable = split.Payable || 0;
+                const payableFormatted = payable >= 0 ? `+€${payable.toFixed(2)}` : `-€${Math.abs(payable).toFixed(2)}`;
+                const payableColor = payable >= 0 ? 'color: #28a745;' : 'color: #dc3545;';
+                return `
                 <tr>
                   <td>${split.Name}</td>
                   <td class="number">${split.Percent.toFixed(1)}%</td>
                   <td class="number">€${split.TrainerFee.toFixed(2)}</td>
                   <td class="number">€${split.CashReceived.toFixed(2)}</td>
-                  <td class="number">€${split.Payable.toFixed(2)}</td>
+                  <td class="number" style="${payableColor} font-weight: bold;">${payableFormatted}</td>
                 </tr>
-              `).join('')}
+                `;
+              }).join('')}
             </tbody>
           </table>
         ` : ''}

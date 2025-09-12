@@ -185,15 +185,16 @@ export function TrainerSplitsEditor({ eventId, event, commissions }: TrainerSpli
                   <TableCell className="text-right">
                     <div className="flex justify-end">
                       <Input
-                        type="text"
-                        value={(split.TrainerFee || 0).toFixed(2).replace('.', ',')}
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={split.TrainerFee || 0}
                         onChange={(e) => {
-                          const value = e.target.value;
-                          const numValue = parseFloat(value.replace(',', '.')) || 0;
+                          const numValue = parseFloat(e.target.value) || 0;
                           updateSplit(index, 'TrainerFee', numValue);
                         }}
-                        placeholder="0,00"
-                        className="w-24 text-right bg-blue-50 text-sm"
+                        placeholder="0.00"
+                        className="w-28 text-right bg-blue-50 text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       />
                     </div>
                   </TableCell>
