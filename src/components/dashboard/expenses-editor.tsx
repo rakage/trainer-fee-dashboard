@@ -6,15 +6,17 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Plus, Trash2, Save } from 'lucide-react';
-import { Expense } from '@/types';
+import { EventDetail, Expense } from '@/types';
 import { formatCurrency } from '@/lib/utils';
 
 interface ExpensesEditorProps {
   eventId: number;
+  event: EventDetail;
+  trainerFee: number;
   onExpensesChange?: (totalExpenses: number) => void;
 }
 
-export function ExpensesEditor({ eventId, onExpensesChange }: ExpensesEditorProps) {
+export function ExpensesEditor({ eventId, event, trainerFee, onExpensesChange }: ExpensesEditorProps) {
   const [expenses, setExpenses] = useState<Expense[]>([
     {
       ProdID: eventId,
@@ -55,6 +57,7 @@ export function ExpensesEditor({ eventId, onExpensesChange }: ExpensesEditorProp
 
   // Calculate total expenses and notify parent
   const totalExpenses = expenses.reduce((sum, expense) => sum + (expense.Amount || 0), 0);
+  const margin = trainerFee - totalExpenses;
 
   useEffect(() => {
     onExpensesChange?.(totalExpenses);
@@ -153,7 +156,7 @@ export function ExpensesEditor({ eventId, onExpensesChange }: ExpensesEditorProp
       <CardHeader>
         <CardTitle>Expenses</CardTitle>
         <CardDescription>
-          Manage expenses related to this event.
+          Manage expenses related to this event. These will be deducted from trainer fee to calculate margin.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -219,10 +222,16 @@ export function ExpensesEditor({ eventId, onExpensesChange }: ExpensesEditorProp
             </Button>
           </div>
           
-          <div className="text-sm">
+          <div className="text-sm space-y-1">
             <div className="flex justify-between items-center min-w-[200px]">
-              <span className="font-semibold">Total Expenses:</span>
-              <span className="font-bold text-red-600">{formatCurrency(totalExpenses)}</span>
+              <span>Total Expenses:</span>
+              <span className="font-medium text-red-600">{formatCurrency(totalExpenses)}</span>
+            </div>
+            <div className="flex justify-between items-center min-w-[200px] pt-1 border-t">
+              <span className="font-semibold">Margin:</span>
+              <span className={`font-bold ${margin < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                {formatCurrency(margin)}
+              </span>
             </div>
           </div>
         </div>
