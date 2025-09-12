@@ -245,6 +245,7 @@ export default function DashboardPage() {
             <ExpensesEditor
               eventId={selectedEvent.ProdID}
               event={selectedEvent}
+              trainerName={trainerOverride || selectedEvent.Trainer_1}
               trainerFee={(() => {
                 const currentTrainerName = trainerOverride || selectedEvent.Trainer_1 || '';
                 const isAlejandro = currentTrainerName.toLowerCase().includes('alejandro');

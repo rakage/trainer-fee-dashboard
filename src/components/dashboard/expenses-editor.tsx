@@ -13,10 +13,11 @@ interface ExpensesEditorProps {
   eventId: number;
   event: EventDetail;
   trainerFee: number;
+  trainerName?: string;
   onExpensesChange?: (totalExpenses: number) => void;
 }
 
-export function ExpensesEditor({ eventId, event, trainerFee, onExpensesChange }: ExpensesEditorProps) {
+export function ExpensesEditor({ eventId, event, trainerFee, trainerName, onExpensesChange }: ExpensesEditorProps) {
   const [expenses, setExpenses] = useState<Expense[]>([
     {
       ProdID: eventId,
@@ -58,21 +59,30 @@ export function ExpensesEditor({ eventId, event, trainerFee, onExpensesChange }:
     loadExpenses();
   }, [eventId]);
 
-  // Calculate default trainer fee percentage from attended tickets
+  // Check if trainer is Alejandro
+  const currentTrainerName = trainerName || event.Trainer_1 || '';
+  const isAlejandro = currentTrainerName.toLowerCase().includes('alejandro');
+
+  // Calculate default trainer fee percentage from attended tickets (only for Alejandro)
   const attendedTickets = event.tickets?.filter(ticket => ticket.Attendance === 'Attended') || [];
-  const calculatedPercentage = attendedTickets.length > 0 
+  const calculatedPercentage = isAlejandro && attendedTickets.length > 0 
     ? attendedTickets.reduce((sum, ticket) => sum + (ticket.TrainerFeePct || 0) * ticket.PriceTotal, 0) / 
       attendedTickets.reduce((sum, ticket) => sum + ticket.PriceTotal, 0) * 100
     : 0;
 
-  // Initialize percentage from calculated value (only once)
+  // Initialize percentage from calculated value (only once and only for Alejandro)
   React.useEffect(() => {
-    if (!isPercentageInitialized && calculatedPercentage > 0) {
+    if (isAlejandro && !isPercentageInitialized && calculatedPercentage > 0) {
       setTrainerFeePercentage(calculatedPercentage);
       setTrainerFeePercentageDisplay(calculatedPercentage.toFixed(1).replace('.', ','));
       setIsPercentageInitialized(true);
+    } else if (!isAlejandro && !isPercentageInitialized) {
+      // For non-Alejandro trainers, set to 100% by default
+      setTrainerFeePercentage(100);
+      setTrainerFeePercentageDisplay('100,0');
+      setIsPercentageInitialized(true);
     }
-  }, [calculatedPercentage, isPercentageInitialized]);
+  }, [calculatedPercentage, isPercentageInitialized, isAlejandro]);
 
   // Calculate total expenses and notify parent
   const totalExpenses = expenses.reduce((sum, expense) => sum + (expense.Amount || 0), 0);
@@ -275,32 +285,34 @@ export function ExpensesEditor({ eventId, event, trainerFee, onExpensesChange }:
                 {formatCurrency(margin)}
               </span>
             </div>
-            <div className="flex justify-between items-center min-w-[250px]">
-              <span className="font-semibold">Trainer Fee % of attended:</span>
-              <div className="flex items-center space-x-1">
-                <Input
-                  type="text"
-                  value={trainerFeePercentageDisplay}
-                  onChange={(e) => handleTrainerFeePercentageChange(e.target.value)}
-                  onBlur={(e) => handleTrainerFeePercentageBlur(e.target.value)}
-                  placeholder="0,0"
-                  className="w-16 text-right text-sm"
-                  title={`Manually editable. Default from tickets: ${calculatedPercentage.toFixed(1)}%`}
-                />
-                <span className="text-xs">%</span>
-                {calculatedPercentage > 0 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={resetToCalculatedPercentage}
-                    className="h-6 w-6 p-0 text-xs"
-                    title={`Reset to calculated value: ${calculatedPercentage.toFixed(1)}%`}
-                  >
-                    ↻
-                  </Button>
-                )}
+            {isAlejandro && (
+              <div className="flex justify-between items-center min-w-[250px]">
+                <span className="font-semibold">Trainer Fee %:</span>
+                <div className="flex items-center space-x-1">
+                  <Input
+                    type="text"
+                    value={trainerFeePercentageDisplay}
+                    onChange={(e) => handleTrainerFeePercentageChange(e.target.value)}
+                    onBlur={(e) => handleTrainerFeePercentageBlur(e.target.value)}
+                    placeholder="0,0"
+                    className="w-16 text-right text-sm"
+                    title={`Manually editable. Default from tickets: ${calculatedPercentage.toFixed(1)}%`}
+                  />
+                  <span className="text-xs">%</span>
+                  {calculatedPercentage > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={resetToCalculatedPercentage}
+                      className="h-6 w-6 p-0 text-xs"
+                      title={`Reset to calculated value: ${calculatedPercentage.toFixed(1)}%`}
+                    >
+                      ↻
+                    </Button>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
             <div className="flex justify-between items-center min-w-[250px] pt-1 border-t">
               <span className="font-semibold">Trainer Fee Total:</span>
               <span className={`font-bold ${trainerFeeTotal < 0 ? 'text-red-600' : 'text-green-600'}`}>
