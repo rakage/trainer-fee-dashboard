@@ -307,7 +307,12 @@ export class DatabaseService {
         from finals
         where rn = 1
       )
-      select *, concat(Program, '-', Category, '-', Location, '-', Attendance) as ConcatTrainerPercentKey
+      select *
+            , concat(Program, '-', Category, '-', Location, '-', Attendance) as ConcatTrainerPercentKey
+            , case
+                when TrainerName like '%Grace%' and Country = 'Japan' then concat(Program, '-', Category, '-', TierLevel)
+                else null
+            end as GraceKey
       from final_1
     `);
 
@@ -446,24 +451,62 @@ export class DatabaseService {
       // Get the trainer fee percentage from SQLite using the concat key
       const feePercent = this.getTrainerFeePercent(group.ConcatTrainerPercentKey);
       
+      let unitPrice = group.UnitPrice;
+      let priceTotal = group.UnitPrice * group.Quantity;
+      
+      // Apply Grace Price Conversion if trainer is Grace and country is Japan
+      const trainerName = eventRow.TrainerName || eventRow.Vendor || '';
+      const isGraceTrainer = trainerName.toLowerCase().includes('grace');
+      const isJapan = eventRow.Country?.toLowerCase().includes('japan') || eventRow.Country?.toLowerCase().includes('jp');
+      
+      if (isGraceTrainer && isJapan && group.TierLevel) {
+        try {
+          // Extract program and category from the event name
+          const { program, category } = this.extractProgramAndCategory(eventRow.ProdName || '');
+          const tierLevel = group.TierLevel;
+          
+          console.log(`Grace conversion: ${program}-${category}-${tierLevel} for EUR ${unitPrice}`);
+          
+          // Convert EUR to JPY
+          const jpyAmount = await this.convertEurToJpy(unitPrice, program, category, tierLevel);
+          if (jpyAmount !== null) {
+            unitPrice = jpyAmount;
+            priceTotal = jpyAmount * group.Quantity;
+            console.log(`Converted to JPY: ${jpyAmount}`);
+          } else {
+            console.log('No conversion found for this tier level');
+          }
+        } catch (error) {
+          console.error('Error applying Grace price conversion:', error);
+          // Continue with original EUR prices if conversion fails
+        }
+      }
+      
       tickets.push({
         Attendance: group.Attendance,
         PaymentMethod: group.PaymentMethod,
         TierLevel: group.TierLevel,
-        UnitPrice: group.UnitPrice,  // Individual ticket price
-        PriceTotal: group.UnitPrice * group.Quantity, // Total price = unit price × quantity
+        UnitPrice: unitPrice,  // Individual ticket price (converted to JPY if applicable)
+        PriceTotal: priceTotal, // Total price = unit price × quantity (converted to JPY if applicable)
         TrainerFeePct: feePercent,
         Quantity: group.Quantity,
+        Currency: (isGraceTrainer && isJapan) ? 'JPY' : 'EUR', // Set currency based on conversion
       });
     }
 
+    // Determine if this is a Grace event in Japan for currency display
+    const trainerName = eventRow.TrainerName || eventRow.Vendor || 'Unknown';
+    const isGraceTrainer = trainerName.toLowerCase().includes('grace');
+    const isJapan = eventRow.Country?.toLowerCase().includes('japan') || eventRow.Country?.toLowerCase().includes('jp');
+    
     const event: EventDetail = {
       ProdID: eventRow.ProdID,
       ProdName: eventRow.ProdName,
       EventDate: eventRow.EventDate,
       Country: eventRow.Country,
       Venue: eventRow.Location || 'Unknown', // Use calculated Location for Venue
-      Trainer_1: eventRow.TrainerName || eventRow.Vendor || 'Unknown', // Use extracted trainer name from title
+      Trainer_1: trainerName, // Use extracted trainer name from title
+      Currency: (isGraceTrainer && isJapan) ? 'JPY' : 'EUR', // Set event currency
       tickets,
     };
 
@@ -593,6 +636,73 @@ export class DatabaseService {
       console.error('Failed to log audit event to SQLite:', error);
       // Don't throw error for audit logging failures
     }
+  }
+
+  static async getGracePriceConversion(program: string, category: string, tierLevel: string): Promise<{ jpyPrice: number; eurPrice: number } | null> {
+    try {
+      const { GracePriceService } = require('./sqlite');
+      const eventTypeKey = `${program}-${category}-${tierLevel === 'Free' ? '' : tierLevel}`;
+      
+      const conversions = GracePriceService.getAll();
+      const conversion = conversions.find((c: any) => c.eventTypeKey === eventTypeKey);
+      
+      return conversion ? {
+        jpyPrice: conversion.jpyPrice,
+        eurPrice: conversion.eurPrice
+      } : null;
+    } catch (error) {
+      console.error('Error getting Grace price conversion:', error);
+      return null;
+    }
+  }
+
+  static convertEurToJpy(eurAmount: number, program: string, category: string, tierLevel: string): Promise<number | null> {
+    return new Promise(async (resolve) => {
+      try {
+        const conversion = await this.getGracePriceConversion(program, category, tierLevel);
+        if (!conversion || conversion.eurPrice === 0) {
+          resolve(null);
+          return;
+        }
+        
+        // Calculate conversion rate: JPY/EUR
+        const conversionRate = conversion.jpyPrice / conversion.eurPrice;
+        const jpyAmount = eurAmount * conversionRate;
+        
+        resolve(jpyAmount);
+      } catch (error) {
+        console.error('Error converting EUR to JPY:', error);
+        resolve(null);
+      }
+    });
+  }
+
+  static extractProgramAndCategory(eventName: string): { program: string; category: string } {
+    const eventNameLower = eventName.toLowerCase();
+    
+    // Extract program
+    let program = 'Salsation'; // Default
+    if (eventNameLower.includes('choreology')) {
+      program = 'Choreology';
+    } else if (eventNameLower.includes('kid')) {
+      program = 'Kid';
+    } else if (eventNameLower.includes('rootz')) {
+      program = 'Rootz';
+    }
+    
+    // Extract category
+    let category = 'Instructor training'; // Default
+    if (eventNameLower.includes('workshop')) {
+      category = 'Workshops';
+    } else if (eventNameLower.includes('seminar')) {
+      category = 'Seminar';
+    } else if (eventNameLower.includes('method training')) {
+      category = 'Method Training';
+    } else if (eventNameLower.includes('on demand')) {
+      category = 'On Demand';
+    }
+    
+    return { program, category };
   }
 }
 

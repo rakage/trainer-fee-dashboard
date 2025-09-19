@@ -112,6 +112,19 @@ function initializeTables() {
     )
   `).run();
   
+  // Create grace price conversion table
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS grace_price_conversion (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_type TEXT NOT NULL,
+      event_type_key TEXT NOT NULL UNIQUE,
+      jpy_price REAL NOT NULL,
+      eur_price REAL NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `).run();
+  
   // Create indexes
   db.prepare('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)').run();
   db.prepare('CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)').run();
@@ -119,6 +132,7 @@ function initializeTables() {
   db.prepare('CREATE INDEX IF NOT EXISTS idx_trainer_splits_prod_id ON trainer_splits(prod_id)').run();
   db.prepare('CREATE INDEX IF NOT EXISTS idx_expenses_prod_id ON expenses(prod_id)').run();
   db.prepare('CREATE INDEX IF NOT EXISTS idx_audit_log_prod_id ON audit_log(prod_id)').run();
+  db.prepare('CREATE UNIQUE INDEX IF NOT EXISTS idx_grace_price_event_type_key ON grace_price_conversion(event_type_key)').run();
 }
 
 
@@ -226,6 +240,77 @@ export class AuditService {
 
   static getByProdId(prodId: number): any[] {
     return getDatabase().prepare('SELECT * FROM audit_log WHERE prod_id = ? ORDER BY created_at DESC').all(prodId);
+  }
+}
+
+export class GracePriceService {
+  static getAll(): { id: number; eventType: string; eventTypeKey: string; jpyPrice: number; eurPrice: number; }[] {
+    const rows = getDatabase().prepare('SELECT * FROM grace_price_conversion ORDER BY event_type, event_type_key').all() as any[];
+    return rows.map(row => ({
+      id: row.id,
+      eventType: row.event_type,
+      eventTypeKey: row.event_type_key,
+      jpyPrice: row.jpy_price,
+      eurPrice: row.eur_price,
+    }));
+  }
+
+  static upsert(data: { eventType: string; eventTypeKey: string; jpyPrice: number; eurPrice: number; }): void {
+    const database = getDatabase();
+    const existing = database.prepare('SELECT id FROM grace_price_conversion WHERE event_type_key = ?').get(data.eventTypeKey) as any;
+    if (existing?.id) {
+      database.prepare(`
+        UPDATE grace_price_conversion 
+        SET event_type = ?, jpy_price = ?, eur_price = ?, updated_at = CURRENT_TIMESTAMP 
+        WHERE event_type_key = ?
+      `).run(data.eventType, data.jpyPrice, data.eurPrice, data.eventTypeKey);
+    } else {
+      database.prepare(`
+        INSERT INTO grace_price_conversion (event_type, event_type_key, jpy_price, eur_price) 
+        VALUES (?, ?, ?, ?)
+      `).run(data.eventType, data.eventTypeKey, data.jpyPrice, data.eurPrice);
+    }
+  }
+
+  static delete(id: number): void {
+    getDatabase().prepare('DELETE FROM grace_price_conversion WHERE id = ?').run(id);
+  }
+
+  static seedDefaults(): void {
+    const database = getDatabase();
+    const defaultData = [
+      { eventType: 'Salsation Training - Repeater', eventTypeKey: 'Salsation-Instructor training-Repeater', jpyPrice: 19400, eurPrice: 113.449 },
+      { eventType: 'Salsation Training - Troupe', eventTypeKey: 'Salsation-Instructor training-Troupe', jpyPrice: 19400, eurPrice: 113.449 },
+      { eventType: 'Salsation Training - Early Bird', eventTypeKey: 'Salsation-Instructor training-Early Bird', jpyPrice: 29700, eurPrice: 173.685 },
+      { eventType: 'Salsation Training - Regular', eventTypeKey: 'Salsation-Instructor training-Regular', jpyPrice: 36100, eurPrice: 211.11 },
+      { eventType: 'Salsation Training - Rush', eventTypeKey: 'Salsation-Instructor training-Rush', jpyPrice: 42600, eurPrice: 249.12 },
+      { eventType: 'Salsation Training - Free', eventTypeKey: 'Salsation-Instructor training-', jpyPrice: 0, eurPrice: 0 },
+      { eventType: 'Choreology Training - Repeater', eventTypeKey: 'Choreology-Instructor training-Repeater', jpyPrice: 19400, eurPrice: 113.449 },
+      { eventType: 'Choreology Training - Trouper', eventTypeKey: 'Choreology-Instructor training-Troupe', jpyPrice: 19400, eurPrice: 113.449 },
+      { eventType: 'Choreology Training - Early Bird', eventTypeKey: 'Choreology-Instructor training-Early Bird', jpyPrice: 29700, eurPrice: 173.685 },
+      { eventType: 'Choreology Training - Regular', eventTypeKey: 'Choreology-Instructor training-Regular', jpyPrice: 36100, eurPrice: 211.11 },
+      { eventType: 'Choreology Training - Rush', eventTypeKey: 'Choreology-Instructor training-Rush', jpyPrice: 42600, eurPrice: 249.12 },
+      { eventType: 'Choreology Training - Free', eventTypeKey: 'Choreology-Instructor training-', jpyPrice: 0, eurPrice: 0 },
+      { eventType: 'KID Instructor Training - Repeater', eventTypeKey: 'Kid-Instructor training-Repeater', jpyPrice: 19400, eurPrice: 113.449 },
+      { eventType: 'KID Instructor Training - Trouper', eventTypeKey: 'Kid-Instructor training-Troupe', jpyPrice: 19400, eurPrice: 113.449 },
+      { eventType: 'KID Instructor Training - Early Bird', eventTypeKey: 'Kid-Instructor training-Early Bird', jpyPrice: 29700, eurPrice: 173.685 },
+      { eventType: 'KID Instructor Training - Regular', eventTypeKey: 'Kid-Instructor training-Regular', jpyPrice: 36100, eurPrice: 211.11 },
+      { eventType: 'KID Instructor Training - Rush', eventTypeKey: 'Kid-Instructor training-Rush', jpyPrice: 42600, eurPrice: 249.12 },
+      { eventType: 'KID Instructor Training - Free', eventTypeKey: 'Kid-Instructor training-', jpyPrice: 0, eurPrice: 0 },
+    ];
+    
+    const insert = database.prepare(`
+      INSERT OR IGNORE INTO grace_price_conversion (event_type, event_type_key, jpy_price, eur_price) 
+      VALUES (?, ?, ?, ?)
+    `);
+    
+    const trx = database.transaction(() => {
+      for (const item of defaultData) {
+        insert.run(item.eventType, item.eventTypeKey, item.jpyPrice, item.eurPrice);
+      }
+    });
+    
+    trx();
   }
 }
 

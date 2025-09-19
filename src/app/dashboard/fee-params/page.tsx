@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { DashboardLayout } from '@/components/dashboard/layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,6 +17,7 @@ import {
 } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, AlertCircle, CheckCircle } from 'lucide-react';
 import {
   Table,
@@ -36,12 +38,44 @@ interface FeeParam {
   concatKey: string;
 }
 
+interface GracePrice {
+  id: number;
+  eventType: string;
+  eventTypeKey: string;
+  jpyPrice: number;
+  eurPrice: number;
+}
+
 export default function FeeParamsPage() {
   const { data: session } = useSession();
-  const [params, setParams] = useState<FeeParam[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [activeTab, setActiveTab] = useState('fee-params');
+
+  // React Query for fee parameters
+  const { data: params = [], isLoading: paramsLoading } = useQuery({
+    queryKey: ['fee-params'],
+    queryFn: async () => {
+      const response = await fetch('/api/fee-params');
+      if (!response.ok) throw new Error('Failed to fetch fee parameters');
+      const data = await response.json();
+      return data.data || [];
+    },
+  });
+
+  // React Query for grace prices
+  const { data: gracePrices = [], isLoading: gracePricesLoading } = useQuery({
+    queryKey: ['grace-prices'],
+    queryFn: async () => {
+      const response = await fetch('/api/grace-price');
+      if (!response.ok) throw new Error('Failed to fetch grace prices');
+      const data = await response.json();
+      return data.data || [];
+    },
+  });
+
+  const loading = paramsLoading || gracePricesLoading;
 
   // Edit state
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -58,6 +92,25 @@ export default function FeeParamsPage() {
     percent: ''
   });
 
+  // Grace Price form state
+  const [gracePriceForm, setGracePriceForm] = useState({
+    program: '',
+    category: '',
+    tierLevel: '',
+    jpyPrice: '',
+    eurPrice: ''
+  });
+
+  // Grace Price edit state
+  const [editingGracePriceId, setEditingGracePriceId] = useState<number | null>(null);
+  const [editGracePriceForm, setEditGracePriceForm] = useState({
+    program: '',
+    category: '',
+    tierLevel: '',
+    jpyPrice: '',
+    eurPrice: ''
+  });
+
   // Manual input state
   const [manualInputs, setManualInputs] = useState({
     program: false,
@@ -71,27 +124,84 @@ export default function FeeParamsPage() {
   const categoryOptions = ['Instructor training', 'Workshops', 'Seminar', 'Method Training', 'On Demand', 'On-Demand', 'Move Forever Training'];
   const venueOptions = ['Venue', 'Online', 'OnlineGlobal', 'On Demand'];
   const attendanceOptions = ['Attended', 'Unattended'];
+  
+  // Grace Price specific options
+  const tierLevelOptions = ['Repeater', 'Troupe', 'Early Bird', 'Regular', 'Rush', 'Free'];
 
-  // Load fee parameters
-  const loadParams = async () => {
-    try {
-      const response = await fetch('/api/fee-params');
-      if (response.ok) {
-        const data = await response.json();
-        setParams(data.data || []);
-      } else {
-        throw new Error('Failed to load parameters');
-      }
-    } catch (error) {
-      console.error('Error loading params:', error);
-      setMessage({ type: 'error', text: 'Failed to load fee parameters' });
-    } finally {
-      setLoading(false);
-    }
-  };
+  // React Query mutations for saving data
+  const feeParamMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const response = await fetch('/api/fee-params', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) throw new Error('Failed to save fee parameter');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['fee-params'] });
+      setMessage({ type: 'success', text: 'Fee parameter saved successfully' });
+    },
+    onError: (error) => {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to save fee parameter' });
+    },
+  });
+
+  const gracePriceMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const response = await fetch('/api/grace-price', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) throw new Error('Failed to save grace price conversion');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['grace-prices'] });
+      setMessage({ type: 'success', text: 'Grace price conversion saved successfully' });
+    },
+    onError: (error) => {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to save grace price conversion' });
+    },
+  });
+
+  const deleteFeeParamMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const response = await fetch(`/api/fee-params?id=${id}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) throw new Error('Failed to delete fee parameter');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['fee-params'] });
+      setMessage({ type: 'success', text: 'Fee parameter deleted successfully' });
+    },
+    onError: (error) => {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to delete fee parameter' });
+    },
+  });
+
+  const deleteGracePriceMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const response = await fetch(`/api/grace-price?id=${id}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) throw new Error('Failed to delete grace price conversion');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['grace-prices'] });
+      setMessage({ type: 'success', text: 'Grace price conversion deleted successfully' });
+    },
+    onError: (error) => {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to delete grace price conversion' });
+    },
+  });
 
   useEffect(() => {
-    loadParams();
     // Log page view
     if (session?.user?.id) {
       fetch('/api/activity-log', {
@@ -111,39 +221,16 @@ export default function FeeParamsPage() {
     setSaving(true);
     setMessage(null);
 
-    try {
-      const response = await fetch('/api/fee-params', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          program: form.program,
-          category: form.category,
-          venue: form.venue,
-          attendance: form.attendance,
-          percent: parseFloat(form.percent)
-        })
-      });
-
-      const result = await response.json();
-
-      if (response.ok) {
-        setMessage({ type: 'success', text: result.message });
-                      resetForm();
-        loadParams(); // Reload the list
-      } else {
-        throw new Error(result.error || 'Failed to save parameter');
-      }
-    } catch (error) {
-      console.error('Error saving parameter:', error);
-      setMessage({ 
-        type: 'error', 
-        text: error instanceof Error ? error.message : 'Failed to save parameter' 
-      });
-    } finally {
-      setSaving(false);
-    }
+    feeParamMutation.mutate({
+      program: form.program,
+      category: form.category,
+      venue: form.venue,
+      attendance: form.attendance,
+      percent: parseFloat(form.percent)
+    });
+    
+    resetForm();
+    setSaving(false);
   };
 
   const handleInputChange = (field: string, value: string) => {
@@ -163,6 +250,46 @@ export default function FeeParamsPage() {
   const resetForm = () => {
     setForm({ program: '', category: '', venue: '', attendance: '', percent: '' });
     setManualInputs({ program: false, category: false, venue: false, attendance: false });
+  };
+
+  const resetGracePriceForm = () => {
+    setGracePriceForm({ program: '', category: '', tierLevel: '', jpyPrice: '', eurPrice: '' });
+  };
+
+  // Grace Price form handlers
+  const handleGracePriceSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setMessage(null);
+
+    // Generate eventType and eventTypeKey from form inputs
+    const eventType = `${gracePriceForm.program} Training - ${gracePriceForm.tierLevel}`;
+    const eventTypeKey = `${gracePriceForm.program}-${gracePriceForm.category}-${gracePriceForm.tierLevel === 'Free' ? '' : gracePriceForm.tierLevel}`;
+    
+    gracePriceMutation.mutate({
+      eventType: eventType,
+      eventTypeKey: eventTypeKey,
+      jpyPrice: parseFloat(gracePriceForm.jpyPrice),
+      eurPrice: parseFloat(gracePriceForm.eurPrice)
+    });
+    
+    resetGracePriceForm();
+    setSaving(false);
+  };
+
+  const handleGracePriceInputChange = (field: string, value: string) => {
+    setGracePriceForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  // Helper functions for Grace Price data parsing
+  const parseGracePriceData = (gracePrice: GracePrice) => {
+    // Parse eventTypeKey back to components: "Salsation-Instructor training-Early Bird"
+    const parts = gracePrice.eventTypeKey.split('-');
+    return {
+      program: parts[0] || '',
+      category: parts[1] || '',
+      tierLevel: parts[2] || 'Free' // If no tier level, it's Free
+    };
   };
 
   if (loading) {
@@ -252,9 +379,17 @@ export default function FeeParamsPage() {
   return (
     <DashboardLayout>
       <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Fee Parameters Management</h1>
-      </div>
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold">Fee Parameters & Grace Price Management</h1>
+        </div>
+
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="fee-params">Fee Parameters</TabsTrigger>
+            <TabsTrigger value="grace-price">Grace Price Conversion</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="fee-params" className="space-y-6">
 
       {/* Add New Parameter Form */}
       <Card>
@@ -602,31 +737,18 @@ export default function FeeParamsPage() {
                               <div className="flex justify-end gap-2">
                                 <Button
                                   size="sm"
-                                  onClick={async () => {
+                                  onClick={() => {
                                     setSaving(true);
                                     setMessage(null);
-                                    try {
-                                      // Save via POST (upsert)
-                                      const resp = await fetch('/api/fee-params', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({
-                                          program: editForm.program,
-                                          category: editForm.category,
-                                          venue: editForm.venue,
-                                          attendance: editForm.attendance,
-                                          percent: parseFloat(editForm.percent),
-                                        })
-                                      });
-                                      if (!resp.ok) throw new Error('Failed to save changes');
-                                      setEditingId(null);
-                                      loadParams();
-                                      setMessage({ type: 'success', text: 'Updated successfully' });
-                                    } catch (e) {
-                                      setMessage({ type: 'error', text: 'Failed to update' });
-                                    } finally {
-                                      setSaving(false);
-                                    }
+                                    feeParamMutation.mutate({
+                                      program: editForm.program,
+                                      category: editForm.category,
+                                      venue: editForm.venue,
+                                      attendance: editForm.attendance,
+                                      percent: parseFloat(editForm.percent),
+                                    });
+                                    setEditingId(null);
+                                    setSaving(false);
                                   }}
                                 >
                                   Save
@@ -665,19 +787,9 @@ export default function FeeParamsPage() {
                                 <Button
                                   variant="destructive"
                                   size="sm"
-                                  onClick={async () => {
-                                    if (!confirm('Delete this fee parameter?')) return;
-                                    setSaving(true);
-                                    setMessage(null);
-                                    try {
-                                      const resp = await fetch(`/api/fee-params?id=${param.id}`, { method: 'DELETE' });
-                                      if (!resp.ok) throw new Error('Failed to delete');
-                                      loadParams();
-                                      setMessage({ type: 'success', text: 'Deleted successfully' });
-                                    } catch (e) {
-                                      setMessage({ type: 'error', text: 'Delete failed' });
-                                    } finally {
-                                      setSaving(false);
+                                  onClick={() => {
+                                    if (confirm('Delete this fee parameter?')) {
+                                      deleteFeeParamMutation.mutate(param.id);
                                     }
                                   }}
                                 >
@@ -696,6 +808,323 @@ export default function FeeParamsPage() {
           )}
         </CardContent>
       </Card>
+      </TabsContent>
+
+      <TabsContent value="grace-price" className="space-y-6">
+        {/* Add New Grace Price Form */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Plus className="w-5 h-5" />
+              Add New Grace Price Conversion
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleGracePriceSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <Label htmlFor="program">Program</Label>
+                  <Select 
+                    value={gracePriceForm.program} 
+                    onValueChange={(value) => handleGracePriceInputChange('program', value)} 
+                    required
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select program" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {programOptions.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="category">Category</Label>
+                  <Select 
+                    value={gracePriceForm.category} 
+                    onValueChange={(value) => handleGracePriceInputChange('category', value)} 
+                    required
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categoryOptions.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="tierLevel">Tier Level</Label>
+                  <Select 
+                    value={gracePriceForm.tierLevel} 
+                    onValueChange={(value) => handleGracePriceInputChange('tierLevel', value)} 
+                    required
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select tier level" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tierLevelOptions.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="jpyPrice">JPY Price</Label>
+                  <Input
+                    id="jpyPrice"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="e.g. 29700"
+                    value={gracePriceForm.jpyPrice}
+                    onChange={(e) => handleGracePriceInputChange('jpyPrice', e.target.value)}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="eurPrice">EUR Price</Label>
+                  <Input
+                    id="eurPrice"
+                    type="number"
+                    step="0.001"
+                    min="0"
+                    placeholder="e.g. 173.685"
+                    value={gracePriceForm.eurPrice}
+                    onChange={(e) => handleGracePriceInputChange('eurPrice', e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button type="submit" disabled={saving}>
+                  {saving ? 'Saving...' : 'Add Grace Price'}
+                </Button>
+                <Button 
+                  type="button" 
+                  variant="outline"
+                  onClick={resetGracePriceForm}
+                >
+                  Clear
+                </Button>
+              </div>
+            </form>
+
+            {message && (
+              <Alert className={`mt-4 ${message.type === 'error' ? 'border-red-200 bg-red-50' : 'border-green-200 bg-green-50'}`}>
+                <div className="flex items-center gap-2">
+                  {message.type === 'error' ? (
+                    <AlertCircle className="w-4 h-4 text-red-600" />
+                  ) : (
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                  )}
+                  <AlertDescription className={message.type === 'error' ? 'text-red-700' : 'text-green-700'}>
+                    {message.text}
+                  </AlertDescription>
+                </div>
+              </Alert>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Grace Price Table */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Grace Price Conversions ({gracePrices.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {gracePrices.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                No grace price conversions found. Add some conversions above.
+              </div>
+            ) : (
+              <div className="border rounded-lg">
+                <div className="max-h-[600px] overflow-auto">
+                  <Table>
+                    <TableHeader className="sticky top-0 bg-white border-b shadow-sm z-10">
+                      <TableRow>
+                        <TableHead className="min-w-[120px]">Program</TableHead>
+                        <TableHead className="min-w-[140px]">Category</TableHead>
+                        <TableHead className="min-w-[120px]">Tier Level</TableHead>
+                        <TableHead className="min-w-[120px]">JPY Price</TableHead>
+                        <TableHead className="min-w-[120px]">EUR Price</TableHead>
+                        <TableHead className="min-w-[160px] text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {gracePrices.map((gracePrice) => {
+                        const parsedData = parseGracePriceData(gracePrice);
+                        return (
+                        <TableRow key={gracePrice.id}>
+                          {/* Editable cells */}
+                          {editingGracePriceId === gracePrice.id ? (
+                            <>
+                              <TableCell className="font-medium">
+                                <Select 
+                                  value={editGracePriceForm.program} 
+                                  onValueChange={(value) => setEditGracePriceForm((p) => ({ ...p, program: value }))}
+                                >
+                                  <SelectTrigger className="h-8">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {programOptions.map((option) => (
+                                      <SelectItem key={option} value={option}>
+                                        {option}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </TableCell>
+                              <TableCell>
+                                <Select 
+                                  value={editGracePriceForm.category} 
+                                  onValueChange={(value) => setEditGracePriceForm((p) => ({ ...p, category: value }))}
+                                >
+                                  <SelectTrigger className="h-8">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {categoryOptions.map((option) => (
+                                      <SelectItem key={option} value={option}>
+                                        {option}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </TableCell>
+                              <TableCell>
+                                <Select 
+                                  value={editGracePriceForm.tierLevel} 
+                                  onValueChange={(value) => setEditGracePriceForm((p) => ({ ...p, tierLevel: value }))}
+                                >
+                                  <SelectTrigger className="h-8">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {tierLevelOptions.map((option) => (
+                                      <SelectItem key={option} value={option}>
+                                        {option}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </TableCell>
+                              <TableCell>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={editGracePriceForm.jpyPrice}
+                                  onChange={(e) => setEditGracePriceForm((p) => ({ ...p, jpyPrice: e.target.value }))}
+                                  className="h-8"
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Input
+                                  type="number"
+                                  step="0.001"
+                                  min="0"
+                                  value={editGracePriceForm.eurPrice}
+                                  onChange={(e) => setEditGracePriceForm((p) => ({ ...p, eurPrice: e.target.value }))}
+                                  className="h-8"
+                                />
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex justify-end gap-2">
+                                  <Button
+                                    size="sm"
+                                    onClick={() => {
+                                      setSaving(true);
+                                      setMessage(null);
+                                      
+                                      // Generate eventType and eventTypeKey from form inputs
+                                      const eventType = `${editGracePriceForm.program} Training - ${editGracePriceForm.tierLevel}`;
+                                      const eventTypeKey = `${editGracePriceForm.program}-${editGracePriceForm.category}-${editGracePriceForm.tierLevel === 'Free' ? '' : editGracePriceForm.tierLevel}`;
+                                      
+                                      gracePriceMutation.mutate({
+                                        eventType: eventType,
+                                        eventTypeKey: eventTypeKey,
+                                        jpyPrice: parseFloat(editGracePriceForm.jpyPrice),
+                                        eurPrice: parseFloat(editGracePriceForm.eurPrice),
+                                      });
+                                      
+                                      setEditingGracePriceId(null);
+                                      setSaving(false);
+                                    }}
+                                  >
+                                    Save
+                                  </Button>
+                                  <Button variant="outline" size="sm" onClick={() => setEditingGracePriceId(null)}>
+                                    Cancel
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </>
+                          ) : (
+                            <>
+                              <TableCell className="font-medium">{parsedData.program}</TableCell>
+                              <TableCell>{parsedData.category}</TableCell>
+                              <TableCell>{parsedData.tierLevel}</TableCell>
+                              <TableCell>¥{gracePrice.jpyPrice.toLocaleString('ja-JP')}</TableCell>
+                              <TableCell>€{gracePrice.eurPrice.toLocaleString('de-DE', { minimumFractionDigits: 3 })}</TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex justify-end gap-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                      setEditingGracePriceId(gracePrice.id);
+                                      setEditGracePriceForm({
+                                        program: parsedData.program,
+                                        category: parsedData.category,
+                                        tierLevel: parsedData.tierLevel,
+                                        jpyPrice: String(gracePrice.jpyPrice),
+                                        eurPrice: String(gracePrice.eurPrice),
+                                      });
+                                    }}
+                                  >
+                                    Edit
+                                  </Button>
+                                  <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={() => {
+                                      if (confirm('Delete this grace price conversion?')) {
+                                        deleteGracePriceMutation.mutate(gracePrice.id);
+                                      }
+                                    }}
+                                  >
+                                    Delete
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </>
+                          )}
+                        </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </TabsContent>
+    </Tabs>
       </div>
     </DashboardLayout>
   );

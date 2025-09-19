@@ -20,6 +20,11 @@ export function EventOverviewCards({ event, commissions, trainerName, trainerFee
   // Recalculate balance and payable with the new trainer fee
   const adjustedBalance = overview.cashSales - displayTrainerFee;
   const adjustedPayable = displayTrainerFee - overview.cashSales;
+  
+  // Determine currency and locale based on event currency
+  const currency = event.Currency || 'EUR';
+  const locale = currency === 'JPY' ? 'ja-JP' : 'de-DE';
+  const formatOptions = { locale, currency };
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -29,7 +34,7 @@ export function EventOverviewCards({ event, commissions, trainerName, trainerFee
           <span className="text-xs text-muted-foreground">Total</span>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{formatCurrency(displayTrainerFee)}</div>
+          <div className="text-2xl font-bold">{formatCurrency(displayTrainerFee, formatOptions)}</div>
         </CardContent>
       </Card>
 
@@ -38,7 +43,7 @@ export function EventOverviewCards({ event, commissions, trainerName, trainerFee
           <CardTitle className="text-sm font-medium">Cash Sales</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{formatCurrency(overview.cashSales)}</div>
+          <div className="text-2xl font-bold">{formatCurrency(overview.cashSales, formatOptions)}</div>
         </CardContent>
       </Card>
 
@@ -47,7 +52,7 @@ export function EventOverviewCards({ event, commissions, trainerName, trainerFee
           <CardTitle className="text-sm font-medium">Balance</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{formatCurrency(adjustedBalance)}</div>
+          <div className="text-2xl font-bold">{formatCurrency(adjustedBalance, formatOptions)}</div>
         </CardContent>
       </Card>
 
@@ -59,7 +64,7 @@ export function EventOverviewCards({ event, commissions, trainerName, trainerFee
           <div className={`text-2xl font-bold ${
             adjustedPayable < 0 ? 'text-red-600' : 'text-green-600'
           }`}>
-            {formatCurrency(adjustedPayable)}
+            {formatCurrency(adjustedPayable, formatOptions)}
           </div>
           <p className="text-xs text-muted-foreground">
             Amount to pay trainer

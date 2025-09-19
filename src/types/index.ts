@@ -19,6 +19,7 @@ export interface Event {
   Country: string;
   Venue: string;
   Trainer_1: string;
+  Currency?: string; // Currency used for this event (EUR or JPY)
 }
 
 export interface EventTicket {
@@ -29,6 +30,7 @@ export interface EventTicket {
   PriceTotal: number; // Total price sum (UnitPrice * Quantity)
   TrainerFeePct: number;
   Quantity: number;
+  Currency?: string; // Currency used for prices (EUR or JPY)
 }
 
 export interface EventDetail extends Event {

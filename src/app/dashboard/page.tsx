@@ -191,16 +191,16 @@ export default function DashboardPage() {
                                 <td className="py-3 px-4 text-gray-900">{ticket.TierLevel}</td>
                                 <td className="py-3 px-4 text-right text-gray-900">{ticket.Quantity}</td>
                                 <td className="py-3 px-4 text-right font-medium text-gray-900">
-                                  €{ticket.UnitPrice.toFixed(2)}
+                                  {ticket.Currency === 'JPY' ? '¥' : '€'}{ticket.Currency === 'JPY' ? Math.round(ticket.UnitPrice).toLocaleString('ja-JP') : ticket.UnitPrice.toFixed(2)}
                                 </td>
                                 <td className="py-3 px-4 text-right font-medium text-gray-900">
-                                  €{ticket.PriceTotal.toFixed(2)}
+                                  {ticket.Currency === 'JPY' ? '¥' : '€'}{ticket.Currency === 'JPY' ? Math.round(ticket.PriceTotal).toLocaleString('ja-JP') : ticket.PriceTotal.toFixed(2)}
                                 </td>
                                 <td className="py-3 px-4 text-right text-gray-900">
                                   {(trainerFeePercentage * 100).toFixed(1)}%
                                 </td>
-                                <td className="py-3 px-4 text-right font-medium text-green-600">
-                                  €{trainerFeeAmount.toFixed(2)}
+                                <td className="py-3 px-4 text-right font-medium text-gray-900">
+                                  {ticket.Currency === 'JPY' ? '¥' : '€'}{ticket.Currency === 'JPY' ? Math.round(trainerFeeAmount).toLocaleString('ja-JP') : trainerFeeAmount.toFixed(2)}
                                 </td>
                               </tr>
                             );

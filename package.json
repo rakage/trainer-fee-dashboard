@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "seed": "node scripts/seed-database.js",
-    "seed:dev": "NODE_ENV=development node scripts/seed-database.js"
+    "seed:dev": "NODE_ENV=development node scripts/seed-database.js",
+    "seed:sqlite": "node scripts/seed-sqlite.js"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.12",
@@ -31,6 +32,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "csv-stringify": "^6.6.0",
+    "dotenv": "^17.2.2",
     "exceljs": "^4.4.0",
     "lucide-react": "^0.542.0",
     "mssql": "^11.0.1",

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getConnection } from '@/lib/database';
 import { requireRole } from '@/lib/middleware';
+import { GracePriceService, FeeParamService, UserService } from '@/lib/sqlite';
 
 // Sample data from the specification
 const sampleEvent = {
@@ -93,13 +94,37 @@ export async function POST(request: NextRequest) {
 
     const stats = statsQuery.recordset[0];
     
+    // Initialize SQLite data (user accounts, fee params, grace price conversions)
+    console.log('Initializing SQLite app-specific data...');
+    
+    // Seed Grace Price Conversions
+    try {
+      GracePriceService.seedDefaults();
+      console.log('Grace Price Conversion data initialized');
+    } catch (error) {
+      console.log('Grace Price data might already exist:', error);
+    }
+    
+    // Seed some default fee parameters if they don't exist
+    try {
+      FeeParamService.seedFromPairs([
+        { concat: 'Salsation-Instructor training-Venue-Attended', percent: 70 },
+        { concat: 'Salsation-Instructor training-Online-Attended', percent: 65 },
+        { concat: 'Choreology-Instructor training-Venue-Attended', percent: 70 },
+        { concat: 'Kid-Instructor training-Venue-Attended', percent: 70 },
+      ]);
+      console.log('Default fee parameters initialized');
+    } catch (error) {
+      console.log('Fee parameters might already exist:', error);
+    }
+    
     return NextResponse.json({
       success: true,
-      message: 'Connected to real database successfully',
+      message: 'Connected to real database and initialized app data successfully',
       data: {
         totalProducts: stats.TotalProducts,
         existingSplits: stats.ExistingSplits,
-        note: 'Using your real product database - no sample data needed'
+        note: 'Using your real product database + initialized SQLite app data'
       }
     });
 
