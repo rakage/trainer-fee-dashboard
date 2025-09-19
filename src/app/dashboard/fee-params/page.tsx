@@ -643,7 +643,7 @@ export default function FeeParamsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {params.map((param) => (
+                    {params.map((param: FeeParam) => (
                       <TableRow key={param.id}>
                         {/* Editable cells */}
                         {editingId === param.id ? (
@@ -964,7 +964,7 @@ export default function FeeParamsPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {gracePrices.map((gracePrice) => {
+                      {gracePrices.map((gracePrice: GracePrice) => {
                         const parsedData = parseGracePriceData(gracePrice);
                         return (
                         <TableRow key={gracePrice.id}>

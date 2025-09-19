@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   // Check authentication and permissions
-  const authResult = await requireAuth(request, ['admin', 'finance']);
+  const authResult = await requireAuth(request);
   if (authResult instanceof NextResponse) {
     return authResult;
   }
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   // Check authentication and permissions
-  const authResult = await requireAuth(request, ['admin']);
+  const authResult = await requireAuth(request);
   if (authResult instanceof NextResponse) {
     return authResult;
   }
