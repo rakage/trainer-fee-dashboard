@@ -34,6 +34,11 @@ export function ExpensesEditor({ eventId, event, trainerFee, trainerName, onExpe
   const [trainerFeePercentageDisplay, setTrainerFeePercentageDisplay] = useState<string>('0,0');
   const [isPercentageInitialized, setIsPercentageInitialized] = useState(false);
 
+  // Determine currency for this event (JPY for Grace in Japan, otherwise EUR)
+  const currency = event.Currency || 'EUR';
+  const locale = currency === 'JPY' ? 'ja-JP' : 'de-DE';
+  const formatOptions = { locale, currency };
+
   // Load existing expenses when component mounts
   useEffect(() => {
     const loadExpenses = async () => {
@@ -282,12 +287,12 @@ export function ExpensesEditor({ eventId, event, trainerFee, trainerName, onExpe
           <div className="text-sm space-y-2">
             <div className="flex justify-between items-center min-w-[250px]">
               <span>Total Expenses:</span>
-              <span className="font-medium text-red-600">{formatCurrency(totalExpenses)}</span>
+              <span className="font-medium text-red-600">{formatCurrency(totalExpenses, formatOptions)}</span>
             </div>
             <div className="flex justify-between items-center min-w-[250px] pt-1 border-t">
               <span className="font-semibold">Margin:</span>
               <span className={`font-bold ${margin < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                {formatCurrency(margin)}
+                {formatCurrency(margin, formatOptions)}
               </span>
             </div>
             {isAlejandro && (
@@ -321,7 +326,7 @@ export function ExpensesEditor({ eventId, event, trainerFee, trainerName, onExpe
             <div className="flex justify-between items-center min-w-[250px] pt-1 border-t">
               <span className="font-semibold">Trainer Fee Total:</span>
               <span className={`font-bold ${trainerFeeTotal < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                {formatCurrency(trainerFeeTotal)}
+                {formatCurrency(trainerFeeTotal, formatOptions)}
               </span>
             </div>
           </div>

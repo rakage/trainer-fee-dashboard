@@ -30,6 +30,11 @@ export function TrainerSplitsEditor({ eventId, event, commissions }: TrainerSpli
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  // Determine currency for this event (JPY for Grace in Japan, otherwise EUR)
+  const currency = event.Currency || 'EUR';
+  const locale = currency === 'JPY' ? 'ja-JP' : 'de-DE';
+  const formatOptions = { locale, currency };
+
   // Load existing splits when component mounts
   useEffect(() => {
     const loadSplits = async () => {
@@ -214,7 +219,7 @@ export function TrainerSplitsEditor({ eventId, event, commissions }: TrainerSpli
                     </div>
                   </TableCell>
                   <TableCell className="text-right font-mono">
-                    {formatCurrency((split.TrainerFee || 0) - split.CashReceived)}
+                    {formatCurrency((split.TrainerFee || 0) - split.CashReceived, formatOptions)}
                   </TableCell>
                   <TableCell>
                     <Button

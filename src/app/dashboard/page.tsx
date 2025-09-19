@@ -211,15 +211,21 @@ export default function DashboardPage() {
                             <td colSpan={4} className="py-3 px-4 font-medium text-gray-900">Totals</td>
                             <td className="py-3 px-4"></td>
                             <td className="py-3 px-4 text-right font-bold text-gray-900">
-                              €{selectedEvent.tickets.reduce((sum, ticket) => sum + ticket.PriceTotal, 0).toFixed(2)}
+                              {(() => {
+                                const total = selectedEvent.tickets.reduce((sum, ticket) => sum + ticket.PriceTotal, 0);
+                                const currency = selectedEvent.Currency || 'EUR';
+                                return currency === 'JPY' ? 
+                                  `¥${Math.round(total).toLocaleString('ja-JP')}` : 
+                                  `€${total.toFixed(2)}`;
+                              })()}
                             </td>
                             <td className="py-3 px-4"></td>
                             <td className="py-3 px-4 text-right font-bold text-green-600">
-                              €{(() => {
+                              {(() => {
                                 const currentTrainerName = trainerOverride || selectedEvent.Trainer_1 || '';
                                 const isAlejandro = currentTrainerName.toLowerCase().includes('alejandro');
                                 
-                                return selectedEvent.tickets.reduce((sum, ticket) => {
+                                const total = selectedEvent.tickets.reduce((sum, ticket) => {
                                   if (isAlejandro) {
                                     // For Alejandro: use percentage calculation in table
                                     return sum + (ticket.PriceTotal * (ticket.TrainerFeePct || 0));
@@ -228,7 +234,12 @@ export default function DashboardPage() {
                                     const { amount } = getCustomTrainerFee(currentTrainerName, ticket);
                                     return sum + amount;
                                   }
-                                }, 0).toFixed(2);
+                                }, 0);
+                                
+                                const currency = selectedEvent.Currency || 'EUR';
+                                return currency === 'JPY' ? 
+                                  `¥${Math.round(total).toLocaleString('ja-JP')}` : 
+                                  `€${total.toFixed(2)}`;
                               })()}
                             </td>
                           </tr>
