@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/middleware';
+import { requireRole } from '@/lib/middleware';
 import { GracePriceService } from '@/lib/sqlite';
 
 export async function GET(request: NextRequest) {
-  // Check authentication
-  const authResult = await requireAuth(request);
+  // Check authentication and require admin role
+  const authResult = await requireRole(request, ['admin']);
   if (authResult instanceof NextResponse) {
     return authResult;
   }
@@ -25,8 +25,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  // Check authentication and permissions
-  const authResult = await requireAuth(request);
+  // Check authentication and require admin role
+  const authResult = await requireRole(request, ['admin']);
   if (authResult instanceof NextResponse) {
     return authResult;
   }
@@ -72,8 +72,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  // Check authentication and permissions
-  const authResult = await requireAuth(request);
+  // Check authentication and require admin role
+  const authResult = await requireRole(request, ['admin']);
   if (authResult instanceof NextResponse) {
     return authResult;
   }

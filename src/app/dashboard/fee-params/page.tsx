@@ -64,7 +64,7 @@ export default function FeeParamsPage() {
     },
   });
 
-  // React Query for grace prices
+  // React Query for grace prices (admin only)
   const { data: gracePrices = [], isLoading: gracePricesLoading } = useQuery({
     queryKey: ['grace-prices'],
     queryFn: async () => {
@@ -73,9 +73,10 @@ export default function FeeParamsPage() {
       const data = await response.json();
       return data.data || [];
     },
+    enabled: session?.user?.role === 'admin', // Only fetch if user is admin
   });
 
-  const loading = paramsLoading || gracePricesLoading;
+  const loading = paramsLoading || (session?.user?.role === 'admin' && gracePricesLoading);
 
   // Edit state
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -380,13 +381,17 @@ export default function FeeParamsPage() {
     <DashboardLayout>
       <div className="container mx-auto p-6 space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Fee Parameters & Grace Price Management</h1>
+          <h1 className="text-3xl font-bold">
+            Fee Parameters{session?.user?.role === 'admin' ? ' & Grace Price Management' : ' Management'}
+          </h1>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className={`grid w-full ${session?.user?.role === 'admin' ? 'grid-cols-2' : 'grid-cols-1'}`}>
             <TabsTrigger value="fee-params">Fee Parameters</TabsTrigger>
-            <TabsTrigger value="grace-price">Grace Price Conversion</TabsTrigger>
+            {session?.user?.role === 'admin' && (
+              <TabsTrigger value="grace-price">Grace Price Conversion</TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="fee-params" className="space-y-6">
@@ -810,8 +815,9 @@ export default function FeeParamsPage() {
       </Card>
       </TabsContent>
 
-      <TabsContent value="grace-price" className="space-y-6">
-        {/* Add New Grace Price Form */}
+      {session?.user?.role === 'admin' && (
+        <TabsContent value="grace-price" className="space-y-6">
+          {/* Add New Grace Price Form */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -1123,7 +1129,8 @@ export default function FeeParamsPage() {
             )}
           </CardContent>
         </Card>
-      </TabsContent>
+        </TabsContent>
+      )}
     </Tabs>
       </div>
     </DashboardLayout>
