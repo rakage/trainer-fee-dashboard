@@ -192,7 +192,6 @@ export class DatabaseService {
         and sa2.id = 6
         and o.orderstatusid = '30'
         and o.paymentstatusid in ('30','35')
-        and p.DisableBuyButton = 0
         and (p.Published = 1 or (p.id = '40963' and p.Published = 0))
         and (pav.name like '%2024%' or pav.name like '%2025%')
         and p.id not in ('54958', '53000', '55053')
@@ -254,7 +253,6 @@ export class DatabaseService {
         and sa2.id = 6
         and o.orderstatusid = '30'
         and o.paymentstatusid in ('30','35')
-        and p.DisableBuyButton = 0
         and p.id = @prodId
         and p.id not in ('53000', '55053')
         and (o.PaidDateUtc like '%2024%' or o.PaidDateUtc like '%2025%')
