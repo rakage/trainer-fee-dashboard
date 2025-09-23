@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, Suspense } from 'react';
-import { signIn, getSession } from 'next-auth/react';
+import { useState, Suspense, useEffect } from 'react';
+import { signIn, getSession, useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,6 +12,7 @@ import { LoginCredentials } from '@/types';
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { data: session, status } = useSession();
   const [credentials, setCredentials] = useState<LoginCredentials>({
     email: '',
     password: '',
@@ -21,6 +22,35 @@ function LoginForm() {
 
   const callbackUrl = searchParams?.get('callbackUrl') || '/dashboard';
   const errorParam = searchParams?.get('error');
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (status === 'authenticated' && session) {
+      router.push(callbackUrl);
+    }
+  }, [status, session, router, callbackUrl]);
+
+  // Show loading while checking session
+  if (status === 'loading') {
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-center py-6">
+          <div className="text-center">Loading...</div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Don't render form if authenticated (prevents flash before redirect)
+  if (status === 'authenticated') {
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-center py-6">
+          <div className="text-center">Redirecting...</div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,7 +74,7 @@ function LoginForm() {
           router.refresh();
         }
       }
-    } catch (error) {
+    } catch {
       setError('An error occurred. Please try again.');
     } finally {
       setIsLoading(false);
