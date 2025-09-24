@@ -56,11 +56,10 @@ export async function closeConnection(): Promise<void> {
 
 // Database query functions
 export class DatabaseService {
-  
   static async getEventsList(query?: string): Promise<EventListResponse[]> {
     const pool = await getConnection();
     const request = pool.request();
-    
+
     if (query) {
       // Allow long search strings (event titles can be long)
       request.input('q', sql.NVarChar(sql.MAX), query);
@@ -127,10 +126,13 @@ export class DatabaseService {
     return result.recordset;
   }
 
-  static async getEventDetail(prodId: number, includeDeleted: boolean = false): Promise<EventDetail | null> {
+  static async getEventDetail(
+    prodId: number,
+    includeDeleted: boolean = false
+  ): Promise<EventDetail | null> {
     const pool = await getConnection();
     const request = pool.request();
-    
+
     request.input('prodId', sql.Int, prodId);
 
     // Use the full order query to get actual order data with trainer fee calculation
@@ -404,11 +406,11 @@ export class DatabaseService {
         FROM finals
         WHERE rn = 1
       `);
-      
+
       if (eventResult.recordset.length === 0) {
         return null;
       }
-      
+
       const eventRow = eventResult.recordset[0];
       return {
         ProdID: eventRow.ProdID,
@@ -416,7 +418,7 @@ export class DatabaseService {
         EventDate: eventRow.EventDate,
         Country: eventRow.Country,
         Venue: eventRow.Location || 'Unknown', // Use calculated Location for Venue
-        Trainer_1: eventRow.TrainerName || eventRow.Vendor || 'Unknown', // Use extracted trainer name
+        Trainer_1: this.cleanTrainerName(eventRow.TrainerName || eventRow.Vendor || 'Unknown'), // Clean trainer name
         tickets: [],
       };
     }
@@ -424,11 +426,11 @@ export class DatabaseService {
     // Group orders by key characteristics and calculate trainer fees using SQLite
     const tickets: EventTicket[] = [];
     const eventRow = orderResult.recordset[0];
-    
+
     // Group by Attendance, PaymentMethod, TierLevel, and UnitPrice (ticket price can vary per customer)
     const groupedOrders = orderResult.recordset.reduce((acc, order) => {
       const unitPrice = order.PriceTotal || 0; // individual ticket price
-      const key = `${order.Attendance}-${order.PaymentMethod}-${(order.TierLevel || 'Standard')}-${unitPrice.toFixed(2)}`;
+      const key = `${order.Attendance}-${order.PaymentMethod}-${order.TierLevel || 'Standard'}-${unitPrice.toFixed(2)}`;
       if (!acc[key]) {
         acc[key] = {
           Attendance: order.Attendance,
@@ -448,23 +450,25 @@ export class DatabaseService {
     for (const group of Object.values(groupedOrders) as any[]) {
       // Get the trainer fee percentage from SQLite using the concat key
       const feePercent = this.getTrainerFeePercent(group.ConcatTrainerPercentKey);
-      
+
       let unitPrice = group.UnitPrice;
       let priceTotal = group.UnitPrice * group.Quantity;
-      
+
       // Apply Grace Price Conversion if trainer is Grace and country is Japan
-      const trainerName = eventRow.TrainerName || eventRow.Vendor || '';
-      const isGraceTrainer = trainerName.toLowerCase().includes('grace');
-      const isJapan = eventRow.Country?.toLowerCase().includes('japan') || eventRow.Country?.toLowerCase().includes('jp');
-      
+      const rawTrainerName = eventRow.TrainerName || eventRow.Vendor || '';
+      const isGraceTrainer = rawTrainerName.toLowerCase().includes('grace');
+      const isJapan =
+        eventRow.Country?.toLowerCase().includes('japan') ||
+        eventRow.Country?.toLowerCase().includes('jp');
+
       if (isGraceTrainer && isJapan && group.TierLevel) {
         try {
           // Extract program and category from the event name
           const { program, category } = this.extractProgramAndCategory(eventRow.ProdName || '');
           const tierLevel = group.TierLevel;
-          
+
           console.log(`Grace conversion: ${program}-${category}-${tierLevel} for EUR ${unitPrice}`);
-          
+
           // Convert EUR to JPY
           const jpyAmount = await this.convertEurToJpy(unitPrice, program, category, tierLevel);
           if (jpyAmount !== null) {
@@ -479,32 +483,35 @@ export class DatabaseService {
           // Continue with original EUR prices if conversion fails
         }
       }
-      
+
       tickets.push({
         Attendance: group.Attendance,
         PaymentMethod: group.PaymentMethod,
         TierLevel: group.TierLevel,
-        UnitPrice: unitPrice,  // Individual ticket price (converted to JPY if applicable)
+        UnitPrice: unitPrice, // Individual ticket price (converted to JPY if applicable)
         PriceTotal: priceTotal, // Total price = unit price × quantity (converted to JPY if applicable)
         TrainerFeePct: feePercent,
         Quantity: group.Quantity,
-        Currency: (isGraceTrainer && isJapan) ? 'JPY' : 'EUR', // Set currency based on conversion
+        Currency: isGraceTrainer && isJapan ? 'JPY' : 'EUR', // Set currency based on conversion
       });
     }
 
     // Determine if this is a Grace event in Japan for currency display
-    const trainerName = eventRow.TrainerName || eventRow.Vendor || 'Unknown';
-    const isGraceTrainer = trainerName.toLowerCase().includes('grace');
-    const isJapan = eventRow.Country?.toLowerCase().includes('japan') || eventRow.Country?.toLowerCase().includes('jp');
-    
+    const rawTrainerName = eventRow.TrainerName || eventRow.Vendor || 'Unknown';
+    const cleanedTrainerName = this.cleanTrainerName(rawTrainerName);
+    const isGraceTrainer = rawTrainerName.toLowerCase().includes('grace');
+    const isJapan =
+      eventRow.Country?.toLowerCase().includes('japan') ||
+      eventRow.Country?.toLowerCase().includes('jp');
+
     const event: EventDetail = {
       ProdID: eventRow.ProdID,
       ProdName: eventRow.ProdName,
       EventDate: eventRow.EventDate,
       Country: eventRow.Country,
       Venue: eventRow.Location || 'Unknown', // Use calculated Location for Venue
-      Trainer_1: trainerName, // Use extracted trainer name from title
-      Currency: (isGraceTrainer && isJapan) ? 'JPY' : 'EUR', // Set event currency
+      Trainer_1: cleanedTrainerName, // Use cleaned trainer name
+      Currency: isGraceTrainer && isJapan ? 'JPY' : 'EUR', // Set event currency
       tickets,
     };
 
@@ -516,17 +523,19 @@ export class DatabaseService {
       // Use SQLite for trainer splits (app-specific data)
       const { TrainerSplitService } = require('./sqlite');
       const rows = TrainerSplitService.getByProdId(prodId);
-      
-      return rows.map((row: any, index: number): TrainerSplit => ({
-        id: index + 1,
-        ProdID: row.prod_id,
-        RowId: row.row_id,
-        Name: row.name,
-        Percent: row.percent,
-        TrainerFee: row.trainer_fee || 0,
-        CashReceived: row.cash_received,
-        Payable: (row.trainer_fee || 0) - (row.cash_received || 0), // Calculate payable from saved values
-      }));
+
+      return rows.map(
+        (row: any, index: number): TrainerSplit => ({
+          id: index + 1,
+          ProdID: row.prod_id,
+          RowId: row.row_id,
+          Name: row.name,
+          Percent: row.percent,
+          TrainerFee: row.trainer_fee || 0,
+          CashReceived: row.cash_received,
+          Payable: (row.trainer_fee || 0) - (row.cash_received || 0), // Calculate payable from saved values
+        })
+      );
     } catch (error: any) {
       console.error('Error getting trainer splits from SQLite:', error);
       return [];
@@ -543,7 +552,7 @@ export class DatabaseService {
         name: split.Name,
         percent: split.Percent,
         trainer_fee: split.TrainerFee || 0,
-        cash_received: split.CashReceived
+        cash_received: split.CashReceived,
       });
     } catch (error) {
       console.error('Error saving trainer split to SQLite:', error);
@@ -567,7 +576,7 @@ export class DatabaseService {
       // Use SQLite for expenses (app-specific data)
       const { ExpenseService } = require('./sqlite');
       const rows = ExpenseService.getByProdId(prodId);
-      
+
       return rows.map((row: any, index: number): any => ({
         id: index + 1,
         ProdID: row.prod_id,
@@ -589,7 +598,7 @@ export class DatabaseService {
         prod_id: expense.ProdID,
         row_id: expense.RowId,
         description: expense.Description,
-        amount: expense.Amount
+        amount: expense.Amount,
       });
     } catch (error) {
       console.error('Error saving expense to SQLite:', error);
@@ -625,7 +634,12 @@ export class DatabaseService {
     }
   }
 
-  static async logAuditEvent(userId: string, action: string, prodId: number, details: string): Promise<void> {
+  static async logAuditEvent(
+    userId: string,
+    action: string,
+    prodId: number,
+    details: string
+  ): Promise<void> {
     try {
       // Use SQLite for audit logging (app-specific data)
       const { AuditService } = require('./sqlite');
@@ -636,25 +650,36 @@ export class DatabaseService {
     }
   }
 
-  static async getGracePriceConversion(program: string, category: string, tierLevel: string): Promise<{ jpyPrice: number; eurPrice: number } | null> {
+  static async getGracePriceConversion(
+    program: string,
+    category: string,
+    tierLevel: string
+  ): Promise<{ jpyPrice: number; eurPrice: number } | null> {
     try {
       const { GracePriceService } = require('./sqlite');
       const eventTypeKey = `${program}-${category}-${tierLevel === 'Free' ? '' : tierLevel}`;
-      
+
       const conversions = GracePriceService.getAll();
       const conversion = conversions.find((c: any) => c.eventTypeKey === eventTypeKey);
-      
-      return conversion ? {
-        jpyPrice: conversion.jpyPrice,
-        eurPrice: conversion.eurPrice
-      } : null;
+
+      return conversion
+        ? {
+            jpyPrice: conversion.jpyPrice,
+            eurPrice: conversion.eurPrice,
+          }
+        : null;
     } catch (error) {
       console.error('Error getting Grace price conversion:', error);
       return null;
     }
   }
 
-  static convertEurToJpy(eurAmount: number, program: string, category: string, tierLevel: string): Promise<number | null> {
+  static convertEurToJpy(
+    eurAmount: number,
+    program: string,
+    category: string,
+    tierLevel: string
+  ): Promise<number | null> {
     return new Promise(async (resolve) => {
       try {
         const conversion = await this.getGracePriceConversion(program, category, tierLevel);
@@ -662,11 +687,11 @@ export class DatabaseService {
           resolve(null);
           return;
         }
-        
+
         // Calculate conversion rate: JPY/EUR
         const conversionRate = conversion.jpyPrice / conversion.eurPrice;
         const jpyAmount = eurAmount * conversionRate;
-        
+
         resolve(jpyAmount);
       } catch (error) {
         console.error('Error converting EUR to JPY:', error);
@@ -675,9 +700,354 @@ export class DatabaseService {
     });
   }
 
+  static cleanTrainerName(trainerName: string): string {
+    // Standardize trainer names, especially for trainer pairs
+    switch (trainerName.trim()) {
+      case 'Kamila Wierzynska':
+        return 'Kami/Yoyo';
+      case 'Yoandro':
+        return 'Kami/Yoyo';
+      case 'Diana Kukizz Kurucová':
+        return 'Kukizz/Javier';
+      case 'Javier':
+        return 'Kukizz/Javier';
+      default:
+        return trainerName;
+    }
+  }
+
+  static async getAlejandroReport(year?: number, month?: number): Promise<any[]> {
+    const pool = await getConnection();
+    const request = pool.request();
+
+    if (year) {
+      request.input('year', sql.Int, year);
+    }
+    if (month) {
+      request.input('month', sql.Int, month);
+    }
+
+    const query = `
+        with base as (
+            select distinct
+            p.id as ProdID, 
+            p.name as ProdName,  
+            c.name as Category, 
+            sao2.name as Program,
+            null as ReportingGroup,
+            CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE) as EventDate, 
+            p.price as ProductPrice, 
+            v.Name as Vendor,
+            sao.Name as Country,
+            p.StockQuantity,
+            p.DisableBuyButton as Cancelled,
+            case
+                when p.Published = 1 then 'Active'
+                else 'Cancelled'
+            end as Status_Event
+            from product p
+            left join Product_Category_Mapping pcm
+            on p.id = pcm.ProductId
+            left join Product_ProductAttribute_Mapping pam
+            on p.id = pam.ProductId
+            left join SalsationEvent_Country_Mapping scm
+            on p.id = scm.ProductId
+            left join country cn
+            on scm.CountryId = cn.Id
+            left join ProductAttributeValue pav
+            on pam.id = pav.ProductAttributeMappingId
+            left join Category c
+            on pcm.CategoryId = c.id
+            left join Vendor v 
+            on p.VendorId = v.Id
+            left join Product_SpecificationAttribute_Mapping psm
+            on p.Id = psm.productid
+            left join SpecificationAttributeOption sao 
+            on psm.SpecificationAttributeOptionId = sao.Id 
+            left join SpecificationAttribute sa 
+            on sao.SpecificationAttributeId = sa.Id
+            left join Product_SpecificationAttribute_Mapping psm2
+            on p.Id = psm2.productid
+            left join SpecificationAttributeOption sao2 
+            on psm2.SpecificationAttributeOptionId = sao2.Id 
+            left join SpecificationAttribute sa2 
+            on sao2.SpecificationAttributeId = sa2.Id
+            where sa.id = 10
+            and sa2.id = 6
+            and (pav.name like '%2024%'
+            or pav.name like '%2025%')
+            and p.id not in ('53000', '55053')
+            ${year ? "AND YEAR(CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE)) = @year" : ''}
+            ${month ? "AND MONTH(CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE)) = @month" : ''}
+            )
+            , finals as (
+            select 
+                *
+                , row_number() over(partition by ProdID order by eventdate asc) as rn
+            from base
+            )
+            , EventDataRaw as (
+            select 
+                ProdID,
+            ProdName,
+            Category,
+            Program,
+            ReportingGroup,
+            EventDate,
+            ProductPrice,
+            Vendor,
+            Country,
+            StockQuantity,
+            Cancelled,
+            Status_Event
+            from finals
+            where 1=1
+            and rn = 1
+            )
+            , base_order as (
+            select distinct
+            o.id as OrderID, 
+            o.PaidDateUtc as DatePaid, 
+            CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE) as EventDate, 
+            p.id as ProdID, 
+            p.name as ProdName,  
+            c.name as Category, 
+            sao2.name as Program,
+            oi.quantity, 
+            p.price as ProductPrice, 
+            oi.UnitPriceInclTax as UnitPrice, 
+            oi.PriceInclTax - o.RefundedAmount as PriceTotal,
+            tp.Designation as TierLevel,
+            v.Name as Vendor,
+            sao.Name as Country,
+            cu.id as CustomerID,
+            cu.username as Customer,
+            CASE  WHEN (o.CaptureTransactionId IS NOT NULL and oi.UnitPriceInclTax = 0)
+                THEN 'Free Ticket'
+                WHEN o.CaptureTransactionId IS NOT NULL 
+                THEN 'Paypal'
+                WHEN (o.CaptureTransactionId IS NULL and oi.UnitPriceInclTax = 0)
+                THEN 'Free Ticket'
+                ELSE 'Cash'
+            END AS PaymentMethod,
+            CASE WHEN ss.attendedsetdateUTC IS NOT NULL
+                THEN 'Attended'
+                ELSE 'Unattended'
+            END AS Attendance,
+            o.paymentstatusid as PaymentStatus,
+            p.StockQuantity
+            from product p
+            left join OrderItem oi
+            on p.id = oi.ProductId
+            left join [Order] o
+            on oi.OrderId = o.id
+            left join Product_Category_Mapping pcm
+            on p.id = pcm.ProductId
+            left join Product_ProductAttribute_Mapping pam
+            on p.id = pam.ProductId
+            left join SalsationEvent_Country_Mapping scm
+            on p.id = scm.ProductId
+            left join country cn
+            on scm.CountryId = cn.Id
+            left join ProductAttributeValue pav
+            on pam.id = pav.ProductAttributeMappingId
+            left join Category c
+            on pcm.CategoryId = c.id
+            left join Vendor v 
+            on p.VendorId = v.Id
+            left join Customer cu
+            on o.CustomerId = cu.id
+            left join customer_customerrole_mapping crm
+            on cu.id = crm.customer_id
+            left join customerrole cr 
+            on crm.customerrole_id = cr.id
+            left join Product_SpecificationAttribute_Mapping psm
+            on p.Id = psm.productid
+            left join SpecificationAttributeOption sao 
+            on psm.SpecificationAttributeOptionId = sao.Id 
+            left join SpecificationAttribute sa 
+            on sao.SpecificationAttributeId = sa.Id
+            left join Product_SpecificationAttribute_Mapping psm2
+            on p.Id = psm2.productid
+            left join SpecificationAttributeOption sao2 
+            on psm2.SpecificationAttributeOptionId = sao2.Id 
+            left join SpecificationAttribute sa2 
+            on sao2.SpecificationAttributeId = sa2.Id
+            left join SalsationSubscriber ss 
+            on (oi.Id = ss.OrderItemId
+            and cu.id = ss.CustomerId
+            and p.id = ss.parentid
+            and o.id = ss.orderid)
+            left join TierPrice tp
+            on (p.id = tp.productId
+            and oi.PriceInclTax = tp.price
+            and oi.Quantity = tp.Quantity)
+            where sa.id = 10
+            and sa2.id = 6
+            and o.orderstatusid = '30'
+            and o.paymentstatusid in ('30','35')
+            and (p.Published = 1
+            or (p.id = '40963' and p.Published = 0))
+            and (pav.name like '%2024%'
+            or pav.name like '%2025%')
+            and p.id not in ('54958', '53000', '55053')
+            ${year ? "AND YEAR(CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE)) = @year" : ''}
+            ${month ? "AND MONTH(CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE)) = @month" : ''}
+            UNION
+            select distinct
+            o.id as OrderID, 
+            o.PaidDateUtc as DatePaid, 
+            CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE) as EventDate, 
+            p.id as ProdID, 
+            p.name as ProdName,  
+            c.name as Category, 
+            sao2.name as Program,
+            oi.quantity, 
+            p.price as ProductPrice, 
+            oi.UnitPriceInclTax as UnitPrice, 
+            oi.PriceInclTax - o.RefundedAmount as PriceTotal,
+            tp.Designation as TierLevel,
+            v.Name as Vendor,
+            sao.Name as Country,
+            cu.id as CustomerID,
+            cu.username as Customer,
+            CASE  WHEN (o.CaptureTransactionId IS NOT NULL and oi.UnitPriceInclTax = 0)
+                THEN 'Free Ticket'
+                WHEN o.CaptureTransactionId IS NOT NULL 
+                THEN 'Paypal'
+                WHEN (o.CaptureTransactionId IS NULL and oi.UnitPriceInclTax = 0)
+                THEN 'Free Ticket'
+                ELSE 'Cash'
+            END AS PaymentMethod,
+            CASE WHEN ss.attendedsetdateUTC IS NOT NULL
+            THEN 'Attended'
+            ELSE 'Unattended'
+            END AS Attendance,
+            o.paymentstatusid as PaymentStatus,
+            p.StockQuantity
+            from product p
+            left join OrderItem oi
+            on p.id = oi.ProductId
+            left join [Order] o
+            on oi.OrderId = o.id
+            left join Product_Category_Mapping pcm
+            on p.id = pcm.ProductId
+            left join Product_ProductAttribute_Mapping pam
+            on p.id = pam.ProductId
+            left join SalsationEvent_Country_Mapping scm
+            on p.id = scm.ProductId
+            left join country cn
+            on scm.CountryId = cn.Id
+            left join ProductAttributeValue pav
+            on pam.id = pav.ProductAttributeMappingId
+            left join Category c
+            on pcm.CategoryId = c.id
+            left join Vendor v 
+            on p.VendorId = v.Id
+            left join Customer cu
+            on o.CustomerId = cu.id
+            left join customer_customerrole_mapping crm
+            on cu.id = crm.customer_id
+            left join customerrole cr 
+            on crm.customerrole_id = cr.id
+            left join Product_SpecificationAttribute_Mapping psm
+            on p.Id = psm.productid
+            left join SpecificationAttributeOption sao 
+            on psm.SpecificationAttributeOptionId = sao.Id 
+            left join SpecificationAttribute sa 
+            on sao.SpecificationAttributeId = sa.Id
+            left join Product_SpecificationAttribute_Mapping psm2
+            on p.Id = psm2.productid
+            left join SpecificationAttributeOption sao2 
+            on psm2.SpecificationAttributeOptionId = sao2.Id 
+            left join SpecificationAttribute sa2 
+            on sao2.SpecificationAttributeId = sa2.Id
+            left join SalsationSubscriber ss 
+            on (oi.Id = ss.OrderItemId
+            and cu.id = ss.CustomerId
+            and p.id = ss.parentid
+            and o.id = ss.orderid)
+            left join TierPrice tp
+            on (p.id = tp.productId
+            and oi.PriceInclTax = tp.price
+            and oi.Quantity = tp.Quantity)
+            where sa.id = 10
+            and sa2.id = 6
+            and o.orderstatusid = '30'
+            and o.paymentstatusid in ('30','35')
+            and p.id in ('54958')
+            and p.id not in ('53000', '55053')
+            and (o.PaidDateUtc like '%2024%'
+            or o.PaidDateUtc like '%2025%')
+            ${year ? 'AND YEAR(o.PaidDateUtc) = @year' : ''}
+            ${month ? 'AND MONTH(o.PaidDateUtc) = @month' : ''}
+            )
+            -- Continue with the rest of your complex query here...
+            , finals_order as (
+            select
+                *
+                , row_number() over(partition by orderid, customerid, prodid order by eventdate asc) rn
+            from base_order
+            )
+            , orderdataraw as (
+            select 
+            OrderID,
+            DatePaid,
+            EventDate,
+            ProdID,
+            ProdName,
+            Category,
+            Program,
+            quantity,
+            ProductPrice,
+            UnitPrice,
+            PriceTotal,
+            TierLevel,
+            Vendor,
+            Country,
+            CustomerID,
+            Customer,
+            PaymentMethod,
+            Attendance,
+            PaymentStatus,
+            StockQuantity
+            from finals_order
+            where rn = 1
+            )
+            -- Add abbreviated version for now to avoid timeout
+            SELECT 
+                FORMAT(CONVERT(DATE, EventDate, 103), 'MMMM') AS Month,
+                YEAR(EventDate) AS Year,
+                ProdID,
+                ProdName,
+                Category,
+                Program,
+                EventDate,
+                Country,
+                Vendor as TrainerName,
+                SUM(quantity) as TotalTickets,
+                SUM(PriceTotal) as TotalRevenue
+            FROM orderdataraw
+            GROUP BY 
+                FORMAT(CONVERT(DATE, EventDate, 103), 'MMMM'),
+                YEAR(EventDate),
+                ProdID,
+                ProdName,
+                Category,
+                Program,
+                EventDate,
+                Country,
+                Vendor
+            ORDER BY Year DESC, EventDate DESC
+    `;
+
+    const result = await request.query(query);
+    return result.recordset;
+  }
+
   static extractProgramAndCategory(eventName: string): { program: string; category: string } {
     const eventNameLower = eventName.toLowerCase();
-    
+
     // Extract program
     let program = 'Salsation'; // Default
     if (eventNameLower.includes('choreology')) {
@@ -687,7 +1057,7 @@ export class DatabaseService {
     } else if (eventNameLower.includes('rootz')) {
       program = 'Rootz';
     }
-    
+
     // Extract category
     let category = 'Instructor training'; // Default
     if (eventNameLower.includes('workshop')) {
@@ -699,7 +1069,7 @@ export class DatabaseService {
     } else if (eventNameLower.includes('on demand')) {
       category = 'On Demand';
     }
-    
+
     return { program, category };
   }
 }

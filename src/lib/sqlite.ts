@@ -8,15 +8,16 @@ let db: Database.Database | null = null;
 
 function getDatabase(): Database.Database {
   if (db === null) {
-    const dbPath = process.env.NODE_ENV === 'production' 
-      ? path.join(process.cwd(), 'users.db')
-      : path.join(process.cwd(), 'dev-users.db');
-    
+    const dbPath =
+      process.env.NODE_ENV === 'production'
+        ? path.join(process.cwd(), 'users.db')
+        : path.join(process.cwd(), 'dev-users.db');
+
     db = new Database(dbPath);
-    
+
     // Enable WAL mode for better performance
     db.pragma('journal_mode = WAL');
-    
+
     // Initialize tables
     initializeTables();
   }
@@ -25,9 +26,10 @@ function getDatabase(): Database.Database {
 
 function initializeTables() {
   if (!db) return;
-  
+
   // Create users table
-  db.prepare(`
+  db.prepare(
+    `
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
       email TEXT UNIQUE NOT NULL,
@@ -39,17 +41,19 @@ function initializeTables() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
-  `).run();
-  
+  `
+  ).run();
+
   // Add last_active_at column if it doesn't exist (for existing databases)
   try {
     db.prepare('ALTER TABLE users ADD COLUMN last_active_at DATETIME').run();
   } catch (error) {
     // Column already exists, ignore error
   }
-  
+
   // Fee parameters table
-  db.prepare(`
+  db.prepare(
+    `
     CREATE TABLE IF NOT EXISTS fee_params (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       program TEXT NOT NULL,
@@ -61,10 +65,12 @@ function initializeTables() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
-  `).run();
-  
+  `
+  ).run();
+
   // Create trainer splits table (for app-specific data)
-  db.prepare(`
+  db.prepare(
+    `
     CREATE TABLE IF NOT EXISTS trainer_splits (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       prod_id INTEGER NOT NULL,
@@ -77,17 +83,19 @@ function initializeTables() {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(prod_id, row_id)
     )
-  `).run();
-  
+  `
+  ).run();
+
   // Add trainer_fee column if it doesn't exist (for existing databases)
   try {
     db.prepare('ALTER TABLE trainer_splits ADD COLUMN trainer_fee REAL NOT NULL DEFAULT 0').run();
   } catch (error) {
     // Column already exists, ignore error
   }
-  
+
   // Create expenses table (for app-specific data)
-  db.prepare(`
+  db.prepare(
+    `
     CREATE TABLE IF NOT EXISTS expenses (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       prod_id INTEGER NOT NULL,
@@ -98,10 +106,12 @@ function initializeTables() {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(prod_id, row_id)
     )
-  `).run();
-  
+  `
+  ).run();
+
   // Create audit log table
-  db.prepare(`
+  db.prepare(
+    `
     CREATE TABLE IF NOT EXISTS audit_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id TEXT NOT NULL,
@@ -110,10 +120,12 @@ function initializeTables() {
       details TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
-  `).run();
-  
+  `
+  ).run();
+
   // Create grace price conversion table
-  db.prepare(`
+  db.prepare(
+    `
     CREATE TABLE IF NOT EXISTS grace_price_conversion (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       event_type TEXT NOT NULL,
@@ -123,23 +135,42 @@ function initializeTables() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
-  `).run();
-  
+  `
+  ).run();
+
+  // Create param reporting group table for Alejandro trainer fee configuration
+  db.prepare(
+    `
+    CREATE TABLE IF NOT EXISTS param_reporting_grp (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      reporting_group TEXT NOT NULL UNIQUE,
+      split TEXT NOT NULL,
+      trainer_percent REAL NOT NULL,
+      alejandro_percent REAL NOT NULL,
+      price REAL,
+      repeater_price REAL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `
+  ).run();
+
   // Create indexes
   db.prepare('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)').run();
   db.prepare('CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)').run();
   db.prepare('CREATE UNIQUE INDEX IF NOT EXISTS idx_fee_concat ON fee_params(concat_key)').run();
-  db.prepare('CREATE INDEX IF NOT EXISTS idx_trainer_splits_prod_id ON trainer_splits(prod_id)').run();
+  db.prepare(
+    'CREATE INDEX IF NOT EXISTS idx_trainer_splits_prod_id ON trainer_splits(prod_id)'
+  ).run();
   db.prepare('CREATE INDEX IF NOT EXISTS idx_expenses_prod_id ON expenses(prod_id)').run();
   db.prepare('CREATE INDEX IF NOT EXISTS idx_audit_log_prod_id ON audit_log(prod_id)').run();
-  db.prepare('CREATE UNIQUE INDEX IF NOT EXISTS idx_grace_price_event_type_key ON grace_price_conversion(event_type_key)').run();
+  db.prepare(
+    'CREATE UNIQUE INDEX IF NOT EXISTS idx_grace_price_event_type_key ON grace_price_conversion(event_type_key)'
+  ).run();
+  db.prepare(
+    'CREATE UNIQUE INDEX IF NOT EXISTS idx_param_reporting_grp_name ON param_reporting_grp(reporting_group)'
+  ).run();
 }
-
-
-
-
-
-
 
 // Helper functions for prepared statements
 function getInsertUser() {
@@ -178,75 +209,143 @@ function getGetAllUsers() {
 
 export class TrainerSplitService {
   static getByProdId(prodId: number): any[] {
-    return getDatabase().prepare('SELECT * FROM trainer_splits WHERE prod_id = ? ORDER BY row_id').all(prodId);
+    return getDatabase()
+      .prepare('SELECT * FROM trainer_splits WHERE prod_id = ? ORDER BY row_id')
+      .all(prodId);
   }
 
-  static upsert(split: { prod_id: number; row_id: number; name: string; percent: number; trainer_fee: number; cash_received: number; }): void {
+  static upsert(split: {
+    prod_id: number;
+    row_id: number;
+    name: string;
+    percent: number;
+    trainer_fee: number;
+    cash_received: number;
+  }): void {
     const database = getDatabase();
-    const existing = database.prepare('SELECT id FROM trainer_splits WHERE prod_id = ? AND row_id = ?').get(split.prod_id, split.row_id) as any;
+    const existing = database
+      .prepare('SELECT id FROM trainer_splits WHERE prod_id = ? AND row_id = ?')
+      .get(split.prod_id, split.row_id) as any;
     if (existing?.id) {
-      database.prepare(`
+      database
+        .prepare(
+          `
         UPDATE trainer_splits 
         SET name = ?, percent = ?, trainer_fee = ?, cash_received = ?, updated_at = CURRENT_TIMESTAMP 
         WHERE prod_id = ? AND row_id = ?
-      `).run(split.name, split.percent, split.trainer_fee, split.cash_received, split.prod_id, split.row_id);
+      `
+        )
+        .run(
+          split.name,
+          split.percent,
+          split.trainer_fee,
+          split.cash_received,
+          split.prod_id,
+          split.row_id
+        );
     } else {
-      database.prepare(`
+      database
+        .prepare(
+          `
         INSERT INTO trainer_splits (prod_id, row_id, name, percent, trainer_fee, cash_received) 
         VALUES (?, ?, ?, ?, ?, ?)
-      `).run(split.prod_id, split.row_id, split.name, split.percent, split.trainer_fee, split.cash_received);
+      `
+        )
+        .run(
+          split.prod_id,
+          split.row_id,
+          split.name,
+          split.percent,
+          split.trainer_fee,
+          split.cash_received
+        );
     }
   }
 
   static delete(prodId: number, rowId: number): void {
-    getDatabase().prepare('DELETE FROM trainer_splits WHERE prod_id = ? AND row_id = ?').run(prodId, rowId);
+    getDatabase()
+      .prepare('DELETE FROM trainer_splits WHERE prod_id = ? AND row_id = ?')
+      .run(prodId, rowId);
   }
 }
 
 export class ExpenseService {
   static getByProdId(prodId: number): any[] {
-    return getDatabase().prepare('SELECT * FROM expenses WHERE prod_id = ? ORDER BY row_id').all(prodId);
+    return getDatabase()
+      .prepare('SELECT * FROM expenses WHERE prod_id = ? ORDER BY row_id')
+      .all(prodId);
   }
 
-  static upsert(expense: { prod_id: number; row_id: number; description: string; amount: number; }): void {
+  static upsert(expense: {
+    prod_id: number;
+    row_id: number;
+    description: string;
+    amount: number;
+  }): void {
     const database = getDatabase();
-    const existing = database.prepare('SELECT id FROM expenses WHERE prod_id = ? AND row_id = ?').get(expense.prod_id, expense.row_id) as any;
+    const existing = database
+      .prepare('SELECT id FROM expenses WHERE prod_id = ? AND row_id = ?')
+      .get(expense.prod_id, expense.row_id) as any;
     if (existing?.id) {
-      database.prepare(`
+      database
+        .prepare(
+          `
         UPDATE expenses 
         SET description = ?, amount = ?, updated_at = CURRENT_TIMESTAMP 
         WHERE prod_id = ? AND row_id = ?
-      `).run(expense.description, expense.amount, expense.prod_id, expense.row_id);
+      `
+        )
+        .run(expense.description, expense.amount, expense.prod_id, expense.row_id);
     } else {
-      database.prepare(`
+      database
+        .prepare(
+          `
         INSERT INTO expenses (prod_id, row_id, description, amount) 
         VALUES (?, ?, ?, ?)
-      `).run(expense.prod_id, expense.row_id, expense.description, expense.amount);
+      `
+        )
+        .run(expense.prod_id, expense.row_id, expense.description, expense.amount);
     }
   }
 
   static delete(prodId: number, rowId: number): void {
-    getDatabase().prepare('DELETE FROM expenses WHERE prod_id = ? AND row_id = ?').run(prodId, rowId);
+    getDatabase()
+      .prepare('DELETE FROM expenses WHERE prod_id = ? AND row_id = ?')
+      .run(prodId, rowId);
   }
 }
 
 export class AuditService {
   static log(userId: string, action: string, prodId: number, details: string): void {
-    getDatabase().prepare(`
+    getDatabase()
+      .prepare(
+        `
       INSERT INTO audit_log (user_id, action, prod_id, details) 
       VALUES (?, ?, ?, ?)
-    `).run(userId, action, prodId, details);
+    `
+      )
+      .run(userId, action, prodId, details);
   }
 
   static getByProdId(prodId: number): any[] {
-    return getDatabase().prepare('SELECT * FROM audit_log WHERE prod_id = ? ORDER BY created_at DESC').all(prodId);
+    return getDatabase()
+      .prepare('SELECT * FROM audit_log WHERE prod_id = ? ORDER BY created_at DESC')
+      .all(prodId);
   }
 }
 
 export class GracePriceService {
-  static getAll(): { id: number; eventType: string; eventTypeKey: string; jpyPrice: number; eurPrice: number; }[] {
-    const rows = getDatabase().prepare('SELECT * FROM grace_price_conversion ORDER BY event_type, event_type_key').all() as any[];
-    return rows.map(row => ({
+  static getAll(): {
+    id: number;
+    eventType: string;
+    eventTypeKey: string;
+    jpyPrice: number;
+    eurPrice: number;
+  }[] {
+    const rows = getDatabase()
+      .prepare('SELECT * FROM grace_price_conversion ORDER BY event_type, event_type_key')
+      .all() as any[];
+    return rows.map((row) => ({
       id: row.id,
       eventType: row.event_type,
       eventTypeKey: row.event_type_key,
@@ -255,20 +354,35 @@ export class GracePriceService {
     }));
   }
 
-  static upsert(data: { eventType: string; eventTypeKey: string; jpyPrice: number; eurPrice: number; }): void {
+  static upsert(data: {
+    eventType: string;
+    eventTypeKey: string;
+    jpyPrice: number;
+    eurPrice: number;
+  }): void {
     const database = getDatabase();
-    const existing = database.prepare('SELECT id FROM grace_price_conversion WHERE event_type_key = ?').get(data.eventTypeKey) as any;
+    const existing = database
+      .prepare('SELECT id FROM grace_price_conversion WHERE event_type_key = ?')
+      .get(data.eventTypeKey) as any;
     if (existing?.id) {
-      database.prepare(`
+      database
+        .prepare(
+          `
         UPDATE grace_price_conversion 
         SET event_type = ?, jpy_price = ?, eur_price = ?, updated_at = CURRENT_TIMESTAMP 
         WHERE event_type_key = ?
-      `).run(data.eventType, data.jpyPrice, data.eurPrice, data.eventTypeKey);
+      `
+        )
+        .run(data.eventType, data.jpyPrice, data.eurPrice, data.eventTypeKey);
     } else {
-      database.prepare(`
+      database
+        .prepare(
+          `
         INSERT INTO grace_price_conversion (event_type, event_type_key, jpy_price, eur_price) 
         VALUES (?, ?, ?, ?)
-      `).run(data.eventType, data.eventTypeKey, data.jpyPrice, data.eurPrice);
+      `
+        )
+        .run(data.eventType, data.eventTypeKey, data.jpyPrice, data.eurPrice);
     }
   }
 
@@ -279,38 +393,413 @@ export class GracePriceService {
   static seedDefaults(): void {
     const database = getDatabase();
     const defaultData = [
-      { eventType: 'Salsation Training - Repeater', eventTypeKey: 'Salsation-Instructor training-Repeater', jpyPrice: 19400, eurPrice: 113.449 },
-      { eventType: 'Salsation Training - Troupe', eventTypeKey: 'Salsation-Instructor training-Troupe', jpyPrice: 19400, eurPrice: 113.449 },
-      { eventType: 'Salsation Training - Early Bird', eventTypeKey: 'Salsation-Instructor training-Early Bird', jpyPrice: 29700, eurPrice: 173.685 },
-      { eventType: 'Salsation Training - Regular', eventTypeKey: 'Salsation-Instructor training-Regular', jpyPrice: 36100, eurPrice: 211.11 },
-      { eventType: 'Salsation Training - Rush', eventTypeKey: 'Salsation-Instructor training-Rush', jpyPrice: 42600, eurPrice: 249.12 },
-      { eventType: 'Salsation Training - Free', eventTypeKey: 'Salsation-Instructor training-', jpyPrice: 0, eurPrice: 0 },
-      { eventType: 'Choreology Training - Repeater', eventTypeKey: 'Choreology-Instructor training-Repeater', jpyPrice: 19400, eurPrice: 113.449 },
-      { eventType: 'Choreology Training - Trouper', eventTypeKey: 'Choreology-Instructor training-Troupe', jpyPrice: 19400, eurPrice: 113.449 },
-      { eventType: 'Choreology Training - Early Bird', eventTypeKey: 'Choreology-Instructor training-Early Bird', jpyPrice: 29700, eurPrice: 173.685 },
-      { eventType: 'Choreology Training - Regular', eventTypeKey: 'Choreology-Instructor training-Regular', jpyPrice: 36100, eurPrice: 211.11 },
-      { eventType: 'Choreology Training - Rush', eventTypeKey: 'Choreology-Instructor training-Rush', jpyPrice: 42600, eurPrice: 249.12 },
-      { eventType: 'Choreology Training - Free', eventTypeKey: 'Choreology-Instructor training-', jpyPrice: 0, eurPrice: 0 },
-      { eventType: 'KID Instructor Training - Repeater', eventTypeKey: 'Kid-Instructor training-Repeater', jpyPrice: 19400, eurPrice: 113.449 },
-      { eventType: 'KID Instructor Training - Trouper', eventTypeKey: 'Kid-Instructor training-Troupe', jpyPrice: 19400, eurPrice: 113.449 },
-      { eventType: 'KID Instructor Training - Early Bird', eventTypeKey: 'Kid-Instructor training-Early Bird', jpyPrice: 29700, eurPrice: 173.685 },
-      { eventType: 'KID Instructor Training - Regular', eventTypeKey: 'Kid-Instructor training-Regular', jpyPrice: 36100, eurPrice: 211.11 },
-      { eventType: 'KID Instructor Training - Rush', eventTypeKey: 'Kid-Instructor training-Rush', jpyPrice: 42600, eurPrice: 249.12 },
-      { eventType: 'KID Instructor Training - Free', eventTypeKey: 'Kid-Instructor training-', jpyPrice: 0, eurPrice: 0 },
+      {
+        eventType: 'Salsation Training - Repeater',
+        eventTypeKey: 'Salsation-Instructor training-Repeater',
+        jpyPrice: 19400,
+        eurPrice: 113.449,
+      },
+      {
+        eventType: 'Salsation Training - Troupe',
+        eventTypeKey: 'Salsation-Instructor training-Troupe',
+        jpyPrice: 19400,
+        eurPrice: 113.449,
+      },
+      {
+        eventType: 'Salsation Training - Early Bird',
+        eventTypeKey: 'Salsation-Instructor training-Early Bird',
+        jpyPrice: 29700,
+        eurPrice: 173.685,
+      },
+      {
+        eventType: 'Salsation Training - Regular',
+        eventTypeKey: 'Salsation-Instructor training-Regular',
+        jpyPrice: 36100,
+        eurPrice: 211.11,
+      },
+      {
+        eventType: 'Salsation Training - Rush',
+        eventTypeKey: 'Salsation-Instructor training-Rush',
+        jpyPrice: 42600,
+        eurPrice: 249.12,
+      },
+      {
+        eventType: 'Salsation Training - Free',
+        eventTypeKey: 'Salsation-Instructor training-',
+        jpyPrice: 0,
+        eurPrice: 0,
+      },
+      {
+        eventType: 'Choreology Training - Repeater',
+        eventTypeKey: 'Choreology-Instructor training-Repeater',
+        jpyPrice: 19400,
+        eurPrice: 113.449,
+      },
+      {
+        eventType: 'Choreology Training - Trouper',
+        eventTypeKey: 'Choreology-Instructor training-Troupe',
+        jpyPrice: 19400,
+        eurPrice: 113.449,
+      },
+      {
+        eventType: 'Choreology Training - Early Bird',
+        eventTypeKey: 'Choreology-Instructor training-Early Bird',
+        jpyPrice: 29700,
+        eurPrice: 173.685,
+      },
+      {
+        eventType: 'Choreology Training - Regular',
+        eventTypeKey: 'Choreology-Instructor training-Regular',
+        jpyPrice: 36100,
+        eurPrice: 211.11,
+      },
+      {
+        eventType: 'Choreology Training - Rush',
+        eventTypeKey: 'Choreology-Instructor training-Rush',
+        jpyPrice: 42600,
+        eurPrice: 249.12,
+      },
+      {
+        eventType: 'Choreology Training - Free',
+        eventTypeKey: 'Choreology-Instructor training-',
+        jpyPrice: 0,
+        eurPrice: 0,
+      },
+      {
+        eventType: 'KID Instructor Training - Repeater',
+        eventTypeKey: 'Kid-Instructor training-Repeater',
+        jpyPrice: 19400,
+        eurPrice: 113.449,
+      },
+      {
+        eventType: 'KID Instructor Training - Trouper',
+        eventTypeKey: 'Kid-Instructor training-Troupe',
+        jpyPrice: 19400,
+        eurPrice: 113.449,
+      },
+      {
+        eventType: 'KID Instructor Training - Early Bird',
+        eventTypeKey: 'Kid-Instructor training-Early Bird',
+        jpyPrice: 29700,
+        eurPrice: 173.685,
+      },
+      {
+        eventType: 'KID Instructor Training - Regular',
+        eventTypeKey: 'Kid-Instructor training-Regular',
+        jpyPrice: 36100,
+        eurPrice: 211.11,
+      },
+      {
+        eventType: 'KID Instructor Training - Rush',
+        eventTypeKey: 'Kid-Instructor training-Rush',
+        jpyPrice: 42600,
+        eurPrice: 249.12,
+      },
+      {
+        eventType: 'KID Instructor Training - Free',
+        eventTypeKey: 'Kid-Instructor training-',
+        jpyPrice: 0,
+        eurPrice: 0,
+      },
     ];
-    
+
     const insert = database.prepare(`
       INSERT OR IGNORE INTO grace_price_conversion (event_type, event_type_key, jpy_price, eur_price) 
       VALUES (?, ?, ?, ?)
     `);
-    
+
     const trx = database.transaction(() => {
       for (const item of defaultData) {
         insert.run(item.eventType, item.eventTypeKey, item.jpyPrice, item.eurPrice);
       }
     });
-    
+
     trx();
+  }
+}
+
+export class ParamReportingGrpService {
+  static getAll(): {
+    id: number;
+    reportingGroup: string;
+    split: string;
+    trainerPercent: number;
+    alejandroPercent: number;
+    price: number | null;
+    repeaterPrice: number | null;
+  }[] {
+    const rows = getDatabase()
+      .prepare('SELECT * FROM param_reporting_grp ORDER BY reporting_group')
+      .all() as any[];
+    return rows.map((row) => ({
+      id: row.id,
+      reportingGroup: row.reporting_group,
+      split: row.split,
+      trainerPercent: row.trainer_percent,
+      alejandroPercent: row.alejandro_percent,
+      price: row.price,
+      repeaterPrice: row.repeater_price,
+    }));
+  }
+
+  static upsert(data: {
+    reportingGroup: string;
+    split: string;
+    trainerPercent: number;
+    alejandroPercent: number;
+    price?: number | null;
+    repeaterPrice?: number | null;
+  }): void {
+    const database = getDatabase();
+    const existing = database
+      .prepare('SELECT id FROM param_reporting_grp WHERE reporting_group = ?')
+      .get(data.reportingGroup) as any;
+    if (existing?.id) {
+      database
+        .prepare(
+          `
+        UPDATE param_reporting_grp 
+        SET split = ?, trainer_percent = ?, alejandro_percent = ?, price = ?, repeater_price = ?, updated_at = CURRENT_TIMESTAMP 
+        WHERE reporting_group = ?
+      `
+        )
+        .run(
+          data.split,
+          data.trainerPercent,
+          data.alejandroPercent,
+          data.price || null,
+          data.repeaterPrice || null,
+          data.reportingGroup
+        );
+    } else {
+      database
+        .prepare(
+          `
+        INSERT INTO param_reporting_grp (reporting_group, split, trainer_percent, alejandro_percent, price, repeater_price) 
+        VALUES (?, ?, ?, ?, ?, ?)
+      `
+        )
+        .run(
+          data.reportingGroup,
+          data.split,
+          data.trainerPercent,
+          data.alejandroPercent,
+          data.price || null,
+          data.repeaterPrice || null
+        );
+    }
+  }
+
+  static delete(id: number): void {
+    getDatabase().prepare('DELETE FROM param_reporting_grp WHERE id = ?').run(id);
+  }
+
+  static seedDefaults(): void {
+    const database = getDatabase();
+    const defaultData = [
+      {
+        reportingGroup: 'Choreology Instructor training',
+        split: '30/70',
+        trainerPercent: 0.3,
+        alejandroPercent: 0.05,
+        price: 230,
+        repeaterPrice: 120,
+      },
+      {
+        reportingGroup: 'Choreology Workshops Online',
+        split: '60/40',
+        trainerPercent: 0.7,
+        alejandroPercent: 0.0,
+        price: 40,
+        repeaterPrice: null,
+      },
+      {
+        reportingGroup: 'Choreology Workshops OnlineGlobal',
+        split: '50/50',
+        trainerPercent: 0.5,
+        alejandroPercent: 0.0,
+        price: 40,
+        repeaterPrice: null,
+      },
+      {
+        reportingGroup: 'Choreology Workshops Venue',
+        split: '70/30',
+        trainerPercent: 0.7,
+        alejandroPercent: 0.0,
+        price: 40,
+        repeaterPrice: null,
+      },
+      {
+        reportingGroup: 'Kid Instructor training',
+        split: '35/65',
+        trainerPercent: 0.35,
+        alejandroPercent: 0.1,
+        price: 230,
+        repeaterPrice: 120,
+      },
+      {
+        reportingGroup: 'Kid Instructor training Alejandro',
+        split: '35/65',
+        trainerPercent: 0.35,
+        alejandroPercent: 0.0,
+        price: 230,
+        repeaterPrice: 120,
+      },
+      {
+        reportingGroup: 'Rootz Instructor training',
+        split: '30/70',
+        trainerPercent: 0.3,
+        alejandroPercent: 0.05,
+        price: 230,
+        repeaterPrice: 120,
+      },
+      {
+        reportingGroup: 'Rootz Workshops Venue',
+        split: '70/30',
+        trainerPercent: 0.7,
+        alejandroPercent: 0.0,
+        price: 40,
+        repeaterPrice: null,
+      },
+      {
+        reportingGroup: 'Salsation Instructor training',
+        split: '40/60',
+        trainerPercent: 0.4,
+        alejandroPercent: 0.1,
+        price: 230,
+        repeaterPrice: 120,
+      },
+      {
+        reportingGroup: 'Salsation Instructor training Alejandro',
+        split: '40/60',
+        trainerPercent: 0.4,
+        alejandroPercent: 0.0,
+        price: 230,
+        repeaterPrice: 120,
+      },
+      {
+        reportingGroup: 'Salsation Method Training',
+        split: '45/55',
+        trainerPercent: 0.45,
+        alejandroPercent: 0.1,
+        price: 230,
+        repeaterPrice: 120,
+      },
+      {
+        reportingGroup: 'Salsation Method Training Alejandro',
+        split: '45/55',
+        trainerPercent: 0.45,
+        alejandroPercent: 0.0,
+        price: 230,
+        repeaterPrice: 120,
+      },
+      {
+        reportingGroup: 'Salsation On Demand',
+        split: '50/50',
+        trainerPercent: 0.5,
+        alejandroPercent: 0.0,
+        price: 195,
+        repeaterPrice: null,
+      },
+      {
+        reportingGroup: 'Salsation On-Demand',
+        split: '50/50',
+        trainerPercent: 0.5,
+        alejandroPercent: 0.0,
+        price: 195,
+        repeaterPrice: null,
+      },
+      {
+        reportingGroup: 'Salsation Salsation Blast Alejandro',
+        split: '0/100',
+        trainerPercent: 0.0,
+        alejandroPercent: 0.1,
+        price: 60,
+        repeaterPrice: null,
+      },
+      {
+        reportingGroup: 'Salsation Seminar Alejandro',
+        split: '70/30',
+        trainerPercent: 0.7,
+        alejandroPercent: 0.0,
+        price: 40,
+        repeaterPrice: null,
+      },
+      {
+        reportingGroup: 'Salsation Workshops Online',
+        split: '50/50',
+        trainerPercent: 0.5,
+        alejandroPercent: 0.0,
+        price: 40,
+        repeaterPrice: null,
+      },
+      {
+        reportingGroup: 'Salsation Workshops OnlineGlobal',
+        split: '50/50',
+        trainerPercent: 0.5,
+        alejandroPercent: 0.0,
+        price: 40,
+        repeaterPrice: null,
+      },
+      {
+        reportingGroup: 'Salsation Workshops Venue',
+        split: '70/30',
+        trainerPercent: 0.7,
+        alejandroPercent: 0.0,
+        price: 40,
+        repeaterPrice: null,
+      },
+      {
+        reportingGroup: 'Salsation Seminar Venue',
+        split: '70/30',
+        trainerPercent: 0.7,
+        alejandroPercent: 0.0,
+        price: 40,
+        repeaterPrice: null,
+      },
+      {
+        reportingGroup: 'Salsation Workshops Alejandro',
+        split: '70/30',
+        trainerPercent: 0.7,
+        alejandroPercent: 0.0,
+        price: 40,
+        repeaterPrice: null,
+      },
+      {
+        reportingGroup: 'Trouper Talk',
+        split: '0/100',
+        trainerPercent: 0.0,
+        alejandroPercent: 0.0,
+        price: 0,
+        repeaterPrice: null,
+      },
+      {
+        reportingGroup: 'Salsation Seminar OnlineGlobal',
+        split: '50/50',
+        trainerPercent: 0.5,
+        alejandroPercent: 0.0,
+        price: null,
+        repeaterPrice: null,
+      },
+      {
+        reportingGroup: 'Salsation Join Event Alejandro',
+        split: '50/50',
+        trainerPercent: 0.5,
+        alejandroPercent: 0.0,
+        price: 40,
+        repeaterPrice: null,
+      },
+    ];
+
+    // Only insert if table is empty
+    const count = database.prepare('SELECT COUNT(*) as count FROM param_reporting_grp').get() as {
+      count: number;
+    };
+    if (count.count === 0) {
+      defaultData.forEach((item) => {
+        this.upsert(item);
+      });
+    }
   }
 }
 
@@ -319,26 +808,64 @@ export class FeeParamService {
     return `${program}-${category}-${venue}-${attendance}`;
   }
 
-  static upsertParam(param: { program: string; category: string; venue: string; attendance: string; percent: number; }): void {
+  static upsertParam(param: {
+    program: string;
+    category: string;
+    venue: string;
+    attendance: string;
+    percent: number;
+  }): void {
     const database = getDatabase();
     const concat = this.concatKey(param.program, param.category, param.venue, param.attendance);
-    const existing = database.prepare('SELECT id FROM fee_params WHERE concat_key = ?').get(concat) as any;
+    const existing = database
+      .prepare('SELECT id FROM fee_params WHERE concat_key = ?')
+      .get(concat) as any;
     if (existing?.id) {
-      database.prepare(`UPDATE fee_params SET program=?, category=?, venue=?, attendance=?, percent=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`)
-        .run(param.program, param.category, param.venue, param.attendance, param.percent, existing.id);
+      database
+        .prepare(
+          `UPDATE fee_params SET program=?, category=?, venue=?, attendance=?, percent=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`
+        )
+        .run(
+          param.program,
+          param.category,
+          param.venue,
+          param.attendance,
+          param.percent,
+          existing.id
+        );
     } else {
-      database.prepare(`INSERT INTO fee_params (program, category, venue, attendance, percent, concat_key) VALUES (?,?,?,?,?,?)`)
+      database
+        .prepare(
+          `INSERT INTO fee_params (program, category, venue, attendance, percent, concat_key) VALUES (?,?,?,?,?,?)`
+        )
         .run(param.program, param.category, param.venue, param.attendance, param.percent, concat);
     }
   }
 
-  static list(): { id: number; program: string; category: string; venue: string; attendance: string; percent: number; concat_key: string; }[] {
-    return getDatabase().prepare('SELECT * FROM fee_params ORDER BY program, category, venue, attendance').all() as any[];
+  static list(): {
+    id: number;
+    program: string;
+    category: string;
+    venue: string;
+    attendance: string;
+    percent: number;
+    concat_key: string;
+  }[] {
+    return getDatabase()
+      .prepare('SELECT * FROM fee_params ORDER BY program, category, venue, attendance')
+      .all() as any[];
   }
 
-  static getPercent(program: string, category: string, venue: string, attendance: string): number | null {
+  static getPercent(
+    program: string,
+    category: string,
+    venue: string,
+    attendance: string
+  ): number | null {
     const concat = this.concatKey(program, category, venue, attendance);
-    const row = getDatabase().prepare('SELECT percent FROM fee_params WHERE concat_key = ?').get(concat) as any;
+    const row = getDatabase()
+      .prepare('SELECT percent FROM fee_params WHERE concat_key = ?')
+      .get(concat) as any;
     return row?.percent ?? null;
   }
 
@@ -346,19 +873,35 @@ export class FeeParamService {
     getDatabase().prepare('DELETE FROM fee_params WHERE id = ?').run(id);
   }
 
-  static getById(id: number): { id: number; program: string; category: string; venue: string; attendance: string; percent: number; concat_key: string; } | null {
+  static getById(
+    id: number
+  ): {
+    id: number;
+    program: string;
+    category: string;
+    venue: string;
+    attendance: string;
+    percent: number;
+    concat_key: string;
+  } | null {
     return getDatabase().prepare('SELECT * FROM fee_params WHERE id = ?').get(id) as any;
   }
 
-  static seedFromPairs(pairs: { concat: string; percent: number; }[]) {
+  static seedFromPairs(pairs: { concat: string; percent: number }[]) {
     const database = getDatabase();
-    const insert = database.prepare(`INSERT OR IGNORE INTO fee_params (program, category, venue, attendance, percent, concat_key) VALUES (?,?,?,?,?,?)`);
-    const update = database.prepare(`UPDATE fee_params SET percent=?, updated_at=CURRENT_TIMESTAMP WHERE concat_key=?`);
+    const insert = database.prepare(
+      `INSERT OR IGNORE INTO fee_params (program, category, venue, attendance, percent, concat_key) VALUES (?,?,?,?,?,?)`
+    );
+    const update = database.prepare(
+      `UPDATE fee_params SET percent=?, updated_at=CURRENT_TIMESTAMP WHERE concat_key=?`
+    );
     const trx = database.transaction(() => {
       for (const p of pairs) {
         const [program, category, venue, attendance] = p.concat.split('-');
         const concat = this.concatKey(program, category, venue, attendance);
-        const existing = database.prepare('SELECT id FROM fee_params WHERE concat_key = ?').get(concat) as any;
+        const existing = database
+          .prepare('SELECT id FROM fee_params WHERE concat_key = ?')
+          .get(concat) as any;
         if (existing?.id) {
           update.run(p.percent, concat);
         } else {
@@ -388,17 +931,10 @@ export class UserService {
       name: userData.name,
       password: hashedPassword,
       role: userData.role || 'viewer',
-      provider: userData.provider || 'credentials'
+      provider: userData.provider || 'credentials',
     };
 
-    getInsertUser().run(
-      user.id,
-      user.email,
-      user.name,
-      user.password,
-      user.role,
-      user.provider
-    );
+    getInsertUser().run(user.id, user.email, user.name, user.password, user.role, user.provider);
 
     return {
       id: user.id,
@@ -406,7 +942,7 @@ export class UserService {
       name: user.name,
       role: user.role as UserRole,
       createdAt: new Date(),
-      updatedAt: new Date()
+      updatedAt: new Date(),
     };
   }
 
@@ -422,7 +958,7 @@ export class UserService {
       role: row.role as UserRole,
       lastActiveAt: row.last_active_at ? new Date(row.last_active_at) : undefined,
       createdAt: new Date(row.created_at),
-      updatedAt: new Date(row.updated_at)
+      updatedAt: new Date(row.updated_at),
     };
   }
 
@@ -438,7 +974,7 @@ export class UserService {
       role: row.role as UserRole,
       lastActiveAt: row.last_active_at ? new Date(row.last_active_at) : undefined,
       createdAt: new Date(row.created_at),
-      updatedAt: new Date(row.updated_at)
+      updatedAt: new Date(row.updated_at),
     };
   }
 
@@ -458,7 +994,7 @@ export class UserService {
     console.log('Comparing password for user:', email);
     const isValid = await bcrypt.compare(password, row.password);
     console.log('Password comparison result:', isValid);
-    
+
     if (!isValid) return null;
 
     return {
@@ -468,25 +1004,24 @@ export class UserService {
       role: row.role as UserRole,
       lastActiveAt: row.last_active_at ? new Date(row.last_active_at) : undefined,
       createdAt: new Date(row.created_at),
-      updatedAt: new Date(row.updated_at)
+      updatedAt: new Date(row.updated_at),
     };
   }
 
   // Update user
-  static async updateUser(id: string, updates: { name?: string; role?: UserRole }): Promise<User | null> {
+  static async updateUser(
+    id: string,
+    updates: { name?: string; role?: UserRole }
+  ): Promise<User | null> {
     const user = this.findById(id);
     if (!user) return null;
 
-    const success = getUpdateUser().run(
-      updates.name || user.name,
-      updates.role || user.role,
-      id
-    );
+    const success = getUpdateUser().run(updates.name || user.name, updates.role || user.role, id);
 
     if (success.changes > 0) {
       return this.findById(id);
     }
-    
+
     return null;
   }
 
@@ -499,9 +1034,9 @@ export class UserService {
   // Update user password
   static async updatePassword(id: string, hashedPassword: string): Promise<boolean> {
     try {
-      const result = getDatabase().prepare(
-        'UPDATE users SET password = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
-      ).run(hashedPassword, id);
+      const result = getDatabase()
+        .prepare('UPDATE users SET password = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+        .run(hashedPassword, id);
       return result.changes > 0;
     } catch (error) {
       console.error('Error updating password:', error);
@@ -512,9 +1047,9 @@ export class UserService {
   // Update user last active timestamp
   static async updateLastActive(id: string): Promise<boolean> {
     try {
-      const result = getDatabase().prepare(
-        'UPDATE users SET last_active_at = CURRENT_TIMESTAMP WHERE id = ?'
-      ).run(id);
+      const result = getDatabase()
+        .prepare('UPDATE users SET last_active_at = CURRENT_TIMESTAMP WHERE id = ?')
+        .run(id);
       return result.changes > 0;
     } catch (error) {
       console.error('Error updating last active:', error);
@@ -529,33 +1064,55 @@ export class UserService {
       FROM users
     `;
     const params: any[] = [];
-    
+
     if (search) {
       query += ` WHERE name LIKE ? OR email LIKE ?`;
       params.push(`%${search}%`, `%${search}%`);
     }
-    
+
     query += ` ORDER BY created_at DESC`;
-    
-    const rows = getDatabase().prepare(query).all(...params) as any[];
-    return rows.map(row => ({
+
+    const rows = getDatabase()
+      .prepare(query)
+      .all(...params) as any[];
+    return rows.map((row) => ({
       id: row.id,
       email: row.email,
       name: row.name,
       role: row.role as UserRole,
       lastActiveAt: row.last_active_at ? new Date(row.last_active_at) : undefined,
       createdAt: new Date(row.created_at),
-      updatedAt: new Date(row.updated_at)
+      updatedAt: new Date(row.updated_at),
     }));
   }
 
   // Create default demo users
   static async createDemoUsers(): Promise<void> {
     const demoUsers = [
-      { email: 'admin@salsation.com', name: 'Admin User', password: 'admin123', role: 'admin' as UserRole },
-      { email: 'finance@salsation.com', name: 'Finance User', password: 'finance123', role: 'finance' as UserRole },
-      { email: 'trainer@salsation.com', name: 'Trainer User', password: 'trainer123', role: 'trainer' as UserRole },
-      { email: 'viewer@salsation.com', name: 'Viewer User', password: 'viewer123', role: 'viewer' as UserRole }
+      {
+        email: 'admin@salsation.com',
+        name: 'Admin User',
+        password: 'admin123',
+        role: 'admin' as UserRole,
+      },
+      {
+        email: 'finance@salsation.com',
+        name: 'Finance User',
+        password: 'finance123',
+        role: 'finance' as UserRole,
+      },
+      {
+        email: 'trainer@salsation.com',
+        name: 'Trainer User',
+        password: 'trainer123',
+        role: 'trainer' as UserRole,
+      },
+      {
+        email: 'viewer@salsation.com',
+        name: 'Viewer User',
+        password: 'viewer123',
+        role: 'viewer' as UserRole,
+      },
     ];
 
     for (const userData of demoUsers) {
@@ -574,46 +1131,46 @@ if (process.env.NODE_ENV === 'development') {
 
   // Seed fee params once (idempotent)
   const initialPairs: { concat: string; percent: number }[] = [
-    { concat: 'Choreology-Instructor training-Online-Attended', percent: 0.30 },
-    { concat: 'Choreology-Instructor training-Venue-Attended', percent: 0.30 },
-    { concat: 'Choreology-Instructor training-Venue-Unattended', percent: 0.20 },
-    { concat: 'Choreology-Workshops-OnlineGlobal-Attended', percent: 0.50 },
-    { concat: 'Choreology-Workshops-Venue-Attended', percent: 0.70 },
-    { concat: 'Choreology-Workshops-Venue-Unattended', percent: 0.50 },
-    { concat: 'Kid-Instructor training-Venue-Attended', percent: 0.40 },
-    { concat: 'Kid-Instructor training-Venue-Unattended', percent: 0.20 },
-    { concat: 'Rootz-Instructor training-Venue-Attended', percent: 0.30 },
-    { concat: 'Rootz-Workshops-Venue-Attended', percent: 0.70 },
-    { concat: 'Rootz-Workshops-Venue-Unattended', percent: 0.50 },
-    { concat: 'Salsation-Instructor training-Online-Attended', percent: 0.40 },
-    { concat: 'Salsation-Instructor training-OnlineGlobal-Attended', percent: 0.40 },
-    { concat: 'Salsation-Instructor training-OnlineGlobal-Unattended', percent: 0.20 },
-    { concat: 'Salsation-Instructor training-Venue-Attended', percent: 0.40 },
-    { concat: 'Salsation-Instructor training-Venue-Unattended', percent: 0.20 },
+    { concat: 'Choreology-Instructor training-Online-Attended', percent: 0.3 },
+    { concat: 'Choreology-Instructor training-Venue-Attended', percent: 0.3 },
+    { concat: 'Choreology-Instructor training-Venue-Unattended', percent: 0.2 },
+    { concat: 'Choreology-Workshops-OnlineGlobal-Attended', percent: 0.5 },
+    { concat: 'Choreology-Workshops-Venue-Attended', percent: 0.7 },
+    { concat: 'Choreology-Workshops-Venue-Unattended', percent: 0.5 },
+    { concat: 'Kid-Instructor training-Venue-Attended', percent: 0.4 },
+    { concat: 'Kid-Instructor training-Venue-Unattended', percent: 0.2 },
+    { concat: 'Rootz-Instructor training-Venue-Attended', percent: 0.3 },
+    { concat: 'Rootz-Workshops-Venue-Attended', percent: 0.7 },
+    { concat: 'Rootz-Workshops-Venue-Unattended', percent: 0.5 },
+    { concat: 'Salsation-Instructor training-Online-Attended', percent: 0.4 },
+    { concat: 'Salsation-Instructor training-OnlineGlobal-Attended', percent: 0.4 },
+    { concat: 'Salsation-Instructor training-OnlineGlobal-Unattended', percent: 0.2 },
+    { concat: 'Salsation-Instructor training-Venue-Attended', percent: 0.4 },
+    { concat: 'Salsation-Instructor training-Venue-Unattended', percent: 0.2 },
     { concat: 'Salsation-Method Training-Venue-Attended', percent: 0.45 },
-    { concat: 'Salsation-Method Training-Venue-Unattended', percent: 0.20 },
-    { concat: 'Salsation-On Demand-On Demand-Attended', percent: 0.50 },
-    { concat: 'Salsation-On Demand-On Demand-Unattended', percent: 0.50 },
-    { concat: 'Salsation-On-Demand-On Demand-Attended', percent: 0.50 },
-    { concat: 'Salsation-Seminar-Venue-Attended', percent: 0.70 },
-    { concat: 'Salsation-Seminar-Venue-Unattended', percent: 0.50 },
-    { concat: 'Salsation-Workshops-Online-Attended', percent: 0.60 },
-    { concat: 'Salsation-Workshops-Online-Unattended', percent: 0.50 },
-    { concat: 'Salsation-Workshops-OnlineGlobal-Attended', percent: 0.50 },
-    { concat: 'Salsation-Workshops-OnlineGlobal-Unattended', percent: 0.50 },
-    { concat: 'Salsation-Workshops-Venue-Attended', percent: 0.70 },
-    { concat: 'Salsation-Workshops-Venue-Unattended', percent: 0.50 },
+    { concat: 'Salsation-Method Training-Venue-Unattended', percent: 0.2 },
+    { concat: 'Salsation-On Demand-On Demand-Attended', percent: 0.5 },
+    { concat: 'Salsation-On Demand-On Demand-Unattended', percent: 0.5 },
+    { concat: 'Salsation-On-Demand-On Demand-Attended', percent: 0.5 },
+    { concat: 'Salsation-Seminar-Venue-Attended', percent: 0.7 },
+    { concat: 'Salsation-Seminar-Venue-Unattended', percent: 0.5 },
+    { concat: 'Salsation-Workshops-Online-Attended', percent: 0.6 },
+    { concat: 'Salsation-Workshops-Online-Unattended', percent: 0.5 },
+    { concat: 'Salsation-Workshops-OnlineGlobal-Attended', percent: 0.5 },
+    { concat: 'Salsation-Workshops-OnlineGlobal-Unattended', percent: 0.5 },
+    { concat: 'Salsation-Workshops-Venue-Attended', percent: 0.7 },
+    { concat: 'Salsation-Workshops-Venue-Unattended', percent: 0.5 },
     { concat: 'Salsation-Move Forever Training-Attended', percent: 0.45 },
-    { concat: 'Salsation-Move Forever Training-Unattended', percent: 0.20 },
+    { concat: 'Salsation-Move Forever Training-Unattended', percent: 0.2 },
     { concat: 'Natasha_Salsation_Instructor training_Venue_Atteneded', percent: 0.45 },
-    { concat: 'Natasha_Salsation_Instructor training_Venue_Unatteneded', percent: 0.20 },
-    { concat: 'Kid-Instructor training-Online-Attended', percent: 0.40 },
-    { concat: 'Kid-Instructor training-Online-Unattended', percent: 0.20 },
-    { concat: 'Salsation-Seminar-OnlineGlobal-Attended', percent: 0.50 },
-    { concat: 'Salsation-Seminar-OnlineGlobal-Unattended', percent: 0.50 },
-    { concat: 'Kid-Instructor training-OnlineGlobal-Attended', percent: 0.40 },
-    { concat: 'Kid-Instructor training-OnlineGlobal-Unattended', percent: 0.20 },
-    { concat: 'Choreology-Workshops-OnlineGlobal-Unattended', percent: 0.50 },
+    { concat: 'Natasha_Salsation_Instructor training_Venue_Unatteneded', percent: 0.2 },
+    { concat: 'Kid-Instructor training-Online-Attended', percent: 0.4 },
+    { concat: 'Kid-Instructor training-Online-Unattended', percent: 0.2 },
+    { concat: 'Salsation-Seminar-OnlineGlobal-Attended', percent: 0.5 },
+    { concat: 'Salsation-Seminar-OnlineGlobal-Unattended', percent: 0.5 },
+    { concat: 'Kid-Instructor training-OnlineGlobal-Attended', percent: 0.4 },
+    { concat: 'Kid-Instructor training-OnlineGlobal-Unattended', percent: 0.2 },
+    { concat: 'Choreology-Workshops-OnlineGlobal-Unattended', percent: 0.5 },
   ];
   try {
     FeeParamService.seedFromPairs(initialPairs);
