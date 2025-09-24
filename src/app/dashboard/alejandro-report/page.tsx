@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useSession } from 'next-auth/react';
 import { useQuery } from '@tanstack/react-query';
 import { DashboardLayout } from '@/components/dashboard/layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -40,7 +39,7 @@ interface AlejandroReportData {
 }
 
 const monthOptions = [
-  { value: '', label: 'All Months' },
+  { value: 'all', label: 'All Months' },
   { value: '1', label: 'January' },
   { value: '2', label: 'February' },
   { value: '3', label: 'March' },
@@ -56,15 +55,15 @@ const monthOptions = [
 ];
 
 const yearOptions = [
-  { value: '', label: 'All Years' },
+  { value: 'all', label: 'All Years' },
   { value: '2024', label: '2024' },
   { value: '2025', label: '2025' },
 ];
 
 export default function AlejandroReportPage() {
   const [filters, setFilters] = useState({
-    year: '',
-    month: '',
+    year: 'all',
+    month: 'all',
   });
 
   // React Query for report data
@@ -76,8 +75,8 @@ export default function AlejandroReportPage() {
     queryKey: ['alejandro-report', filters.year, filters.month],
     queryFn: async () => {
       const params = new URLSearchParams();
-      if (filters.year) params.set('year', filters.year);
-      if (filters.month) params.set('month', filters.month);
+      if (filters.year && filters.year !== 'all') params.set('year', filters.year);
+      if (filters.month && filters.month !== 'all') params.set('month', filters.month);
 
       const response = await fetch(`/api/alejandro-report?${params.toString()}`);
       if (!response.ok) throw new Error('Failed to fetch report data');
@@ -155,8 +154,8 @@ export default function AlejandroReportPage() {
                 <Skeleton className="h-20" />
               </div>
               <div className="space-y-4">
-                {Array.from({ length: 8 }).map((_, i) => (
-                  <Skeleton key={i} className="h-12 w-full" />
+                {Array.from({ length: 8 }, (_, i) => (
+                  <Skeleton key={`skeleton-row-${i}`} className="h-12 w-full" />
                 ))}
               </div>
             </CardContent>
