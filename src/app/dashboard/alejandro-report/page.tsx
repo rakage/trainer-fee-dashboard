@@ -33,9 +33,12 @@ interface AlejandroReportData {
   Program: string;
   EventDate: string;
   Country: string;
+  ReportingGroup: string;
   TrainerName: string;
   TotalTickets: number;
   TotalRevenue: number;
+  AlejandroPercent: number;
+  AlejandroFee: number;
 }
 
 const monthOptions = [
@@ -104,9 +107,12 @@ export default function AlejandroReportPage() {
       'Program',
       'Event Date',
       'Country',
+      'Reporting Group',
       'Trainer Name',
       'Total Tickets',
       'Total Revenue',
+      'Alejandro %',
+      'Alejandro Fee',
     ];
 
     const csvContent = [
@@ -121,9 +127,12 @@ export default function AlejandroReportPage() {
           row.Program,
           row.EventDate,
           row.Country,
+          `"${row.ReportingGroup.replace(/"/g, '""')}"`,
           `"${row.TrainerName.replace(/"/g, '""')}"`,
           row.TotalTickets,
           row.TotalRevenue.toFixed(2),
+          (row.AlejandroPercent * 100).toFixed(1),
+          row.AlejandroFee.toFixed(2),
         ].join(',')
       ),
     ].join('\n');
@@ -138,6 +147,7 @@ export default function AlejandroReportPage() {
   // Calculate totals
   const totalTickets = reportData.reduce((sum, row) => sum + (row.TotalTickets || 0), 0);
   const totalRevenue = reportData.reduce((sum, row) => sum + (row.TotalRevenue || 0), 0);
+  const totalAlejandroFee = reportData.reduce((sum, row) => sum + (row.AlejandroFee || 0), 0);
 
   if (isLoading) {
     return (
@@ -235,7 +245,7 @@ export default function AlejandroReportPage() {
         </Card>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Events</CardTitle>
@@ -259,6 +269,16 @@ export default function AlejandroReportPage() {
             <CardContent>
               <div className="text-2xl font-bold">
                 €{totalRevenue.toLocaleString('de-DE', { minimumFractionDigits: 2 })}
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Alejandro Total Fee</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">
+                €{totalAlejandroFee.toLocaleString('de-DE', { minimumFractionDigits: 2 })}
               </div>
             </CardContent>
           </Card>
@@ -288,9 +308,12 @@ export default function AlejandroReportPage() {
                         <TableHead className="min-w-[100px]">Program</TableHead>
                         <TableHead className="min-w-[120px]">Event Date</TableHead>
                         <TableHead className="min-w-[120px]">Country</TableHead>
+                        <TableHead className="min-w-[200px]">Reporting Group</TableHead>
                         <TableHead className="min-w-[150px]">Trainer</TableHead>
                         <TableHead className="min-w-[100px] text-right">Tickets</TableHead>
                         <TableHead className="min-w-[120px] text-right">Revenue</TableHead>
+                        <TableHead className="min-w-[100px] text-right">Alejandro %</TableHead>
+                        <TableHead className="min-w-[120px] text-right">Alejandro Fee</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -306,6 +329,9 @@ export default function AlejandroReportPage() {
                           <TableCell>{row.Program}</TableCell>
                           <TableCell>{new Date(row.EventDate).toLocaleDateString()}</TableCell>
                           <TableCell>{row.Country}</TableCell>
+                          <TableCell className="max-w-[200px] truncate" title={row.ReportingGroup}>
+                            {row.ReportingGroup}
+                          </TableCell>
                           <TableCell>{row.TrainerName}</TableCell>
                           <TableCell className="text-right">
                             {row.TotalTickets?.toLocaleString() || 0}
@@ -313,6 +339,15 @@ export default function AlejandroReportPage() {
                           <TableCell className="text-right">
                             €
                             {(row.TotalRevenue || 0).toLocaleString('de-DE', {
+                              minimumFractionDigits: 2,
+                            })}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {(row.AlejandroPercent * 100).toFixed(1)}%
+                          </TableCell>
+                          <TableCell className="text-right text-green-600 font-medium">
+                            €
+                            {(row.AlejandroFee || 0).toLocaleString('de-DE', {
                               minimumFractionDigits: 2,
                             })}
                           </TableCell>
