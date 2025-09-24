@@ -9,7 +9,15 @@ export async function GET(request: NextRequest) {
       return authResult.error;
     }
 
+    // Auto-seed if table is empty
     const reportingGroups = ParamReportingGrpService.getAll();
+    if (reportingGroups.length === 0) {
+      ParamReportingGrpService.seedDefaults();
+      // Get data again after seeding
+      const seededData = ParamReportingGrpService.getAll();
+      return NextResponse.json(seededData);
+    }
+
     return NextResponse.json(reportingGroups);
   } catch (error) {
     console.error('Error fetching reporting group parameters:', error);

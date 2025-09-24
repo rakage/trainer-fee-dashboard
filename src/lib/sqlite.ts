@@ -873,9 +873,7 @@ export class FeeParamService {
     getDatabase().prepare('DELETE FROM fee_params WHERE id = ?').run(id);
   }
 
-  static getById(
-    id: number
-  ): {
+  static getById(id: number): {
     id: number;
     program: string;
     category: string;

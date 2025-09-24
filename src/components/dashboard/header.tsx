@@ -1,7 +1,7 @@
 'use client';
 
 import { signOut, useSession } from 'next-auth/react';
-import { LogOut, Settings, BarChart3, Percent, Shield } from 'lucide-react';
+import { LogOut, Settings, BarChart3, Percent, Shield, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -35,7 +35,10 @@ export function DashboardHeader() {
     confirmPassword: '',
   });
   const [isChangingPassword, setIsChangingPassword] = useState(false);
-  const [passwordMessage, setPasswordMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [passwordMessage, setPasswordMessage] = useState<{
+    type: 'success' | 'error';
+    text: string;
+  } | null>(null);
 
   const handleSignOut = () => {
     signOut({
@@ -56,7 +59,10 @@ export function DashboardHeader() {
     }
 
     if (passwordForm.newPassword.length < 6) {
-      setPasswordMessage({ type: 'error', text: 'New password must be at least 6 characters long' });
+      setPasswordMessage({
+        type: 'error',
+        text: 'New password must be at least 6 characters long',
+      });
       return;
     }
 
@@ -114,7 +120,7 @@ export function DashboardHeader() {
   const getUserInitials = (name: string) => {
     return name
       .split(' ')
-      .map(word => word.charAt(0).toUpperCase())
+      .map((word) => word.charAt(0).toUpperCase())
       .slice(0, 2)
       .join('');
   };
@@ -124,10 +130,10 @@ export function DashboardHeader() {
       <div className="flex h-16 items-center px-4 md:px-6">
         <div className="flex items-center space-x-4">
           <div className="flex items-center space-x-3">
-            <Image 
-              src="/logo.png" 
-              alt="Salsation Logo" 
-              width={32} 
+            <Image
+              src="/logo.png"
+              alt="Salsation Logo"
+              width={32}
               height={32}
               className="object-contain"
               priority
@@ -139,7 +145,7 @@ export function DashboardHeader() {
             />
             <h1 className="text-xl font-bold">Salsation Event Reports</h1>
           </div>
-          
+
           {/* Navigation Menu */}
           <nav className="hidden md:flex items-center space-x-4 ml-6">
             <Link href="/dashboard">
@@ -154,6 +160,12 @@ export function DashboardHeader() {
                   <Button variant="ghost" size="sm" className="flex items-center gap-2">
                     <Percent className="h-4 w-4" />
                     Fee Parameters
+                  </Button>
+                </Link>
+                <Link href="/dashboard/alejandro-report">
+                  <Button variant="ghost" size="sm" className="flex items-center gap-2">
+                    <FileText className="h-4 w-4" />
+                    Alejandro Report
                   </Button>
                 </Link>
                 <Link href="/admin">
@@ -171,7 +183,10 @@ export function DashboardHeader() {
           {session?.user && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="relative h-10 w-10 rounded-full bg-primary/10 hover:bg-primary/20">
+                <Button
+                  variant="ghost"
+                  className="relative h-10 w-10 rounded-full bg-primary/10 hover:bg-primary/20"
+                >
                   <span className="text-sm font-medium text-primary">
                     {getUserInitials(session.user.name || 'User')}
                   </span>
@@ -180,9 +195,7 @@ export function DashboardHeader() {
               <DropdownMenuContent className="w-64" align="end" forceMount>
                 <DropdownMenuLabel className="font-normal">
                   <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium leading-none">
-                      {session.user.name}
-                    </p>
+                    <p className="text-sm font-medium leading-none">{session.user.name}</p>
                     <p className="text-xs leading-none text-muted-foreground">
                       {session.user.email}
                     </p>
@@ -212,9 +225,7 @@ export function DashboardHeader() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Settings</DialogTitle>
-            <DialogDescription>
-              Change your account password here.
-            </DialogDescription>
+            <DialogDescription>Change your account password here.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
@@ -223,7 +234,9 @@ export function DashboardHeader() {
                 id="current-password"
                 type="password"
                 value={passwordForm.currentPassword}
-                onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+                onChange={(e) =>
+                  setPasswordForm({ ...passwordForm, currentPassword: e.target.value })
+                }
                 placeholder="Enter current password"
               />
             </div>
@@ -243,16 +256,20 @@ export function DashboardHeader() {
                 id="confirm-password"
                 type="password"
                 value={passwordForm.confirmPassword}
-                onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                onChange={(e) =>
+                  setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })
+                }
                 placeholder="Confirm new password"
               />
             </div>
             {passwordMessage && (
-              <div className={`text-sm p-3 rounded ${
-                passwordMessage.type === 'success' 
-                  ? 'bg-green-100 text-green-800 border border-green-200' 
-                  : 'bg-red-100 text-red-800 border border-red-200'
-              }`}>
+              <div
+                className={`text-sm p-3 rounded ${
+                  passwordMessage.type === 'success'
+                    ? 'bg-green-100 text-green-800 border border-green-200'
+                    : 'bg-red-100 text-red-800 border border-red-200'
+                }`}
+              >
                 {passwordMessage.text}
               </div>
             )}
@@ -267,7 +284,12 @@ export function DashboardHeader() {
             </Button>
             <Button
               onClick={handlePasswordChange}
-              disabled={isChangingPassword || !passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword}
+              disabled={
+                isChangingPassword ||
+                !passwordForm.currentPassword ||
+                !passwordForm.newPassword ||
+                !passwordForm.confirmPassword
+              }
             >
               {isChangingPassword ? 'Changing...' : 'Change Password'}
             </Button>

@@ -75,7 +75,14 @@ export function ReportingGroupTab({
 
   // Mutations
   const reportingGrpMutation = useMutation({
-    mutationFn: async (data: any) => {
+    mutationFn: async (data: {
+      reportingGroup: string;
+      split: string;
+      trainerPercent: number;
+      alejandroPercent: number;
+      price: number | null;
+      repeaterPrice: number | null;
+    }) => {
       const response = await fetch('/api/param-reporting-grp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -252,6 +259,32 @@ export function ReportingGroupTab({
               <Button type="button" variant="outline" onClick={resetForm}>
                 Clear
               </Button>
+              {reportingGrpParams.length === 0 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={async () => {
+                    try {
+                      const response = await fetch('/api/seed-reporting-grp', {
+                        method: 'POST',
+                      });
+                      if (response.ok) {
+                        queryClient.invalidateQueries({ queryKey: ['param-reporting-grp'] });
+                        setMessage({
+                          type: 'success',
+                          text: 'Default parameters seeded successfully',
+                        });
+                      } else {
+                        setMessage({ type: 'error', text: 'Failed to seed default parameters' });
+                      }
+                    } catch {
+                      setMessage({ type: 'error', text: 'Failed to seed default parameters' });
+                    }
+                  }}
+                >
+                  Seed Defaults
+                </Button>
+              )}
             </div>
           </form>
 
