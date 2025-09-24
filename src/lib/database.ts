@@ -815,12 +815,13 @@ export class DatabaseService {
         )
         , OrderData as (
           select 
-            o.ProductId,
-            COUNT(o.id) as TotalTickets,
-            SUM(o.OrderTotal) as TotalRevenue
+            oi.ProductId,
+            SUM(oi.Quantity) as TotalTickets,
+            SUM(oi.PriceInclTax * oi.Quantity) as TotalRevenue
           from [Order] o
+          inner join OrderItem oi on o.Id = oi.OrderId
           where o.OrderStatusId in (10, 30, 40)
-          group by o.ProductId
+          group by oi.ProductId
         )
         select 
           MONTH(e.EventDate) as Month,
