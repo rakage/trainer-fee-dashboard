@@ -813,15 +813,225 @@ export class DatabaseService {
           from finals
           where rn = 1
         )
-        , OrderData as (
-          select 
-            oi.ProductId,
-            SUM(oi.Quantity) as TotalTickets,
-            SUM(oi.PriceInclTax * oi.Quantity) as TotalRevenue
-          from [Order] o
-          inner join OrderItem oi on o.Id = oi.OrderId
-          where o.OrderStatusId in (10, 30, 40)
-          group by oi.ProductId
+        , base_order as (
+            select distinct
+            o.id as OrderID, 
+            o.PaidDateUtc as DatePaid, 
+            CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE) as EventDate, 
+            p.id as ProdID, 
+            p.name as ProdName,  
+            c.name as Category, 
+            sao2.name as Program,
+            oi.quantity, 
+            p.price as ProductPrice, 
+            oi.UnitPriceInclTax as UnitPrice, 
+            oi.PriceInclTax - o.RefundedAmount as PriceTotal,
+            tp.Designation as TierLevel,
+            v.Name as Vendor,
+            sao.Name as Country,
+            cu.id as CustomerID,
+            cu.username as Customer,
+            CASE  WHEN (o.CaptureTransactionId IS NOT NULL and oi.UnitPriceInclTax = 0)
+                THEN 'Free Ticket'
+                WHEN o.CaptureTransactionId IS NOT NULL 
+                THEN 'Paypal'
+                WHEN (o.CaptureTransactionId IS NULL and oi.UnitPriceInclTax = 0)
+                THEN 'Free Ticket'
+                ELSE 'Cash'
+            END AS PaymentMethod,
+            CASE WHEN ss.attendedsetdateUTC IS NOT NULL
+                THEN 'Attended'
+                ELSE 'Unattended'
+            END AS Attendance,
+            o.paymentstatusid as PaymentStatus,
+            p.StockQuantity
+            from product p
+            left join OrderItem oi
+            on p.id = oi.ProductId
+            left join [Order] o
+            on oi.OrderId = o.id
+            left join Product_Category_Mapping pcm
+            on p.id = pcm.ProductId
+            left join Product_ProductAttribute_Mapping pam
+            on p.id = pam.ProductId
+            left join SalsationEvent_Country_Mapping scm
+            on p.id = scm.ProductId
+            left join country cn
+            on scm.CountryId = cn.Id
+            left join ProductAttributeValue pav
+            on pam.id = pav.ProductAttributeMappingId
+            left join Category c
+            on pcm.CategoryId = c.id
+            left join Vendor v 
+            on p.VendorId = v.Id
+            left join Customer cu
+            on o.CustomerId = cu.id
+            left join customer_customerrole_mapping crm
+            on cu.id = crm.customer_id
+            left join customerrole cr 
+            on crm.customerrole_id = cr.id
+            left join Product_SpecificationAttribute_Mapping psm
+            on p.Id = psm.productid
+            left join SpecificationAttributeOption sao 
+            on psm.SpecificationAttributeOptionId = sao.Id 
+            left join SpecificationAttribute sa 
+            on sao.SpecificationAttributeId = sa.Id
+            left join Product_SpecificationAttribute_Mapping psm2
+            on p.Id = psm2.productid
+            left join SpecificationAttributeOption sao2 
+            on psm2.SpecificationAttributeOptionId = sao2.Id 
+            left join SpecificationAttribute sa2 
+            on sao2.SpecificationAttributeId = sa2.Id
+            left join SalsationSubscriber ss 
+            on (oi.Id = ss.OrderItemId
+            and cu.id = ss.CustomerId
+            and p.id = ss.parentid
+            and o.id = ss.orderid)
+            left join TierPrice tp
+            on (p.id = tp.productId
+            --and cr.id = tp.customerroleid
+            and oi.PriceInclTax = tp.price
+            and oi.Quantity = tp.Quantity)
+            where sa.id = 10
+            and sa2.id = 6
+            and o.orderstatusid = '30'
+            and o.paymentstatusid in ('30','35')
+            -- and p.DisableBuyButton = 0
+            and (p.Published = 1
+            or (p.id = '40963' and p.Published = 0))
+            and (pav.name like '%2024%'
+            or pav.name like '%2025%')
+            and p.id not in ('54958', '53000', '55053')
+            -- and p.id in ('75080')
+            --and o.id in ('')
+            UNION
+            select distinct
+            o.id as OrderID, 
+            o.PaidDateUtc as DatePaid, 
+            CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE) as EventDate, 
+            p.id as ProdID, 
+            p.name as ProdName,  
+            c.name as Category, 
+            sao2.name as Program,
+            oi.quantity, 
+            p.price as ProductPrice, 
+            oi.UnitPriceInclTax as UnitPrice, 
+            oi.PriceInclTax - o.RefundedAmount as PriceTotal,
+            tp.Designation as TierLevel,
+            v.Name as Vendor,
+            sao.Name as Country,
+            cu.id as CustomerID,
+            cu.username as Customer,
+            CASE  WHEN (o.CaptureTransactionId IS NOT NULL and oi.UnitPriceInclTax = 0)
+                THEN 'Free Ticket'
+                WHEN o.CaptureTransactionId IS NOT NULL 
+                THEN 'Paypal'
+                WHEN (o.CaptureTransactionId IS NULL and oi.UnitPriceInclTax = 0)
+                THEN 'Free Ticket'
+                ELSE 'Cash'
+            END AS PaymentMethod,
+            CASE WHEN ss.attendedsetdateUTC IS NOT NULL
+            THEN 'Attended'
+            ELSE 'Unattended'
+            END AS Attendance,
+            o.paymentstatusid as PaymentStatus,
+            p.StockQuantity
+            from product p
+            left join OrderItem oi
+            on p.id = oi.ProductId
+            left join [Order] o
+            on oi.OrderId = o.id
+            left join Product_Category_Mapping pcm
+            on p.id = pcm.ProductId
+            left join Product_ProductAttribute_Mapping pam
+            on p.id = pam.ProductId
+            left join SalsationEvent_Country_Mapping scm
+            on p.id = scm.ProductId
+            left join country cn
+            on scm.CountryId = cn.Id
+            left join ProductAttributeValue pav
+            on pam.id = pav.ProductAttributeMappingId
+            left join Category c
+            on pcm.CategoryId = c.id
+            left join Vendor v 
+            on p.VendorId = v.Id
+            left join Customer cu
+            on o.CustomerId = cu.id
+            left join customer_customerrole_mapping crm
+            on cu.id = crm.customer_id
+            left join customerrole cr 
+            on crm.customerrole_id = cr.id
+            left join Product_SpecificationAttribute_Mapping psm
+            on p.Id = psm.productid
+            left join SpecificationAttributeOption sao 
+            on psm.SpecificationAttributeOptionId = sao.Id 
+            left join SpecificationAttribute sa 
+            on sao.SpecificationAttributeId = sa.Id
+            left join Product_SpecificationAttribute_Mapping psm2
+            on p.Id = psm2.productid
+            left join SpecificationAttributeOption sao2 
+            on psm2.SpecificationAttributeOptionId = sao2.Id 
+            left join SpecificationAttribute sa2 
+            on sao2.SpecificationAttributeId = sa2.Id
+            left join SalsationSubscriber ss 
+            on (oi.Id = ss.OrderItemId
+            and cu.id = ss.CustomerId
+            and p.id = ss.parentid
+            and o.id = ss.orderid)
+            left join TierPrice tp
+            on (p.id = tp.productId
+            --and cr.id = tp.customerroleid
+            and oi.PriceInclTax = tp.price
+            and oi.Quantity = tp.Quantity)
+            where sa.id = 10
+            and sa2.id = 6
+            and o.orderstatusid = '30'
+            and o.paymentstatusid in ('30','35')
+            -- and p.DisableBuyButton = 0
+            and p.id in ('54958')
+            and p.id not in ('53000', '55053')
+            and (o.PaidDateUtc like '%2024%'
+            or o.PaidDateUtc like '%2025%')
+            )
+            , finals_order as (
+            select
+                *
+                , row_number() over(partition by orderid, customerid, prodid order by eventdate asc) rn
+            from base_order
+            )
+            , orderdataraw as (
+            select 
+            OrderID,
+            DatePaid,
+            EventDate,
+            ProdID,
+            ProdName,
+            Category,
+            Program,
+            quantity,
+            ProductPrice,
+            UnitPrice,
+            PriceTotal,
+            TierLevel,
+            Vendor,
+            Country,
+            CustomerID,
+            Customer,
+            PaymentMethod,
+            Attendance,
+            PaymentStatus,
+            StockQuantity
+            --rn
+            from finals_order
+            where rn = 1
+            )
+            , OrderData as (
+            select 
+                ProdID as ProductId,
+                SUM(quantity) as TotalTickets,
+                SUM(PriceTotal) as TotalRevenue
+            from orderdataraw
+            group by ProdID
         )
         select 
           MONTH(e.EventDate) as Month,
