@@ -1420,7 +1420,7 @@ export class DatabaseService {
             group by ProdID
         )
         , cotrainers as (
-            select ParentId as ProdID, CustomerId, c.name
+            select distinct ParentId as ProdID, CustomerId, c.name
             from SalsationSubscriber a
             left join Customer b
             on a.customerid = b.id
@@ -1452,7 +1452,6 @@ export class DatabaseService {
             FROM EventDataRaw e
             left join OrderData od on e.ProdID = od.ProductId
             left join finals_cotrainers fc on e.ProdID = fc.ProdID
-            where e.Category in ('Instructor training', 'Method Training')
         )
         , CleanedTrainers AS (
             SELECT 
