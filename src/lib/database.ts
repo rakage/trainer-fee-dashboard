@@ -1033,6 +1033,7 @@ export class DatabaseService {
             from orderdataraw
             group by ProdID
         )
+        , final_report as (
         select 
           MONTH(e.EventDate) as Month,
           YEAR(e.EventDate) as Year,
@@ -1043,14 +1044,38 @@ export class DatabaseService {
           e.EventDate,
           e.Country,
           e.ReportingGroup,
-          COALESCE(e.Vendor, 'Unknown') as TrainerName,
+          CASE 
+                -- Pattern: "[PROGRAM] [TYPE] with [TRAINER_NAME], [VENUE], [LOCATION] - [COUNTRY], [DATES]"
+                WHEN e.ProdName LIKE '% with %' THEN 
+                    LTRIM(RTRIM(
+                        CASE 
+                            -- Handle multiple trainers with & separator - take first trainer only
+                            WHEN CHARINDEX(' & ', SUBSTRING(e.ProdName, CHARINDEX(' with ', e.ProdName) + 6, LEN(e.ProdName))) > 0 THEN
+                                SUBSTRING(e.ProdName, 
+                                    CHARINDEX(' with ', e.ProdName) + 6, 
+                                    CHARINDEX(' & ', SUBSTRING(e.ProdName, CHARINDEX(' with ', e.ProdName) + 6, LEN(e.ProdName))) - 1
+                                )
+                            -- Single trainer
+                            ELSE
+                                SUBSTRING(e.ProdName, 
+                                    CHARINDEX(' with ', e.ProdName) + 6, 
+                                    CHARINDEX(',', e.ProdName, CHARINDEX(' with ', e.ProdName)) - CHARINDEX(' with ', e.ProdName) - 6
+                                )
+                        END
+                    ))
+                -- Fallback to Vendor if no "with" pattern found
+                ELSE COALESCE(e.Vendor, 'Unknown')
+            END AS Vendor,
           COALESCE(od.TotalTickets, 0) as TotalTickets,
           COALESCE(od.TotalRevenue, 0) as TotalRevenue
         from EventDataRaw e
         left join OrderData od on e.ProdID = od.ProductId
         where e.Category in ('Instructor training', 'Method Training')
-        and COALESCE(e.Vendor, 'Unknown') NOT LIKE '%Alejandro%'
-        order by e.EventDate desc, e.ProdID
+        )
+        select *
+        from final_report
+        where Vendor not like '%Alejandro%'
+        order by Month asc, Year asc, ProdID asc
       `;
 
       const result = await request.query(query);
