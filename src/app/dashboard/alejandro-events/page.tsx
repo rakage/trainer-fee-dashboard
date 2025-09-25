@@ -196,7 +196,7 @@ export default function AlejandroEventsPage() {
     <DashboardLayout>
       <div className="container mx-auto p-6 space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Alejandro's Events</h1>
+          <h1 className="text-3xl font-bold">Alejandro&apos;s Events</h1>
           <div className="flex gap-2">
             <Button onClick={() => refetch()} variant="outline">
               <RefreshCw className="w-4 h-4 mr-2" />

@@ -178,7 +178,7 @@ export function DashboardHeader() {
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
                       <Link href="/dashboard/alejandro-events" className="w-full cursor-pointer">
-                        Alejandro's Events
+                        Alejandro&apos;s Events
                       </Link>
                     </DropdownMenuItem>
                   </DropdownMenuContent>
