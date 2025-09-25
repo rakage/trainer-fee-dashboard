@@ -1419,94 +1419,121 @@ export class DatabaseService {
             from orderdataraw
             group by ProdID
         )
-        , trainer_extraction as (
-        select 
-          MONTH(e.EventDate) as Month,
-          YEAR(e.EventDate) as Year,
-          e.ProdID,
-          e.ProdName,
-          e.Category,
-          e.Program,
-          e.EventDate,
-          e.Country,
-          e.ReportingGroup,
-          COALESCE(od.TotalTickets, 0) as TotalTickets,
-          COALESCE(od.TotalRevenue, 0) as TotalRevenue,
-          -- Extract trainer names from ProdName (between 'with ' and location/venue indicator)
-          CASE 
-            WHEN e.ProdName LIKE '% with %' THEN 
-              LTRIM(RTRIM(SUBSTRING(e.ProdName, CHARINDEX(' with ', e.ProdName) + 6, 
-                CASE 
-                  -- Find the first occurrence of location indicators after 'with '
-                  WHEN CHARINDEX(', Venue,', e.ProdName, CHARINDEX(' with ', e.ProdName)) > 0 
-                    THEN CHARINDEX(', Venue,', e.ProdName, CHARINDEX(' with ', e.ProdName)) - CHARINDEX(' with ', e.ProdName) - 6
-                  WHEN CHARINDEX(', Online,', e.ProdName, CHARINDEX(' with ', e.ProdName)) > 0 
-                    THEN CHARINDEX(', Online,', e.ProdName, CHARINDEX(' with ', e.ProdName)) - CHARINDEX(' with ', e.ProdName) - 6
-                  WHEN CHARINDEX(', Presencial,', e.ProdName, CHARINDEX(' with ', e.ProdName)) > 0 
-                    THEN CHARINDEX(', Presencial,', e.ProdName, CHARINDEX(' with ', e.ProdName)) - CHARINDEX(' with ', e.ProdName) - 6
-                  -- Fallback to first comma if no location indicators found
-                  ELSE CHARINDEX(',', e.ProdName, CHARINDEX(' with ', e.ProdName)) - CHARINDEX(' with ', e.ProdName) - 6
-                END
-              )))
-            ELSE COALESCE(e.Vendor, 'Unknown')
-          END AS TrainerString
-        from EventDataRaw e
-        left join OrderData od on e.ProdID = od.ProductId
+        , cotrainers as (
+            select ParentId as ProdID, CustomerId, c.name
+            from SalsationSubscriber a
+            left join Customer b
+            on a.customerid = b.id
+            left join vendor c
+            on b.VendorId = c.id
+            where IsCoInstructor = 1
         )
-        , trainer_split as (
-        select 
-          Month, Year, ProdID, ProdName, Category, Program, EventDate, Country, ReportingGroup,
-          TotalTickets, TotalRevenue, TrainerString,
-          -- Replace comma-space with & to normalize separators, then split
-          REPLACE(TrainerString, ', ', ' & ') AS NormalizedTrainers
-        from trainer_extraction
+        , finals_cotrainers as (
+            select
+                ProdID,
+                STRING_AGG(name, ', ') AS cotrainers_name
+            from cotrainers
+            group by prodid
+        )
+        , ExtractedTrainers AS ( 
+            SELECT
+                e.ProdID,
+                e.ProdName,
+                CONCAT(e.Vendor, CASE WHEN fc.cotrainers_name IS NOT NULL THEN CONCAT(', ', fc.cotrainers_name) ELSE '' END) AS TrainerList,
+                MONTH(e.EventDate) as Month,
+                YEAR(e.EventDate) as Year,
+                e.Category,
+                e.Program,
+                e.EventDate,
+                e.Country,
+                e.ReportingGroup,
+                COALESCE(od.TotalTickets, 0) as TotalTickets,
+                COALESCE(od.TotalRevenue, 0) as TotalRevenue
+            FROM EventDataRaw e
+            left join OrderData od on e.ProdID = od.ProductId
+            left join finals_cotrainers fc on e.ProdID = fc.ProdID
+            where e.Category in ('Instructor training', 'Method Training')
+        )
+        , CleanedTrainers AS (
+            SELECT 
+                prodid, 
+                prodname, 
+                TrainerList,
+                Month, Year, Category, Program, EventDate, Country, ReportingGroup, TotalTickets, TotalRevenue,
+                LTRIM(RTRIM(Split.value('.', 'varchar(255)'))) AS SplitPart,
+                ROW_NUMBER() OVER (PARTITION BY prodid ORDER BY (SELECT NULL)) AS PartNum
+            FROM (
+                SELECT 
+                    prodid, 
+                    prodname, 
+                    TrainerList,
+                    Month, Year, Category, Program, EventDate, Country, ReportingGroup, TotalTickets, TotalRevenue,
+                    CAST('<X>' + REPLACE(REPLACE(REPLACE(TrainerList, ' & ', ','), ',', '</X><X>'), '&', '&amp;') + '</X>' AS XML) AS TrainersXML
+                FROM ExtractedTrainers
+                WHERE TrainerList IS NOT NULL
+            ) AS t
+            CROSS APPLY TrainersXML.nodes('/X') AS Trainers(Split)
+        )
+        , FinalSplit AS (
+            SELECT 
+                prodid,
+                prodname,
+                TrainerList,
+                Month, Year, Category, Program, EventDate, Country, ReportingGroup, TotalTickets, TotalRevenue,
+                CASE PartNum 
+                    WHEN 1 THEN TRIM(SplitPart)  -- First trainer
+                    ELSE NULL 
+                END as Trainer1,
+                CASE PartNum 
+                    WHEN 2 THEN TRIM(SplitPart)  -- Second trainer
+                    ELSE NULL 
+                END as CoTrainer1,
+                CASE PartNum 
+                    WHEN 3 THEN TRIM(SplitPart)  -- Third trainer
+                    ELSE NULL 
+                END as CoTrainer2,
+                CASE PartNum 
+                    WHEN 4 THEN TRIM(SplitPart)  -- Fourth trainer
+                    ELSE NULL 
+                END as CoTrainer3
+            FROM CleanedTrainers
+        )
+        , data_trainers as (
+            SELECT 
+                prodid,
+                prodname,
+                TrainerList,
+                Month, Year, Category, Program, EventDate, Country, ReportingGroup, TotalTickets, TotalRevenue,
+                MAX(Trainer1) as mainTrainer,
+                case when MAX(CoTrainer1) = '' then NULL
+                else MAX(CoTrainer1)
+                end as CoTrainer1,
+                case when MAX(CoTrainer2) = '' then NULL
+                else MAX(CoTrainer2)
+                end as CoTrainer2,
+                case when MAX(CoTrainer3) = '' then NULL
+                else MAX(CoTrainer3)
+                end as CoTrainer3
+            FROM FinalSplit
+            GROUP BY prodid, prodname, TrainerList, Month, Year, Category, Program, EventDate, Country, ReportingGroup, TotalTickets, TotalRevenue
         )
         , final_report as (
-        select 
-          Month, Year, ProdID, ProdName, Category, Program, EventDate, Country, ReportingGroup,
-          TotalTickets, TotalRevenue,
-          -- Extract Main Trainer (first trainer before first &)
-          CASE 
-            WHEN CHARINDEX(' & ', NormalizedTrainers) > 0 
-            THEN LTRIM(RTRIM(SUBSTRING(NormalizedTrainers, 1, CHARINDEX(' & ', NormalizedTrainers) - 1)))
-            ELSE LTRIM(RTRIM(NormalizedTrainers))
-          END AS MainTrainer,
-          -- Extract Co Trainer 1 (between first & and second &, or after first & if no second &)
-          CASE 
-            WHEN CHARINDEX(' & ', NormalizedTrainers) > 0 THEN
-              CASE 
-                WHEN CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers) + 1) > 0 
-                THEN LTRIM(RTRIM(SUBSTRING(NormalizedTrainers, 
-                  CHARINDEX(' & ', NormalizedTrainers) + 3, 
-                  CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers) + 1) - CHARINDEX(' & ', NormalizedTrainers) - 3
-                )))
-                ELSE LTRIM(RTRIM(SUBSTRING(NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers) + 3, LEN(NormalizedTrainers))))
-              END
-            ELSE NULL
-          END AS CoTrainer1,
-          -- Extract Co Trainer 2 (only if there are at least 3 trainers - between second & and third &, or after second & if no third &)
-          CASE 
-            WHEN CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers) + 3) > 0 THEN
-              -- There is a second & (meaning at least 3 trainers)
-              CASE 
-                -- Check if there's a third & (meaning 4 trainers)
-                WHEN CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers) + 3) + 3) > 0 
-                THEN LTRIM(RTRIM(SUBSTRING(NormalizedTrainers, 
-                  CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers) + 3) + 3, 
-                  CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers) + 3) + 3) - CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers) + 3) - 3
-                )))
-                -- No third &, so extract everything after second &
-                ELSE LTRIM(RTRIM(SUBSTRING(NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers) + 3) + 3, LEN(NormalizedTrainers))))
-              END
-            ELSE NULL
-          END AS CoTrainer2,
-          -- Extract Co Trainer 3 (only if there are 4 trainers - after third &)
-          CASE 
-            WHEN CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers) + 3) + 3) > 0 
-            THEN LTRIM(RTRIM(SUBSTRING(NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers) + 3) + 3) + 3, LEN(NormalizedTrainers))))
-            ELSE NULL
-          END AS CoTrainer3
-        from trainer_split
+            select 
+                Month, Year, ProdID, ProdName, Category, Program, EventDate, Country, ReportingGroup,
+                TotalTickets, TotalRevenue,
+                case
+                    when TrainerList = 'Kami & Yoyo' then 'Kami/Yoyo'
+                    when TrainerList = 'Kukizz & Javier' then 'Kukizz/Javier'
+                    else mainTrainer
+                end as MainTrainer,
+                case
+                    when TrainerList = 'Kami & Yoyo' then NULL
+                    when TrainerList = 'Kukizz & Javier' then NULL
+                    else CoTrainer1
+                end as CoTrainer1,
+                CoTrainer2,
+                CoTrainer3
+            from data_trainers
         )
         select *
         from final_report
