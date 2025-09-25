@@ -185,3 +185,6 @@ videos/
 # Local development scripts
 dev-scripts/
 local-scripts/
+
+# Codex
+.codex/

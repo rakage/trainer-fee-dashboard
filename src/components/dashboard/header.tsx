@@ -1,7 +1,7 @@
 'use client';
 
 import { signOut, useSession } from 'next-auth/react';
-import { LogOut, Settings, BarChart3, Percent, Shield, FileText } from 'lucide-react';
+import { LogOut, Settings, BarChart3, Percent, Shield, FileText, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -162,12 +162,27 @@ export function DashboardHeader() {
                     Fee Parameters
                   </Button>
                 </Link>
-                <Link href="/dashboard/alejandro-report">
-                  <Button variant="ghost" size="sm" className="flex items-center gap-2">
-                    <FileText className="h-4 w-4" />
-                    Alejandro Report
-                  </Button>
-                </Link>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm" className="flex items-center gap-2">
+                      <FileText className="h-4 w-4" />
+                      Alejandro Reports
+                      <ChevronDown className="h-3 w-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start">
+                    <DropdownMenuItem asChild>
+                      <Link href="/dashboard/alejandro-report" className="w-full cursor-pointer">
+                        Alejandro Instructor Trainer Fee
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/dashboard/alejandro-events" className="w-full cursor-pointer">
+                        Alejandro's Events
+                      </Link>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 <Link href="/admin">
                   <Button variant="ghost" size="sm" className="flex items-center gap-2">
                     <Shield className="h-4 w-4" />
