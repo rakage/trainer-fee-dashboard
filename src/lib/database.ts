@@ -1074,7 +1074,7 @@ export class DatabaseService {
         )
         select *
         from final_report
-        where Vendor not like '%Alejandro%'
+        where TrainerName not like '%Alejandro%'
         order by Month asc, Year asc, ProdID asc
       `;
 
