@@ -1049,6 +1049,7 @@ export class DatabaseService {
         from EventDataRaw e
         left join OrderData od on e.ProdID = od.ProductId
         where e.Category in ('Instructor training', 'Method Training')
+        and COALESCE(e.Vendor, 'Unknown') NOT LIKE '%Alejandro%'
         order by e.EventDate desc, e.ProdID
       `;
 
