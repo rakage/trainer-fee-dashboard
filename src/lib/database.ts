@@ -1065,7 +1065,7 @@ export class DatabaseService {
                     ))
                 -- Fallback to Vendor if no "with" pattern found
                 ELSE COALESCE(e.Vendor, 'Unknown')
-            END AS Vendor,
+            END AS TrainerName,
           COALESCE(od.TotalTickets, 0) as TotalTickets,
           COALESCE(od.TotalRevenue, 0) as TotalRevenue
         from EventDataRaw e
