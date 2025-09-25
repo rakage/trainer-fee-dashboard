@@ -1048,6 +1048,7 @@ export class DatabaseService {
           COALESCE(od.TotalRevenue, 0) as TotalRevenue
         from EventDataRaw e
         left join OrderData od on e.ProdID = od.ProductId
+        where e.Category in ('Instructor training', 'Method Training')
         order by e.EventDate desc, e.ProdID
       `;
 
