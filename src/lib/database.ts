@@ -118,7 +118,7 @@ export class DatabaseService {
         EventDate
       FROM finals
       WHERE rn = 1
-            AND EventDate >= DATEADD(MONTH, -2, GETDATE())
+            AND EventDate >= DATEADD(MONTH, -5, GETDATE())
             AND EventDate <= DATEFROMPARTS(YEAR(GETDATE()), 12, 31)
       ORDER BY EventDate DESC
     `);
