@@ -87,12 +87,14 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
     // Log activity
     const expenseDetails = expenses.map(e => `${e.Description}: $${e.Amount}`).join(', ');
-    await ActivityLogger.log(
-      authResult.user.id,
-      'update_event_expenses',
-      prodId,
-      `Updated expenses for event ${prodId}: ${expenseDetails}`
-    );
+    if (authResult.user?.id) {
+      await ActivityLogger.log(
+        authResult.user.id,
+        'update_event_expenses',
+        prodId,
+        `Updated expenses for event ${prodId}: ${expenseDetails}`
+      );
+    }
 
     return NextResponse.json({
       success: true,

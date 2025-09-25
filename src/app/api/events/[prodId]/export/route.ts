@@ -18,8 +18,8 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   }
 
   // Rate limiting for export endpoints
-  const userId = authResult.user.id;
-  if (!rateLimit(userId, 10, 60000)) { // 10 exports per minute
+  const userId = authResult.user?.id;
+  if (!userId || !rateLimit(userId, 10, 60000)) { // 10 exports per minute
     return NextResponse.json(
       { success: false, error: 'Rate limit exceeded' },
       { status: 429 }

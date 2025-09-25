@@ -96,12 +96,14 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
     // Log activity
     const splitDetails = splits.map(s => `${s.Name}: ${s.Percent}%`).join(', ');
-    await ActivityLogger.log(
-      authResult.user.id,
-      'update_trainer_splits',
-      prodId,
-      `Updated trainer splits for event ${prodId}: ${splitDetails}`
-    );
+    if (authResult.user?.id) {
+      await ActivityLogger.log(
+        authResult.user.id,
+        'update_trainer_splits',
+        prodId,
+        `Updated trainer splits for event ${prodId}: ${splitDetails}`
+      );
+    }
 
     return NextResponse.json({
       success: true,

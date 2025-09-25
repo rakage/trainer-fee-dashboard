@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { DashboardLayout } from '@/components/dashboard/layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Download, Filter } from 'lucide-react';
+import { Download, RefreshCw } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -23,6 +23,15 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from '@/components/ui/pagination';
 
 interface AlejandroReportData {
   Month: string;
@@ -68,6 +77,10 @@ export default function AlejandroReportPage() {
     year: 'all',
     month: 'all',
   });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
+  const [cardsLoading, setCardsLoading] = useState(false);
+  const [tableLoading, setTableLoading] = useState(false);
 
   // React Query for report data
   const {
@@ -77,13 +90,27 @@ export default function AlejandroReportPage() {
   } = useQuery({
     queryKey: ['alejandro-report', filters.year, filters.month],
     queryFn: async () => {
-      const params = new URLSearchParams();
-      if (filters.year && filters.year !== 'all') params.set('year', filters.year);
-      if (filters.month && filters.month !== 'all') params.set('month', filters.month);
+      // Set loading states for cards and table
+      setCardsLoading(true);
+      setTableLoading(true);
+      
+      try {
+        const params = new URLSearchParams();
+        if (filters.year && filters.year !== 'all') params.set('year', filters.year);
+        if (filters.month && filters.month !== 'all') params.set('month', filters.month);
 
-      const response = await fetch(`/api/alejandro-report?${params.toString()}`);
-      if (!response.ok) throw new Error('Failed to fetch report data');
-      return response.json() as Promise<AlejandroReportData[]>;
+        const response = await fetch(`/api/alejandro-report?${params.toString()}`);
+        if (!response.ok) throw new Error('Failed to fetch report data');
+        const data = await response.json() as AlejandroReportData[];
+        
+        // Reset current page when filters change
+        setCurrentPage(1);
+        
+        return data;
+      } finally {
+        setCardsLoading(false);
+        setTableLoading(false);
+      }
     },
   });
 
@@ -144,10 +171,21 @@ export default function AlejandroReportPage() {
     link.click();
   };
 
-  // Calculate totals
+  // Calculate totals and pagination
   const totalTickets = reportData.reduce((sum, row) => sum + (row.TotalTickets || 0), 0);
   const totalRevenue = reportData.reduce((sum, row) => sum + (row.TotalRevenue || 0), 0);
   const totalAlejandroFee = reportData.reduce((sum, row) => sum + (row.AlejandroFee || 0), 0);
+
+  // Pagination logic
+  const totalPages = Math.ceil(reportData.length / itemsPerPage);
+  const paginatedData = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return reportData.slice(startIndex, startIndex + itemsPerPage);
+  }, [reportData, currentPage, itemsPerPage]);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
 
   if (isLoading) {
     return (
@@ -182,7 +220,7 @@ export default function AlejandroReportPage() {
           <h1 className="text-3xl font-bold">Alejandro Instructor Trainer % Fee Report</h1>
           <div className="flex gap-2">
             <Button onClick={() => refetch()} variant="outline">
-              <Filter className="w-4 h-4 mr-2" />
+              <RefreshCw className="w-4 h-4 mr-2" />
               Refresh
             </Button>
             <Button onClick={exportToCSV} disabled={reportData.length === 0}>
@@ -246,42 +284,82 @@ export default function AlejandroReportPage() {
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Events</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{reportData.length}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Tickets</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{totalTickets.toLocaleString()}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                €{totalRevenue.toLocaleString('de-DE', { minimumFractionDigits: 2 })}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Alejandro Total Fee</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">
-                €{totalAlejandroFee.toLocaleString('de-DE', { minimumFractionDigits: 2 })}
-              </div>
-            </CardContent>
-          </Card>
+          {cardsLoading ? (
+            // Loading skeletons for cards
+            <>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Events</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Skeleton className="h-8 w-16" />
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Tickets</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Skeleton className="h-8 w-20" />
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Skeleton className="h-8 w-24" />
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Alejandro Total Fee</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Skeleton className="h-8 w-24" />
+                </CardContent>
+              </Card>
+            </>
+          ) : (
+            <>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Events</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{reportData.length}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Tickets</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{totalTickets.toLocaleString()}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    €{totalRevenue.toLocaleString('de-DE', { minimumFractionDigits: 2 })}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Alejandro Total Fee</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-green-600">
+                    €{totalAlejandroFee.toLocaleString('de-DE', { minimumFractionDigits: 2 })}
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          )}
         </div>
 
         {/* Report Table */}
@@ -290,73 +368,144 @@ export default function AlejandroReportPage() {
             <CardTitle>Event Report ({reportData.length} events)</CardTitle>
           </CardHeader>
           <CardContent>
-            {reportData.length === 0 ? (
+            {tableLoading ? (
+              // Loading skeleton for table
+              <div className="space-y-4">
+                {Array.from({ length: itemsPerPage }, (_, i) => (
+                  <Skeleton key={`table-skeleton-${i}`} className="h-12 w-full" />
+                ))}
+              </div>
+            ) : reportData.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 No events found for the selected filters.
               </div>
             ) : (
-              <div className="border rounded-lg">
-                <div className="max-h-[600px] overflow-auto">
-                  <Table>
-                    <TableHeader className="sticky top-0 bg-white border-b shadow-sm z-10">
-                      <TableRow>
-                        <TableHead className="min-w-[80px]">Month</TableHead>
-                        <TableHead className="min-w-[80px]">Year</TableHead>
-                        <TableHead className="min-w-[100px]">Product ID</TableHead>
-                        <TableHead className="min-w-[300px]">Product Name</TableHead>
-                        <TableHead className="min-w-[120px]">Category</TableHead>
-                        <TableHead className="min-w-[100px]">Program</TableHead>
-                        <TableHead className="min-w-[120px]">Event Date</TableHead>
-                        <TableHead className="min-w-[120px]">Country</TableHead>
-                        <TableHead className="min-w-[200px]">Reporting Group</TableHead>
-                        <TableHead className="min-w-[150px]">Trainer</TableHead>
-                        <TableHead className="min-w-[100px] text-right">Tickets</TableHead>
-                        <TableHead className="min-w-[120px] text-right">Revenue</TableHead>
-                        <TableHead className="min-w-[100px] text-right">Alejandro %</TableHead>
-                        <TableHead className="min-w-[120px] text-right">Alejandro Fee</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {reportData.map((row) => (
-                        <TableRow key={`${row.ProdID}-${row.EventDate}`}>
-                          <TableCell>{row.Month}</TableCell>
-                          <TableCell>{row.Year}</TableCell>
-                          <TableCell className="font-medium">{row.ProdID}</TableCell>
-                          <TableCell className="max-w-[300px] truncate" title={row.ProdName}>
-                            {row.ProdName}
-                          </TableCell>
-                          <TableCell>{row.Category}</TableCell>
-                          <TableCell>{row.Program}</TableCell>
-                          <TableCell>{new Date(row.EventDate).toLocaleDateString()}</TableCell>
-                          <TableCell>{row.Country}</TableCell>
-                          <TableCell className="max-w-[200px] truncate" title={row.ReportingGroup}>
-                            {row.ReportingGroup}
-                          </TableCell>
-                          <TableCell>{row.TrainerName}</TableCell>
-                          <TableCell className="text-right">
-                            {row.TotalTickets?.toLocaleString() || 0}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            €
-                            {(row.TotalRevenue || 0).toLocaleString('de-DE', {
-                              minimumFractionDigits: 2,
-                            })}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {(row.AlejandroPercent * 100).toFixed(1)}%
-                          </TableCell>
-                          <TableCell className="text-right text-green-600 font-medium">
-                            €
-                            {(row.AlejandroFee || 0).toLocaleString('de-DE', {
-                              minimumFractionDigits: 2,
-                            })}
-                          </TableCell>
+              <>
+                <div className="border rounded-lg">
+                  <div className="max-h-[600px] overflow-auto">
+                    <Table>
+                      <TableHeader className="sticky top-0 bg-white border-b shadow-sm z-10">
+                        <TableRow>
+                          <TableHead className="min-w-[80px]">Month</TableHead>
+                          <TableHead className="min-w-[80px]">Year</TableHead>
+                          <TableHead className="min-w-[100px]">Product ID</TableHead>
+                          <TableHead className="min-w-[300px]">Product Name</TableHead>
+                          <TableHead className="min-w-[120px]">Category</TableHead>
+                          <TableHead className="min-w-[100px]">Program</TableHead>
+                          <TableHead className="min-w-[120px]">Event Date</TableHead>
+                          <TableHead className="min-w-[120px]">Country</TableHead>
+                          <TableHead className="min-w-[200px]">Reporting Group</TableHead>
+                          <TableHead className="min-w-[150px]">Trainer</TableHead>
+                          <TableHead className="min-w-[100px] text-right">Tickets</TableHead>
+                          <TableHead className="min-w-[120px] text-right">Revenue</TableHead>
+                          <TableHead className="min-w-[100px] text-right">Alejandro %</TableHead>
+                          <TableHead className="min-w-[120px] text-right">Alejandro Fee</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {paginatedData.map((row) => (
+                          <TableRow key={`${row.ProdID}-${row.EventDate}`}>
+                            <TableCell>{row.Month}</TableCell>
+                            <TableCell>{row.Year}</TableCell>
+                            <TableCell className="font-medium">{row.ProdID}</TableCell>
+                            <TableCell className="max-w-[300px] truncate" title={row.ProdName}>
+                              {row.ProdName}
+                            </TableCell>
+                            <TableCell>{row.Category}</TableCell>
+                            <TableCell>{row.Program}</TableCell>
+                            <TableCell>{new Date(row.EventDate).toLocaleDateString()}</TableCell>
+                            <TableCell>{row.Country}</TableCell>
+                            <TableCell className="max-w-[200px] truncate" title={row.ReportingGroup}>
+                              {row.ReportingGroup}
+                            </TableCell>
+                            <TableCell>{row.TrainerName}</TableCell>
+                            <TableCell className="text-right">
+                              {row.TotalTickets?.toLocaleString() || 0}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              €
+                              {(row.TotalRevenue || 0).toLocaleString('de-DE', {
+                                minimumFractionDigits: 2,
+                              })}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {(row.AlejandroPercent * 100).toFixed(1)}%
+                            </TableCell>
+                            <TableCell className="text-right text-green-600 font-medium">
+                              €
+                              {(row.AlejandroFee || 0).toLocaleString('de-DE', {
+                                minimumFractionDigits: 2,
+                              })}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                 </div>
-              </div>
+                
+                {/* Pagination */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between space-x-2 py-4">
+                    <div className="text-sm text-muted-foreground">
+                      Showing {((currentPage - 1) * itemsPerPage) + 1} to{' '}
+                      {Math.min(currentPage * itemsPerPage, reportData.length)} of{' '}
+                      {reportData.length} results
+                    </div>
+                    <Pagination>
+                      <PaginationContent>
+                        <PaginationItem>
+                          <PaginationPrevious 
+                            onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
+                            className={currentPage <= 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                          />
+                        </PaginationItem>
+                        
+                        {/* Page numbers */}
+                        {[...Array(totalPages)].map((_, index) => {
+                          const page = index + 1;
+                          const isCurrentPage = page === currentPage;
+                          const showPage = 
+                            page === 1 ||
+                            page === totalPages ||
+                            (page >= currentPage - 1 && page <= currentPage + 1);
+                          
+                          if (!showPage) {
+                            // Show ellipsis for gaps
+                            if (page === currentPage - 2 || page === currentPage + 2) {
+                              return (
+                                <PaginationItem key={`ellipsis-${page}`}>
+                                  <PaginationEllipsis />
+                                </PaginationItem>
+                              );
+                            }
+                            return null;
+                          }
+                          
+                          return (
+                            <PaginationItem key={page}>
+                              <PaginationLink
+                                onClick={() => handlePageChange(page)}
+                                isActive={isCurrentPage}
+                                className="cursor-pointer"
+                              >
+                                {page}
+                              </PaginationLink>
+                            </PaginationItem>
+                          );
+                        })}
+                        
+                        <PaginationItem>
+                          <PaginationNext 
+                            onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
+                            className={currentPage >= totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                          />
+                        </PaginationItem>
+                      </PaginationContent>
+                    </Pagination>
+                  </div>
+                )}
+              </>
             )}
           </CardContent>
         </Card>

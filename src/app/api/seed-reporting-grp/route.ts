@@ -9,6 +9,11 @@ export async function POST(request: NextRequest) {
       return authResult.error;
     }
 
+    // Type guard to ensure user exists
+    if (!authResult.user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 401 });
+    }
+
     // Only allow admin users to seed data
     if (authResult.user.role !== 'admin') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
