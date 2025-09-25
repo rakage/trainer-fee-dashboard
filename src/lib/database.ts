@@ -1484,23 +1484,26 @@ export class DatabaseService {
               END
             ELSE NULL
           END AS CoTrainer1,
-          -- Extract Co Trainer 2 (between second & and third &, or after second & if no third &)
+          -- Extract Co Trainer 2 (only if there are at least 3 trainers - between second & and third &, or after second & if no third &)
           CASE 
-            WHEN CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers) + 1) > 0 THEN
+            WHEN CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers) + 3) > 0 THEN
+              -- There is a second & (meaning at least 3 trainers)
               CASE 
-                WHEN CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers) + 1) + 1) > 0 
+                -- Check if there's a third & (meaning 4 trainers)
+                WHEN CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers) + 3) + 3) > 0 
                 THEN LTRIM(RTRIM(SUBSTRING(NormalizedTrainers, 
-                  CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers) + 1) + 3, 
-                  CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers) + 1) + 1) - CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers) + 1) - 3
+                  CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers) + 3) + 3, 
+                  CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers) + 3) + 3) - CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers) + 3) - 3
                 )))
-                ELSE LTRIM(RTRIM(SUBSTRING(NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers) + 1) + 3, LEN(NormalizedTrainers))))
+                -- No third &, so extract everything after second &
+                ELSE LTRIM(RTRIM(SUBSTRING(NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers) + 3) + 3, LEN(NormalizedTrainers))))
               END
             ELSE NULL
           END AS CoTrainer2,
-          -- Extract Co Trainer 3 (after third &)
+          -- Extract Co Trainer 3 (only if there are 4 trainers - after third &)
           CASE 
-            WHEN CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers) + 1) + 1) > 0 
-            THEN LTRIM(RTRIM(SUBSTRING(NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers) + 1) + 1) + 3, LEN(NormalizedTrainers))))
+            WHEN CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers) + 3) + 3) > 0 
+            THEN LTRIM(RTRIM(SUBSTRING(NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers) + 3) + 3) + 3, LEN(NormalizedTrainers))))
             ELSE NULL
           END AS CoTrainer3
         from trainer_split
