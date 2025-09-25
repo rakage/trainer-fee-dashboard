@@ -1432,11 +1432,21 @@ export class DatabaseService {
           e.ReportingGroup,
           COALESCE(od.TotalTickets, 0) as TotalTickets,
           COALESCE(od.TotalRevenue, 0) as TotalRevenue,
-          -- Extract trainer names from ProdName (between 'with ' and first comma after 'with ')
+          -- Extract trainer names from ProdName (between 'with ' and location/venue indicator)
           CASE 
             WHEN e.ProdName LIKE '% with %' THEN 
               LTRIM(RTRIM(SUBSTRING(e.ProdName, CHARINDEX(' with ', e.ProdName) + 6, 
-                CHARINDEX(',', e.ProdName, CHARINDEX(' with ', e.ProdName)) - CHARINDEX(' with ', e.ProdName) - 6
+                CASE 
+                  -- Find the first occurrence of location indicators after 'with '
+                  WHEN CHARINDEX(', Venue,', e.ProdName, CHARINDEX(' with ', e.ProdName)) > 0 
+                    THEN CHARINDEX(', Venue,', e.ProdName, CHARINDEX(' with ', e.ProdName)) - CHARINDEX(' with ', e.ProdName) - 6
+                  WHEN CHARINDEX(', Online,', e.ProdName, CHARINDEX(' with ', e.ProdName)) > 0 
+                    THEN CHARINDEX(', Online,', e.ProdName, CHARINDEX(' with ', e.ProdName)) - CHARINDEX(' with ', e.ProdName) - 6
+                  WHEN CHARINDEX(', Presencial,', e.ProdName, CHARINDEX(' with ', e.ProdName)) > 0 
+                    THEN CHARINDEX(', Presencial,', e.ProdName, CHARINDEX(' with ', e.ProdName)) - CHARINDEX(' with ', e.ProdName) - 6
+                  -- Fallback to first comma if no location indicators found
+                  ELSE CHARINDEX(',', e.ProdName, CHARINDEX(' with ', e.ProdName)) - CHARINDEX(' with ', e.ProdName) - 6
+                END
               )))
             ELSE COALESCE(e.Vendor, 'Unknown')
           END AS TrainerString
