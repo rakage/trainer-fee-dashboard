@@ -1432,65 +1432,68 @@ export class DatabaseService {
           e.ReportingGroup,
           COALESCE(od.TotalTickets, 0) as TotalTickets,
           COALESCE(od.TotalRevenue, 0) as TotalRevenue,
-          -- Extract trainer names from ProdName
+          -- Extract trainer names from ProdName (between 'with ' and first comma after 'with ')
           CASE 
             WHEN e.ProdName LIKE '% with %' THEN 
               LTRIM(RTRIM(SUBSTRING(e.ProdName, CHARINDEX(' with ', e.ProdName) + 6, 
-                CASE 
-                  WHEN CHARINDEX(',', e.ProdName, CHARINDEX(' with ', e.ProdName)) > 0 
-                  THEN CHARINDEX(',', e.ProdName, CHARINDEX(' with ', e.ProdName)) - CHARINDEX(' with ', e.ProdName) - 6
-                  ELSE LEN(e.ProdName) - CHARINDEX(' with ', e.ProdName) - 5
-                END
+                CHARINDEX(',', e.ProdName, CHARINDEX(' with ', e.ProdName)) - CHARINDEX(' with ', e.ProdName) - 6
               )))
             ELSE COALESCE(e.Vendor, 'Unknown')
           END AS TrainerString
         from EventDataRaw e
         left join OrderData od on e.ProdID = od.ProductId
-        where e.Category in ('Instructor training', 'Method Training')
+        )
+        , trainer_split as (
+        select 
+          Month, Year, ProdID, ProdName, Category, Program, EventDate, Country, ReportingGroup,
+          TotalTickets, TotalRevenue, TrainerString,
+          -- Replace comma-space with & to normalize separators, then split
+          REPLACE(TrainerString, ', ', ' & ') AS NormalizedTrainers
+        from trainer_extraction
         )
         , final_report as (
         select 
           Month, Year, ProdID, ProdName, Category, Program, EventDate, Country, ReportingGroup,
           TotalTickets, TotalRevenue,
-          -- Extract Main Trainer (first trainer before & or entire string if no &)
+          -- Extract Main Trainer (first trainer before first &)
           CASE 
-            WHEN CHARINDEX(' & ', TrainerString) > 0 
-            THEN LTRIM(RTRIM(SUBSTRING(TrainerString, 1, CHARINDEX(' & ', TrainerString) - 1)))
-            ELSE LTRIM(RTRIM(TrainerString))
+            WHEN CHARINDEX(' & ', NormalizedTrainers) > 0 
+            THEN LTRIM(RTRIM(SUBSTRING(NormalizedTrainers, 1, CHARINDEX(' & ', NormalizedTrainers) - 1)))
+            ELSE LTRIM(RTRIM(NormalizedTrainers))
           END AS MainTrainer,
           -- Extract Co Trainer 1 (between first & and second &, or after first & if no second &)
           CASE 
-            WHEN CHARINDEX(' & ', TrainerString) > 0 THEN
+            WHEN CHARINDEX(' & ', NormalizedTrainers) > 0 THEN
               CASE 
-                WHEN CHARINDEX(' & ', TrainerString, CHARINDEX(' & ', TrainerString) + 1) > 0 
-                THEN LTRIM(RTRIM(SUBSTRING(TrainerString, 
-                  CHARINDEX(' & ', TrainerString) + 3, 
-                  CHARINDEX(' & ', TrainerString, CHARINDEX(' & ', TrainerString) + 1) - CHARINDEX(' & ', TrainerString) - 3
+                WHEN CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers) + 1) > 0 
+                THEN LTRIM(RTRIM(SUBSTRING(NormalizedTrainers, 
+                  CHARINDEX(' & ', NormalizedTrainers) + 3, 
+                  CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers) + 1) - CHARINDEX(' & ', NormalizedTrainers) - 3
                 )))
-                ELSE LTRIM(RTRIM(SUBSTRING(TrainerString, CHARINDEX(' & ', TrainerString) + 3, LEN(TrainerString))))
+                ELSE LTRIM(RTRIM(SUBSTRING(NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers) + 3, LEN(NormalizedTrainers))))
               END
             ELSE NULL
           END AS CoTrainer1,
           -- Extract Co Trainer 2 (between second & and third &, or after second & if no third &)
           CASE 
-            WHEN CHARINDEX(' & ', TrainerString, CHARINDEX(' & ', TrainerString) + 1) > 0 THEN
+            WHEN CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers) + 1) > 0 THEN
               CASE 
-                WHEN CHARINDEX(' & ', TrainerString, CHARINDEX(' & ', TrainerString, CHARINDEX(' & ', TrainerString) + 1) + 1) > 0 
-                THEN LTRIM(RTRIM(SUBSTRING(TrainerString, 
-                  CHARINDEX(' & ', TrainerString, CHARINDEX(' & ', TrainerString) + 1) + 3, 
-                  CHARINDEX(' & ', TrainerString, CHARINDEX(' & ', TrainerString, CHARINDEX(' & ', TrainerString) + 1) + 1) - CHARINDEX(' & ', TrainerString, CHARINDEX(' & ', TrainerString) + 1) - 3
+                WHEN CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers) + 1) + 1) > 0 
+                THEN LTRIM(RTRIM(SUBSTRING(NormalizedTrainers, 
+                  CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers) + 1) + 3, 
+                  CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers) + 1) + 1) - CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers) + 1) - 3
                 )))
-                ELSE LTRIM(RTRIM(SUBSTRING(TrainerString, CHARINDEX(' & ', TrainerString, CHARINDEX(' & ', TrainerString) + 1) + 3, LEN(TrainerString))))
+                ELSE LTRIM(RTRIM(SUBSTRING(NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers) + 1) + 3, LEN(NormalizedTrainers))))
               END
             ELSE NULL
           END AS CoTrainer2,
           -- Extract Co Trainer 3 (after third &)
           CASE 
-            WHEN CHARINDEX(' & ', TrainerString, CHARINDEX(' & ', TrainerString, CHARINDEX(' & ', TrainerString) + 1) + 1) > 0 
-            THEN LTRIM(RTRIM(SUBSTRING(TrainerString, CHARINDEX(' & ', TrainerString, CHARINDEX(' & ', TrainerString, CHARINDEX(' & ', TrainerString) + 1) + 1) + 3, LEN(TrainerString))))
+            WHEN CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers) + 1) + 1) > 0 
+            THEN LTRIM(RTRIM(SUBSTRING(NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers, CHARINDEX(' & ', NormalizedTrainers) + 1) + 1) + 3, LEN(NormalizedTrainers))))
             ELSE NULL
           END AS CoTrainer3
-        from trainer_extraction
+        from trainer_split
         )
         select *
         from final_report
