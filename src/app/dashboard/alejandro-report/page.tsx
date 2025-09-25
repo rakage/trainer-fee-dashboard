@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { DashboardLayout } from '@/components/dashboard/layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -85,34 +85,36 @@ export default function AlejandroReportPage() {
   // React Query for report data
   const {
     data: reportData = [],
-    isLoading,
+    isFetching,
     refetch,
   } = useQuery({
     queryKey: ['alejandro-report', filters.year, filters.month],
     queryFn: async () => {
-      // Set loading states for cards and table
-      setCardsLoading(true);
-      setTableLoading(true);
-      
-      try {
-        const params = new URLSearchParams();
-        if (filters.year && filters.year !== 'all') params.set('year', filters.year);
-        if (filters.month && filters.month !== 'all') params.set('month', filters.month);
+      const params = new URLSearchParams();
+      if (filters.year && filters.year !== 'all') params.set('year', filters.year);
+      if (filters.month && filters.month !== 'all') params.set('month', filters.month);
 
-        const response = await fetch(`/api/alejandro-report?${params.toString()}`);
-        if (!response.ok) throw new Error('Failed to fetch report data');
-        const data = await response.json() as AlejandroReportData[];
-        
-        // Reset current page when filters change
-        setCurrentPage(1);
-        
-        return data;
-      } finally {
-        setCardsLoading(false);
-        setTableLoading(false);
-      }
+      const response = await fetch(`/api/alejandro-report?${params.toString()}`);
+      if (!response.ok) throw new Error('Failed to fetch report data');
+      const data = await response.json() as AlejandroReportData[];
+      
+      // Reset current page when filters change
+      setCurrentPage(1);
+      
+      return data;
     },
   });
+
+  // Set loading states based on query status
+  React.useEffect(() => {
+    if (isFetching) {
+      setCardsLoading(true);
+      setTableLoading(true);
+    } else {
+      setCardsLoading(false);
+      setTableLoading(false);
+    }
+  }, [isFetching]);
 
   const handleFilterChange = (field: string, value: string) => {
     setFilters((prev) => ({ ...prev, [field]: value }));
@@ -187,31 +189,6 @@ export default function AlejandroReportPage() {
     setCurrentPage(page);
   };
 
-  if (isLoading) {
-    return (
-      <DashboardLayout>
-        <div className="container mx-auto p-6 space-y-6">
-          <div className="flex items-center justify-between">
-            <Skeleton className="h-9 w-96" />
-          </div>
-          <Card>
-            <CardContent className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <Skeleton className="h-20" />
-                <Skeleton className="h-20" />
-                <Skeleton className="h-20" />
-              </div>
-              <div className="space-y-4">
-                {Array.from({ length: 8 }, (_, i) => (
-                  <Skeleton key={`skeleton-row-${i}`} className="h-12 w-full" />
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </DashboardLayout>
-    );
-  }
 
   return (
     <DashboardLayout>
