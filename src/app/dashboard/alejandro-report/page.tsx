@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { DashboardLayout } from '@/components/dashboard/layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,40 +15,11 @@ import {
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Download, RefreshCw } from 'lucide-react';
+import { DataTable } from '@/components/ui/data-table';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import {
-  Pagination,
-  PaginationContent,
-  PaginationEllipsis,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from '@/components/ui/pagination';
-
-interface AlejandroReportData {
-  Month: string;
-  Year: number;
-  ProdID: number;
-  ProdName: string;
-  Category: string;
-  Program: string;
-  EventDate: string;
-  Country: string;
-  ReportingGroup: string;
-  TrainerName: string;
-  TotalTickets: number;
-  TotalRevenue: number;
-  AlejandroPercent: number;
-  AlejandroFee: number;
-}
+  alejandroReportColumns,
+  AlejandroReportData,
+} from '@/components/dashboard/columns/alejandro-report-columns';
 
 const monthOptions = [
   { value: 'all', label: 'All Months' },
@@ -77,8 +48,6 @@ export default function AlejandroReportPage() {
     year: 'all',
     month: 'all',
   });
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
   const [cardsLoading, setCardsLoading] = useState(false);
   const [tableLoading, setTableLoading] = useState(false);
 
@@ -96,11 +65,8 @@ export default function AlejandroReportPage() {
 
       const response = await fetch(`/api/alejandro-report?${params.toString()}`);
       if (!response.ok) throw new Error('Failed to fetch report data');
-      const data = await response.json() as AlejandroReportData[];
-      
-      // Reset current page when filters change
-      setCurrentPage(1);
-      
+      const data = (await response.json()) as AlejandroReportData[];
+
       return data;
     },
   });
@@ -173,22 +139,10 @@ export default function AlejandroReportPage() {
     link.click();
   };
 
-  // Calculate totals and pagination
+  // Calculate totals
   const totalTickets = reportData.reduce((sum, row) => sum + (row.TotalTickets || 0), 0);
   const totalRevenue = reportData.reduce((sum, row) => sum + (row.TotalRevenue || 0), 0);
   const totalAlejandroFee = reportData.reduce((sum, row) => sum + (row.AlejandroFee || 0), 0);
-
-  // Pagination logic
-  const totalPages = Math.ceil(reportData.length / itemsPerPage);
-  const paginatedData = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    return reportData.slice(startIndex, startIndex + itemsPerPage);
-  }, [reportData, currentPage, itemsPerPage]);
-
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-  };
-
 
   return (
     <DashboardLayout>
@@ -348,141 +302,19 @@ export default function AlejandroReportPage() {
             {tableLoading ? (
               // Loading skeleton for table
               <div className="space-y-4">
-                {Array.from({ length: itemsPerPage }, (_, i) => (
+                {Array.from({ length: 10 }, (_, i) => (
                   <Skeleton key={`table-skeleton-${i}`} className="h-12 w-full" />
                 ))}
               </div>
-            ) : reportData.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                No events found for the selected filters.
-              </div>
             ) : (
-              <>
-                <div className="border rounded-lg">
-                  <div className="max-h-[600px] overflow-auto">
-                    <Table>
-                      <TableHeader className="sticky top-0 bg-white border-b shadow-sm z-10">
-                        <TableRow>
-                          <TableHead className="min-w-[80px]">Month</TableHead>
-                          <TableHead className="min-w-[80px]">Year</TableHead>
-                          <TableHead className="min-w-[100px]">Product ID</TableHead>
-                          <TableHead className="min-w-[300px]">Product Name</TableHead>
-                          <TableHead className="min-w-[120px]">Category</TableHead>
-                          <TableHead className="min-w-[100px]">Program</TableHead>
-                          <TableHead className="min-w-[120px]">Event Date</TableHead>
-                          <TableHead className="min-w-[120px]">Country</TableHead>
-                          <TableHead className="min-w-[200px]">Reporting Group</TableHead>
-                          <TableHead className="min-w-[150px]">Trainer</TableHead>
-                          <TableHead className="min-w-[100px] text-right">Tickets</TableHead>
-                          <TableHead className="min-w-[120px] text-right">Revenue</TableHead>
-                          <TableHead className="min-w-[100px] text-right">Alejandro %</TableHead>
-                          <TableHead className="min-w-[120px] text-right">Alejandro Fee</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {paginatedData.map((row) => (
-                          <TableRow key={`${row.ProdID}-${row.EventDate}`}>
-                            <TableCell>{row.Month}</TableCell>
-                            <TableCell>{row.Year}</TableCell>
-                            <TableCell className="font-medium">{row.ProdID}</TableCell>
-                            <TableCell className="max-w-[300px] truncate" title={row.ProdName}>
-                              {row.ProdName}
-                            </TableCell>
-                            <TableCell>{row.Category}</TableCell>
-                            <TableCell>{row.Program}</TableCell>
-                            <TableCell>{new Date(row.EventDate).toLocaleDateString()}</TableCell>
-                            <TableCell>{row.Country}</TableCell>
-                            <TableCell className="max-w-[200px] truncate" title={row.ReportingGroup}>
-                              {row.ReportingGroup}
-                            </TableCell>
-                            <TableCell>{row.TrainerName}</TableCell>
-                            <TableCell className="text-right">
-                              {row.TotalTickets?.toLocaleString() || 0}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              €
-                              {(row.TotalRevenue || 0).toLocaleString('de-DE', {
-                                minimumFractionDigits: 2,
-                              })}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              {(row.AlejandroPercent * 100).toFixed(1)}%
-                            </TableCell>
-                            <TableCell className="text-right text-green-600 font-medium">
-                              €
-                              {(row.AlejandroFee || 0).toLocaleString('de-DE', {
-                                minimumFractionDigits: 2,
-                              })}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </div>
-                
-                {/* Pagination */}
-                {totalPages > 1 && (
-                  <div className="flex items-center justify-between space-x-2 py-4">
-                    <div className="text-sm text-muted-foreground">
-                      Showing {((currentPage - 1) * itemsPerPage) + 1} to{' '}
-                      {Math.min(currentPage * itemsPerPage, reportData.length)} of{' '}
-                      {reportData.length} results
-                    </div>
-                    <Pagination>
-                      <PaginationContent>
-                        <PaginationItem>
-                          <PaginationPrevious 
-                            onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
-                            className={currentPage <= 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
-                          />
-                        </PaginationItem>
-                        
-                        {/* Page numbers */}
-                        {[...Array(totalPages)].map((_, index) => {
-                          const page = index + 1;
-                          const isCurrentPage = page === currentPage;
-                          const showPage = 
-                            page === 1 ||
-                            page === totalPages ||
-                            (page >= currentPage - 1 && page <= currentPage + 1);
-                          
-                          if (!showPage) {
-                            // Show ellipsis for gaps
-                            if (page === currentPage - 2 || page === currentPage + 2) {
-                              return (
-                                <PaginationItem key={`ellipsis-${page}`}>
-                                  <PaginationEllipsis />
-                                </PaginationItem>
-                              );
-                            }
-                            return null;
-                          }
-                          
-                          return (
-                            <PaginationItem key={page}>
-                              <PaginationLink
-                                onClick={() => handlePageChange(page)}
-                                isActive={isCurrentPage}
-                                className="cursor-pointer"
-                              >
-                                {page}
-                              </PaginationLink>
-                            </PaginationItem>
-                          );
-                        })}
-                        
-                        <PaginationItem>
-                          <PaginationNext 
-                            onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
-                            className={currentPage >= totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
-                          />
-                        </PaginationItem>
-                      </PaginationContent>
-                    </Pagination>
-                  </div>
-                )}
-              </>
+              <DataTable
+                columns={alejandroReportColumns}
+                data={reportData}
+                searchKey="ProdName"
+                searchPlaceholder="Search events..."
+                enableColumnVisibility={true}
+                enableRowSelection={false}
+              />
             )}
           </CardContent>
         </Card>

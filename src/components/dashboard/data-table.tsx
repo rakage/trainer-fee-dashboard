@@ -1,12 +1,13 @@
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { DataTable } from '@/components/ui/data-table';
 import { EventDetail } from '@/types';
 import { formatCurrency, formatPercentage, calculateEventSummary } from '@/lib/utils';
+import { eventDetailColumns } from './columns/event-detail-columns';
 
 interface EventDataTableProps {
-  event: EventDetail;
+  readonly event: EventDetail;
 }
 
 export function EventDataTable({ event }: EventDataTableProps) {
@@ -21,41 +22,14 @@ export function EventDataTable({ event }: EventDataTableProps) {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Attendance</TableHead>
-              <TableHead>Payment Method</TableHead>
-              <TableHead>Tier Level</TableHead>
-              <TableHead className="text-right">Price</TableHead>
-              <TableHead className="text-right">Trainer Fee %</TableHead>
-              <TableHead className="text-right">Quantity</TableHead>
-              <TableHead className="text-right">Total Revenue</TableHead>
-              <TableHead className="text-right">Total Trainer Fee</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {summaryData.map((row, index) => (
-              <TableRow key={index}>
-                <TableCell className="font-medium">{row.Attendance}</TableCell>
-                <TableCell>{row.PaymentMethod || 'N/A'}</TableCell>
-                <TableCell>{row.TierLevel || 'N/A'}</TableCell>
-                <TableCell className="text-right">{formatCurrency(row.PriceTotal)}</TableCell>
-                <TableCell className="text-right">{formatPercentage(row.TrainerFeePct)}</TableCell>
-                <TableCell className="text-right">{row.sumQuantity}</TableCell>
-                <TableCell className="text-right">{formatCurrency(row.sumPriceTotal)}</TableCell>
-                <TableCell className="text-right">{formatCurrency(row.sumTrainerFee)}</TableCell>
-              </TableRow>
-            ))}
-            {summaryData.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={8} className="text-center text-muted-foreground">
-                  No ticket data available
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
+        <DataTable
+          columns={eventDetailColumns}
+          data={summaryData}
+          searchKey="Attendance"
+          searchPlaceholder="Filter by attendance..."
+          enableColumnVisibility={true}
+          enableRowSelection={false}
+        />
         
         {summaryData.length > 0 && (
           <div className="mt-4 pt-4 border-t">
