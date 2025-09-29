@@ -38,6 +38,7 @@ interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   searchKey?: string;
+  searchKeys?: string[];
   searchPlaceholder?: string;
   enableRowSelection?: boolean;
   enableColumnVisibility?: boolean;
@@ -48,15 +49,17 @@ export function DataTable<TData, TValue>({
   columns,
   data,
   searchKey,
+  searchKeys,
   searchPlaceholder = 'Search...',
   enableRowSelection = false,
   enableColumnVisibility = true,
   className,
-}: DataTableProps<TData, TValue>) {
+}: Readonly<DataTableProps<TData, TValue>>) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
+  const [globalFilter, setGlobalFilter] = React.useState('');
 
   const table = useReactTable({
     data,
@@ -69,11 +72,38 @@ export function DataTable<TData, TValue>({
     getFilteredRowModel: getFilteredRowModel(),
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
+    onGlobalFilterChange: setGlobalFilter,
+    globalFilterFn: (row, columnId, value) => {
+      // If searchKeys is provided, search across multiple columns
+      if (searchKeys && searchKeys.length > 0) {
+        return searchKeys.some((key) => {
+          const cellValue = row.getValue(key);
+          if (cellValue == null) return false;
+          const stringValue =
+            typeof cellValue === 'string' || typeof cellValue === 'number'
+              ? cellValue.toString()
+              : JSON.stringify(cellValue);
+          return stringValue.toLowerCase().includes(value.toLowerCase());
+        });
+      }
+      // Fallback to searchKey if searchKeys not provided
+      if (searchKey) {
+        const cellValue = row.getValue(searchKey);
+        if (cellValue == null) return false;
+        const stringValue =
+          typeof cellValue === 'string' || typeof cellValue === 'number'
+            ? cellValue.toString()
+            : JSON.stringify(cellValue);
+        return stringValue.toLowerCase().includes(value.toLowerCase());
+      }
+      return false;
+    },
     state: {
       sorting,
       columnFilters,
       columnVisibility,
       rowSelection,
+      globalFilter,
     },
   });
 
@@ -81,11 +111,11 @@ export function DataTable<TData, TValue>({
     <div className={className}>
       <div className="flex items-center justify-between py-4">
         <div className="flex flex-1 items-center space-x-2">
-          {searchKey && (
+          {(searchKey || searchKeys) && (
             <Input
               placeholder={searchPlaceholder}
-              value={(table.getColumn(searchKey)?.getFilterValue() as string) ?? ''}
-              onChange={(event) => table.getColumn(searchKey)?.setFilterValue(event.target.value)}
+              value={globalFilter ?? ''}
+              onChange={(event) => setGlobalFilter(event.target.value)}
               className="max-w-sm"
             />
           )}

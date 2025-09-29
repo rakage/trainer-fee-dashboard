@@ -310,8 +310,8 @@ export default function AlejandroReportPage() {
               <DataTable
                 columns={alejandroReportColumns}
                 data={reportData}
-                searchKey="ProdName"
-                searchPlaceholder="Search events..."
+                searchKeys={['ProdID', 'ProdName', 'Country', 'TrainerName', 'Program', 'Category']}
+                searchPlaceholder="Search by Product ID, Name, Country, Trainer, Program, or Category..."
                 enableColumnVisibility={true}
                 enableRowSelection={false}
               />
