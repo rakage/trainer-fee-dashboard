@@ -16,7 +16,10 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { Download, RefreshCw } from 'lucide-react';
 import { DataTable } from '@/components/ui/data-table';
-import { alejandroEventsColumns, AlejandroEventData } from '@/components/dashboard/columns/alejandro-events-columns';
+import {
+  alejandroEventsColumns,
+  AlejandroEventData,
+} from '@/components/dashboard/columns/alejandro-events-columns';
 
 const monthOptions = [
   { value: 'all', label: 'All Months' },
@@ -62,9 +65,8 @@ export default function AlejandroEventsPage() {
 
       const response = await fetch(`/api/alejandro-events?${params.toString()}`);
       if (!response.ok) throw new Error('Failed to fetch events data');
-      const data = await response.json() as AlejandroEventData[];
-      
-      
+      const data = (await response.json()) as AlejandroEventData[];
+
       return data;
     },
   });
@@ -142,8 +144,6 @@ export default function AlejandroEventsPage() {
   // Calculate totals and pagination
   const totalTickets = eventsData.reduce((sum, row) => sum + (row.TotalTickets || 0), 0);
   const totalRevenue = eventsData.reduce((sum, row) => sum + (row.TotalRevenue || 0), 0);
-
-
 
   return (
     <DashboardLayout>
@@ -293,8 +293,18 @@ export default function AlejandroEventsPage() {
               <DataTable
                 columns={alejandroEventsColumns}
                 data={eventsData}
-                searchKey="ProdName"
-                searchPlaceholder="Search events..."
+                searchKeys={[
+                  'ProdID',
+                  'ProdName',
+                  'Country',
+                  'MainTrainer',
+                  'CoTrainer1',
+                  'CoTrainer2',
+                  'CoTrainer3',
+                  'Program',
+                  'Category',
+                ]}
+                searchPlaceholder="Search by Product ID, Name, Country, Trainer, Program, or Category..."
                 enableColumnVisibility={true}
                 enableRowSelection={false}
               />
