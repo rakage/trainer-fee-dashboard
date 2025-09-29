@@ -121,7 +121,7 @@ export const alejandroEventsColumns: ColumnDef<AlejandroEventData>[] = [
   {
     accessorKey: 'TotalRevenue',
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Revenue" className="text-right" />
+      <DataTableColumnHeader column={column} title="Alejandro Fee" className="text-right" />
     ),
     cell: ({ row }) => {
       const amount = parseFloat(row.getValue('TotalRevenue'));
