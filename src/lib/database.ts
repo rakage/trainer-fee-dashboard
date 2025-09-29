@@ -265,11 +265,24 @@ export class DatabaseService {
           , row_number() over(partition by orderid, prodid, customerid order by eventdate asc) rn
         from base
       )
+      , giftcard_usage as (
+      SELECT 
+        gc.GiftCardCouponCode AS CouponCode,
+        gcuh.UsedValue AS UsedAmount,
+        gcuh.UsedWithOrderId AS OrderId
+    FROM GiftCardUsageHistory gcuh
+    INNER JOIN GiftCard gc ON gcuh.GiftCardId = gc.Id
+      )
       , final_1 as (
         select 
-            OrderID, DatePaid, EventDate, ProdID, ProdName, Category, Program,
-            quantity, ProductPrice, UnitPrice, PriceTotal, TierLevel, Vendor, Country,
-            CustomerID, Customer, PaymentMethod, Attendance, PaymentStatus, StockQuantity,
+            a.OrderID, a.DatePaid, a.EventDate, a.ProdID, a.ProdName, a.Category, a.Program,
+            a.quantity, a.ProductPrice, a.UnitPrice, a.PriceTotal, a.TierLevel, a.Vendor, a.Country,
+            a.CustomerID, a.Customer, 
+            case
+              when b.OrderId is not null then 'Online Payment'
+              else a.PaymentMethod
+            end as PaymentMethod
+            , a.Attendance, a.PaymentStatus, a.StockQuantity,
             CASE 
                 WHEN ProdName LIKE '%Online%' and ProdName LIKE '%Global%' THEN 'OnlineGlobal'
                 WHEN ProdName LIKE '%Online%' or ProdName LIKE '%En Linea%' or ProdName LIKE '%En LÃ­nea%' THEN 'Online'
@@ -304,7 +317,8 @@ export class DatabaseService {
                 -- Fallback to Vendor if no "with" pattern found
                 ELSE COALESCE(Vendor, 'Unknown')
             END AS TrainerName
-        from finals
+        from finals a
+        left join giftcard_usage b on a.OrderID = b.OrderId
         where rn = 1
       )
       select *
