@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
 import { DashboardLayout } from '@/components/dashboard/layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -155,6 +156,12 @@ export default function AlejandroEventsPage() {
   const totalNetRevenue = eventsData.reduce((sum, row) => sum + (row.NetRevenue || 0), 0);
   const totalAlejandroFee = eventsData.reduce((sum, row) => sum + (row.AlejandroFee || 0), 0);
   const totalExpenses = eventsData.reduce((sum, row) => sum + (row.TotalExpenses || 0), 0);
+
+  const router = useRouter();
+
+  const handleRowClick = (row: AlejandroEventData) => {
+    router.push(`/dashboard?eventid=${row.ProdID}`);
+  };
 
   return (
     <DashboardLayout>
@@ -372,6 +379,7 @@ export default function AlejandroEventsPage() {
                 searchPlaceholder="Search by Product ID, Name, Country, Trainer, Program, or Category..."
                 enableColumnVisibility={true}
                 enableRowSelection={false}
+                onRowClick={handleRowClick}
               />
             )}
           </CardContent>
