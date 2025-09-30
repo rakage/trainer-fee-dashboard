@@ -32,7 +32,7 @@ export default function DashboardClient() {
   const [trainerFeeTotal, setTrainerFeeTotal] = useState<number | undefined>(undefined);
 
   // React Query to fetch event by ID from URL parameter
-  const { data: urlEvent, isLoading: isUrlEventLoading, isError, refetch } = useQuery({
+  const { data: urlEventResponse, isLoading: isUrlEventLoading, isError, refetch } = useQuery({
     queryKey: ['event-by-id', eventIdFromUrl],
     queryFn: async () => {
       if (!eventIdFromUrl) return null;
@@ -44,22 +44,23 @@ export default function DashboardClient() {
         }
         throw new Error('Failed to fetch event');
       }
-      return (await response.json()) as EventDetail;
+      const result = await response.json();
+      return result;
     },
     enabled: !!eventIdFromUrl && !selectedEvent, // Only run if event ID exists and no event is already selected
   });
 
   useEffect(() => {
-    if (urlEvent) {
-      handleEventSelect(urlEvent);
+    if (urlEventResponse?.success && urlEventResponse.data?.event) {
+      handleEventSelect(urlEventResponse.data.event);
     }
-  }, [urlEvent]);
+  }, [urlEventResponse]);
 
   useEffect(() => {
-    if (isError && eventIdFromUrl) {
-      setEventError('Event not found');
+    if (urlEventResponse?.success === false && eventIdFromUrl) {
+      setEventError(urlEventResponse.error || 'Event not found');
     }
-  }, [isError, eventIdFromUrl]);
+  }, [urlEventResponse, eventIdFromUrl]);
 
   const handleEventSelect = (event: EventDetail | null) => {
     setSelectedEvent(event);
