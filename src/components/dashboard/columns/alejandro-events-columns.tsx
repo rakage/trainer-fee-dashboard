@@ -24,6 +24,8 @@ export interface AlejandroEventData {
   AlejandroFee: number;
   TotalExpenses: number;
   ExpenseCount: number;
+  TrainerFeePercent: number;
+  NetRevenue: number;
 }
 
 export const alejandroEventsColumns: ColumnDef<AlejandroEventData>[] = [
@@ -129,6 +131,26 @@ export const alejandroEventsColumns: ColumnDef<AlejandroEventData>[] = [
     cell: ({ row }) => {
       const amount = parseFloat(row.getValue('TotalRevenue'));
       return <div className="text-right font-medium">{formatCurrency(amount)}</div>;
+    },
+  },
+  {
+    accessorKey: 'NetRevenue',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Net Revenue" className="text-right" />
+    ),
+    cell: ({ row }) => {
+      const amount = parseFloat(row.getValue('NetRevenue'));
+      return <div className="text-right font-medium">{formatCurrency(amount)}</div>;
+    },
+  },
+  {
+    accessorKey: 'TrainerFeePercent',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Fee %" className="text-right" />
+    ),
+    cell: ({ row }) => {
+      const percent = parseFloat(row.getValue('TrainerFeePercent'));
+      return <div className="text-right font-medium">{percent}%</div>;
     },
   },
   {

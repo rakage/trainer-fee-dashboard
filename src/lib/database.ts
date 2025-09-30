@@ -1569,23 +1569,75 @@ export class DatabaseService {
             0
           );
 
-          // Calculate Alejandro Fee (assuming it's the trainer fee based on total revenue)
-          // This is a simplified calculation - you may need to adjust based on your business logic
-          const alejandroFee = event.TotalRevenue * 0.5; // Assuming 50% trainer fee, adjust as needed
+          // Calculate the net revenue (Total Revenue - Total Expenses)
+          const netRevenue = event.TotalRevenue - totalExpenses;
+
+          // Determine the trainer fee percentage based on event characteristics
+          // We need to construct the ConcatTrainerPercentKey from the event data
+          // Format: Program-Category-Venue-Attendance
+          const program = event.Program || '';
+          const category = event.Category || '';
+
+          // Determine venue/location based on event name patterns (similar to existing logic)
+          let venue = 'Venue'; // Default
+          if (event.ProdName) {
+            const prodNameLower = event.ProdName.toLowerCase();
+            if (prodNameLower.includes('online') && prodNameLower.includes('global')) {
+              venue = 'OnlineGlobal';
+            } else if (
+              prodNameLower.includes('online') ||
+              prodNameLower.includes('en linea') ||
+              prodNameLower.includes('en línea')
+            ) {
+              venue = 'Online';
+            } else if (prodNameLower.includes('venue,') || prodNameLower.includes('presencial')) {
+              venue = 'Venue';
+            } else if (prodNameLower.includes('on demand')) {
+              venue = 'On Demand';
+            } else if (
+              prodNameLower.includes('isolation inspiration workshop') ||
+              prodNameLower.includes('salsation workshop with')
+            ) {
+              venue = 'Venue';
+            } else if (event.ProdID === 68513) {
+              venue = 'Venue'; // Cruise Training
+            } else if (
+              prodNameLower.includes('the salsation blast') ||
+              prodNameLower.includes('salsation method training')
+            ) {
+              venue = 'Venue';
+            }
+          }
+
+          // For attendance, we use the most common scenario for Alejandro's events
+          // This might need adjustment based on actual event data
+          const attendance = 'Attended'; // Default assumption
+
+          const concatKey = `${program}-${category}-${venue}-${attendance}`;
+
+          // Get the proper trainer fee percentage
+          const trainerFeePercent = this.getTrainerFeePercent(concatKey);
+
+          // Calculate Alejandro Fee: (Total Revenue - Total Expenses) * Trainer Fee %
+          const alejandroFee = netRevenue * (trainerFeePercent / 100);
 
           return {
             ...event,
             TotalExpenses: totalExpenses,
             AlejandroFee: alejandroFee,
             ExpenseCount: expenses.length,
+            TrainerFeePercent: trainerFeePercent,
+            NetRevenue: netRevenue,
           };
         } catch (error) {
           console.error(`Error getting expenses for ProdID ${event.ProdID}:`, error);
           return {
             ...event,
             TotalExpenses: 0,
-            AlejandroFee: event.TotalRevenue * 0.5, // Default calculation
+            AlejandroFee: 0, // Default to 0 if calculation fails
             ExpenseCount: 0,
+            TrainerFeePercent: 0,
+            NetRevenue: event.TotalRevenue,
           };
         }
       });

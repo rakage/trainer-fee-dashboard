@@ -109,6 +109,8 @@ export default function AlejandroEventsPage() {
       'Co Trainer 3',
       'Total Tickets',
       'Total Revenue',
+      'Net Revenue',
+      'Trainer Fee %',
       'Alejandro Fee',
       'Total Expenses',
     ];
@@ -132,6 +134,8 @@ export default function AlejandroEventsPage() {
           row.CoTrainer3 ? `"${row.CoTrainer3.replace(/"/g, '""')}"` : '',
           row.TotalTickets,
           row.TotalRevenue.toFixed(2),
+          row.NetRevenue.toFixed(2),
+          `${row.TrainerFeePercent}%`,
           row.AlejandroFee.toFixed(2),
           row.TotalExpenses.toFixed(2),
         ].join(',')
@@ -148,6 +152,7 @@ export default function AlejandroEventsPage() {
   // Calculate totals and pagination
   const totalTickets = eventsData.reduce((sum, row) => sum + (row.TotalTickets || 0), 0);
   const totalRevenue = eventsData.reduce((sum, row) => sum + (row.TotalRevenue || 0), 0);
+  const totalNetRevenue = eventsData.reduce((sum, row) => sum + (row.NetRevenue || 0), 0);
   const totalAlejandroFee = eventsData.reduce((sum, row) => sum + (row.AlejandroFee || 0), 0);
   const totalExpenses = eventsData.reduce((sum, row) => sum + (row.TotalExpenses || 0), 0);
 
@@ -221,7 +226,7 @@ export default function AlejandroEventsPage() {
         </Card>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
           {cardsLoading ? (
             // Loading skeletons for cards
             <>
@@ -251,7 +256,7 @@ export default function AlejandroEventsPage() {
               </Card>
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Alejandro Fee</CardTitle>
+                  <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <Skeleton className="h-8 w-24" />
@@ -259,7 +264,15 @@ export default function AlejandroEventsPage() {
               </Card>
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
+                  <CardTitle className="text-sm font-medium">Net Revenue</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Skeleton className="h-8 w-24" />
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Alejandro Fee</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <Skeleton className="h-8 w-24" />
@@ -296,21 +309,31 @@ export default function AlejandroEventsPage() {
               </Card>
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Alejandro Fee</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">
-                    €{totalAlejandroFee.toLocaleString('de-DE', { minimumFractionDigits: 2 })}
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">
                     €{totalExpenses.toLocaleString('de-DE', { minimumFractionDigits: 2 })}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Net Revenue</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    €{totalNetRevenue.toLocaleString('de-DE', { minimumFractionDigits: 2 })}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Alejandro Fee</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    €{totalAlejandroFee.toLocaleString('de-DE', { minimumFractionDigits: 2 })}
                   </div>
                 </CardContent>
               </Card>
