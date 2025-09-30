@@ -150,7 +150,7 @@ export const alejandroEventsColumns: ColumnDef<AlejandroEventData>[] = [
     ),
     cell: ({ row }) => {
       const percent = parseFloat(row.getValue('TrainerFeePercent'));
-      return <div className="text-right font-medium">{percent}%</div>;
+      return <div className="text-right font-medium">{Math.round(percent * 100)}%</div>;
     },
   },
   {
