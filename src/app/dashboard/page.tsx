@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { DashboardLayout } from '@/components/dashboard/layout';
 import { EventPicker } from '@/components/dashboard/event-picker';
 import { EventOverviewCards } from '@/components/dashboard/overview-cards';
@@ -14,8 +15,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { EventDetail, Commission } from '@/types';
 import { parseGermanDecimal, formatGermanDecimal, getCustomTrainerFee } from '@/lib/utils';
+import { useQuery } from '@tanstack/react-query';
 
 export default function DashboardPage() {
+  const searchParams = useSearchParams();
+  const eventIdFromUrl = searchParams.get('eventid');
+  
   const [selectedEvent, setSelectedEvent] = useState<EventDetail | null>(null);
   const [trainerOverride, setTrainerOverride] = useState('');
   const [isLoadingEvent, setIsLoadingEvent] = useState(false);
@@ -25,6 +30,36 @@ export default function DashboardPage() {
     nanna: 0,
   });
   const [trainerFeeTotal, setTrainerFeeTotal] = useState<number | undefined>(undefined);
+
+  // React Query to fetch event by ID from URL parameter
+  const { data: urlEvent, isLoading: isUrlEventLoading, isError, refetch } = useQuery({
+    queryKey: ['event-by-id', eventIdFromUrl],
+    queryFn: async () => {
+      if (!eventIdFromUrl) return null;
+      
+      const response = await fetch(`/api/events/${eventIdFromUrl}`);
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error('Event not found');
+        }
+        throw new Error('Failed to fetch event');
+      }
+      return (await response.json()) as EventDetail;
+    },
+    enabled: !!eventIdFromUrl && !selectedEvent, // Only run if event ID exists and no event is already selected
+  });
+
+  useEffect(() => {
+    if (urlEvent) {
+      handleEventSelect(urlEvent);
+    }
+  }, [urlEvent]);
+
+  useEffect(() => {
+    if (isError && eventIdFromUrl) {
+      setEventError('Event not found');
+    }
+  }, [isError, eventIdFromUrl]);
 
   const handleEventSelect = (event: EventDetail | null) => {
     setSelectedEvent(event);
@@ -105,13 +140,13 @@ export default function DashboardPage() {
         </Card>
 
         {/* Show loading skeleton while fetching event details */}
-        {isLoadingEvent && <EventReportSkeleton />}
+        {isLoadingEvent || (isUrlEventLoading && !selectedEvent) ? <EventReportSkeleton /> : null}
         
         {/* Show error state if event not found */}
-        {eventError && !isLoadingEvent && <NoEventFound />}
+        {eventError && !isLoadingEvent && !isUrlEventLoading && <NoEventFound />}
         
         {/* Show event details when loaded successfully */}
-        {selectedEvent && !isLoadingEvent && !eventError && (
+        {selectedEvent && !isLoadingEvent && !eventError && !isUrlEventLoading && (
           <>
             {/* Export Controls */}
             <ExportControls
@@ -288,7 +323,7 @@ export default function DashboardPage() {
         )}
 
         {/* Show empty state when no event selected and not loading */}
-        {!selectedEvent && !isLoadingEvent && !eventError && (
+        {!selectedEvent && !isLoadingEvent && !eventError && !isUrlEventLoading && !eventIdFromUrl && (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12">
               <div className="text-center space-y-2">
