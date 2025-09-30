@@ -1619,7 +1619,8 @@ export class DatabaseService {
           const trainerFeePercent = this.getTrainerFeePercent(concatKey);
 
           // Calculate Alejandro Fee: (Total Revenue - Total Expenses) * Trainer Fee %
-          const alejandroFee = netRevenue * (trainerFeePercent / 100);
+          // Note: trainerFeePercent is already in decimal format (0.3 for 30%)
+          const alejandroFee = netRevenue * trainerFeePercent;
 
           return {
             ...event,
