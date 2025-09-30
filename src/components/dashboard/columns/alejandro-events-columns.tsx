@@ -21,6 +21,9 @@ export interface AlejandroEventData {
   CoTrainer3: string | null;
   TotalTickets: number;
   TotalRevenue: number;
+  AlejandroFee: number;
+  TotalExpenses: number;
+  ExpenseCount: number;
 }
 
 export const alejandroEventsColumns: ColumnDef<AlejandroEventData>[] = [
@@ -121,11 +124,41 @@ export const alejandroEventsColumns: ColumnDef<AlejandroEventData>[] = [
   {
     accessorKey: 'TotalRevenue',
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Alejandro Fee" className="text-right" />
+      <DataTableColumnHeader column={column} title="Total Revenue" className="text-right" />
     ),
     cell: ({ row }) => {
       const amount = parseFloat(row.getValue('TotalRevenue'));
       return <div className="text-right font-medium">{formatCurrency(amount)}</div>;
+    },
+  },
+  {
+    accessorKey: 'AlejandroFee',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Alejandro Fee" className="text-right" />
+    ),
+    cell: ({ row }) => {
+      const amount = parseFloat(row.getValue('AlejandroFee'));
+      return <div className="text-right font-medium">{formatCurrency(amount)}</div>;
+    },
+  },
+  {
+    accessorKey: 'TotalExpenses',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Expenses" className="text-right" />
+    ),
+    cell: ({ row }) => {
+      const amount = parseFloat(row.getValue('TotalExpenses'));
+      const count = row.getValue('ExpenseCount') as number;
+      return (
+        <div className="text-right">
+          <div className="font-medium">{formatCurrency(amount)}</div>
+          {count > 0 && (
+            <div className="text-xs text-muted-foreground">
+              {count} item{count !== 1 ? 's' : ''}
+            </div>
+          )}
+        </div>
+      );
     },
   },
 ];

@@ -1555,7 +1555,42 @@ export class DatabaseService {
       `;
 
       const result = await request.query(query);
-      return result.recordset;
+      const events = result.recordset;
+
+      // Now get expenses data for each event using SQLite
+      const { ExpenseService } = require('./sqlite');
+
+      // Add expenses data to each event
+      const eventsWithExpenses = events.map((event: any) => {
+        try {
+          const expenses = ExpenseService.getByProdId(event.ProdID);
+          const totalExpenses = expenses.reduce(
+            (sum: number, expense: any) => sum + (expense.amount || 0),
+            0
+          );
+
+          // Calculate Alejandro Fee (assuming it's the trainer fee based on total revenue)
+          // This is a simplified calculation - you may need to adjust based on your business logic
+          const alejandroFee = event.TotalRevenue * 0.5; // Assuming 50% trainer fee, adjust as needed
+
+          return {
+            ...event,
+            TotalExpenses: totalExpenses,
+            AlejandroFee: alejandroFee,
+            ExpenseCount: expenses.length,
+          };
+        } catch (error) {
+          console.error(`Error getting expenses for ProdID ${event.ProdID}:`, error);
+          return {
+            ...event,
+            TotalExpenses: 0,
+            AlejandroFee: event.TotalRevenue * 0.5, // Default calculation
+            ExpenseCount: 0,
+          };
+        }
+      });
+
+      return eventsWithExpenses;
     } catch (error) {
       console.error('Error fetching Alejandro events:', error);
       throw error;
