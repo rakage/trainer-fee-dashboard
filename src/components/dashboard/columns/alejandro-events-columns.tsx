@@ -134,6 +134,26 @@ export const alejandroEventsColumns: ColumnDef<AlejandroEventData>[] = [
     },
   },
   {
+    accessorKey: 'TotalExpenses',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Expenses" className="text-right" />
+    ),
+    cell: ({ row }) => {
+      const amount = parseFloat(row.getValue('TotalExpenses'));
+      const count = row.getValue('ExpenseCount') as number;
+      return (
+        <div className="text-right">
+          <div className="font-medium">{formatCurrency(amount)}</div>
+          {count > 0 && (
+            <div className="text-xs text-muted-foreground">
+              {count} item{count !== 1 ? 's' : ''}
+            </div>
+          )}
+        </div>
+      );
+    },
+  },
+  {
     accessorKey: 'NetRevenue',
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Net Revenue" className="text-right" />
@@ -161,26 +181,6 @@ export const alejandroEventsColumns: ColumnDef<AlejandroEventData>[] = [
     cell: ({ row }) => {
       const amount = parseFloat(row.getValue('AlejandroFee'));
       return <div className="text-right font-medium">{formatCurrency(amount)}</div>;
-    },
-  },
-  {
-    accessorKey: 'TotalExpenses',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Expenses" className="text-right" />
-    ),
-    cell: ({ row }) => {
-      const amount = parseFloat(row.getValue('TotalExpenses'));
-      const count = row.getValue('ExpenseCount') as number;
-      return (
-        <div className="text-right">
-          <div className="font-medium">{formatCurrency(amount)}</div>
-          {count > 0 && (
-            <div className="text-xs text-muted-foreground">
-              {count} item{count !== 1 ? 's' : ''}
-            </div>
-          )}
-        </div>
-      );
     },
   },
 ];
