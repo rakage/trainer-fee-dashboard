@@ -140,10 +140,10 @@ async function generateXLSXExport(event: any, splits: any[], expenses: any[], co
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet('Event Report');
 
-  // Format date properly
+  // Format date as "October 7, 2025"
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
-    return date.toLocaleDateString('de-DE');
+    return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
   };
 
   // Use display currency for formatting (no conversion)
@@ -276,18 +276,21 @@ async function generateXLSXExport(event: any, splits: any[], expenses: any[], co
 async function generateCSVExport(event: any, splits: any[], expenses: any[], commissions: any, trainerOverride?: string, filename?: string, displayCurrency?: SupportedCurrency) {
   const summaryData = calculateEventSummary(event.tickets);
   
-  // Use display currency for formatting (no conversion)
-  const targetCurrency = displayCurrency || (event.Currency as SupportedCurrency) || 'EUR';
+  // Format date as "October 7, 2025"
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  };
   
   const csvData = [
     ['Event Report'],
     ['ProdID', event.ProdID],
     ['Event Name', event.ProdName],
-    ['Date', event.EventDate],
+    ['Date', formatDate(event.EventDate)],
     ['Country', event.Country],
     ['Venue', event.Venue],
     ['Trainer', trainerOverride || event.Trainer_1],
-    ['Display Currency', targetCurrency],
+    ['Currency', event.Currency || 'EUR'],
     [],
     ['Attendance', 'Payment Method', 'Tier Level', 'Quantity', 'Ticket Price', 'Ticket Price Total', 'Trainer Fee %', 'Trainer Fee Amount'],
     ...summaryData.map(row => [
@@ -343,10 +346,10 @@ async function generatePDFExport(event: any, splits: any[], expenses: any[], com
       totalTrainerFee: summaryData.reduce((sum, row) => sum + row.sumTrainerFee, 0)
     };
     
-    // Format date properly (remove GMT timezone)
+    // Format date as "October 7, 2025"
     const formatDate = (dateStr: string) => {
       const date = new Date(dateStr);
-      return date.toLocaleDateString('de-DE');
+      return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
     };
     
     // Convert logo to base64
@@ -399,7 +402,6 @@ async function generatePDFExport(event: any, splits: any[], expenses: any[], com
           <div class="info-label">Country:</div><div>${event.Country}</div>
           <div class="info-label">Venue:</div><div>${event.Venue}</div>
           <div class="info-label">Trainer:</div><div>${trainerOverride || event.Trainer_1}</div>
-          <div class="info-label">Display Currency:</div><div>${targetCurrency}</div>
         </div>
         
         <h2>Event Summary</h2>

@@ -40,23 +40,24 @@ All monetary values in the dashboard are displayed with the selected currency sy
 All export formats (Excel, CSV, PDF) use the selected currency for display:
 
 #### Excel (XLSX) Export
-- Header includes display currency information
 - All monetary values formatted with selected currency symbol
 - Summary table with selected currency
 - Expenses section with selected currency
 - Overview section with selected currency
 - Trainer splits with selected currency
+- Dates formatted as "October 7, 2025"
 
 #### CSV Export
-- Header includes display currency field
-- Raw numbers remain unchanged
-- Currency field indicates the display format
+- Header includes event's native currency field
+- Raw numbers remain unchanged (no display formatting applied)
+- Currency field shows the actual event currency (e.g., EUR, JPY)
+- Dates formatted as "October 7, 2025"
 
 #### PDF Export
-- Header includes display currency information
 - Professional formatting with selected currency symbol
 - All sections (summary, expenses, overview, splits) show selected currency
 - Amounts remain in their original values
+- Dates formatted as "October 7, 2025"
 
 ## Technical Implementation
 
