@@ -36,6 +36,14 @@ All monetary values in the dashboard are displayed with the selected currency sy
 - Trainer Fee Amount
 - Footer totals row
 
+#### Expenses Editor
+- Total Expenses
+- Margin (Original Fee - Expenses)
+- Trainer Fee Total (with percentage adjustment)
+
+#### Trainer Splits Editor
+- Payable amount per trainer in splits table
+
 ### 4. Export Functionality
 All export formats (Excel, CSV, PDF) use the selected currency for display:
 
@@ -48,9 +56,8 @@ All export formats (Excel, CSV, PDF) use the selected currency for display:
 - Dates formatted as "October 7, 2025"
 
 #### CSV Export
-- Header includes event's native currency field
 - Raw numbers remain unchanged (no display formatting applied)
-- Currency field shows the actual event currency (e.g., EUR, JPY)
+- **No currency field** - pure numerical data for imports
 - Dates formatted as "October 7, 2025"
 
 #### PDF Export
@@ -93,11 +100,21 @@ All export formats (Excel, CSV, PDF) use the selected currency for display:
    - Updated formatting to use selected currency symbol
    - No conversion logic - amounts remain unchanged
 
-4. **`src/components/dashboard/export-controls.tsx`**
+4. **`src/components/dashboard/expenses-editor.tsx`**
+   - Added displayCurrency prop
+   - Updated all currency displays (Total Expenses, Margin, Trainer Fee Total)
+   - Uses selected currency for formatting
+
+5. **`src/components/dashboard/trainer-splits.tsx`**
+   - Added displayCurrency prop
+   - Updated payable amount formatting in splits table
+   - Uses selected currency for display
+
+6. **`src/components/dashboard/export-controls.tsx`**
    - Added displayCurrency prop
    - Passed displayCurrency to export API
 
-5. **`src/app/api/events/[prodId]/export/route.ts`**
+7. **`src/app/api/events/[prodId]/export/route.ts`**
    - Updated all export functions to accept displayCurrency
    - Formats amounts with selected currency in XLSX export
    - Formats amounts with selected currency in CSV export

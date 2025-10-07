@@ -6,8 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Plus, Trash2, Save } from 'lucide-react';
-import { EventDetail, Expense } from '@/types';
+import { EventDetail, Expense, SupportedCurrency } from '@/types';
 import { formatCurrency } from '@/lib/utils';
+import { formatCurrencyAmount } from '@/lib/currency';
 
 interface ExpensesEditorProps {
   eventId: number;
@@ -16,9 +17,10 @@ interface ExpensesEditorProps {
   trainerName?: string;
   onExpensesChange?: (totalExpenses: number) => void;
   onTrainerFeeTotalChange?: (trainerFeeTotal: number) => void;
+  displayCurrency?: SupportedCurrency;
 }
 
-export function ExpensesEditor({ eventId, event, trainerFee, trainerName, onExpensesChange, onTrainerFeeTotalChange }: ExpensesEditorProps) {
+export function ExpensesEditor({ eventId, event, trainerFee, trainerName, onExpensesChange, onTrainerFeeTotalChange, displayCurrency }: ExpensesEditorProps) {
   const [expenses, setExpenses] = useState<Expense[]>([
     {
       ProdID: eventId,
@@ -34,10 +36,8 @@ export function ExpensesEditor({ eventId, event, trainerFee, trainerName, onExpe
   const [trainerFeePercentageDisplay, setTrainerFeePercentageDisplay] = useState<string>('0,0');
   const [isPercentageInitialized, setIsPercentageInitialized] = useState(false);
 
-  // Determine currency for this event (JPY for Grace in Japan, otherwise EUR)
-  const currency = event.Currency || 'EUR';
-  const locale = currency === 'JPY' ? 'ja-JP' : 'de-DE';
-  const formatOptions = { locale, currency };
+  // Use display currency for formatting
+  const targetCurrency = displayCurrency || (event.Currency as SupportedCurrency) || 'EUR';
 
   // Load existing expenses when component mounts
   useEffect(() => {
@@ -287,12 +287,12 @@ export function ExpensesEditor({ eventId, event, trainerFee, trainerName, onExpe
           <div className="text-sm space-y-2">
             <div className="flex justify-between items-center min-w-[250px]">
               <span>Total Expenses:</span>
-              <span className="font-medium text-red-600">{formatCurrency(totalExpenses, formatOptions)}</span>
+              <span className="font-medium text-red-600">{formatCurrencyAmount(totalExpenses, targetCurrency)}</span>
             </div>
             <div className="flex justify-between items-center min-w-[250px] pt-1 border-t">
               <span className="font-semibold">Margin:</span>
               <span className={`font-bold ${margin < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                {formatCurrency(margin, formatOptions)}
+                {formatCurrencyAmount(margin, targetCurrency)}
               </span>
             </div>
             {isAlejandro && (
@@ -326,7 +326,7 @@ export function ExpensesEditor({ eventId, event, trainerFee, trainerName, onExpe
             <div className="flex justify-between items-center min-w-[250px] pt-1 border-t">
               <span className="font-semibold">Trainer Fee Total:</span>
               <span className={`font-bold ${trainerFeeTotal < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                {formatCurrency(trainerFeeTotal, formatOptions)}
+                {formatCurrencyAmount(trainerFeeTotal, targetCurrency)}
               </span>
             </div>
           </div>

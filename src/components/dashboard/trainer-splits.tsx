@@ -6,16 +6,18 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Plus, Trash2, Save } from 'lucide-react';
-import { EventDetail, Commission, TrainerSplit } from '@/types';
+import { EventDetail, Commission, TrainerSplit, SupportedCurrency } from '@/types';
 import { formatCurrency, formatGermanDecimal, parseGermanDecimal, calculateEventOverview } from '@/lib/utils';
+import { formatCurrencyAmount } from '@/lib/currency';
 
 interface TrainerSplitsEditorProps {
   eventId: number;
   event: EventDetail;
   commissions: Commission;
+  displayCurrency?: SupportedCurrency;
 }
 
-export function TrainerSplitsEditor({ eventId, event, commissions }: TrainerSplitsEditorProps) {
+export function TrainerSplitsEditor({ eventId, event, commissions, displayCurrency }: TrainerSplitsEditorProps) {
   const [splits, setSplits] = useState<TrainerSplit[]>([
     {
       ProdID: eventId,
@@ -30,10 +32,8 @@ export function TrainerSplitsEditor({ eventId, event, commissions }: TrainerSpli
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // Determine currency for this event (JPY for Grace in Japan, otherwise EUR)
-  const currency = event.Currency || 'EUR';
-  const locale = currency === 'JPY' ? 'ja-JP' : 'de-DE';
-  const formatOptions = { locale, currency };
+  // Use display currency for formatting
+  const targetCurrency = displayCurrency || (event.Currency as SupportedCurrency) || 'EUR';
 
   // Load existing splits when component mounts
   useEffect(() => {
@@ -219,7 +219,7 @@ export function TrainerSplitsEditor({ eventId, event, commissions }: TrainerSpli
                     </div>
                   </TableCell>
                   <TableCell className="text-right font-mono">
-                    {formatCurrency((split.TrainerFee || 0) - split.CashReceived, formatOptions)}
+                    {formatCurrencyAmount((split.TrainerFee || 0) - split.CashReceived, targetCurrency)}
                   </TableCell>
                   <TableCell>
                     <Button

@@ -290,7 +290,6 @@ async function generateCSVExport(event: any, splits: any[], expenses: any[], com
     ['Country', event.Country],
     ['Venue', event.Venue],
     ['Trainer', trainerOverride || event.Trainer_1],
-    ['Currency', event.Currency || 'EUR'],
     [],
     ['Attendance', 'Payment Method', 'Tier Level', 'Quantity', 'Ticket Price', 'Ticket Price Total', 'Trainer Fee %', 'Trainer Fee Amount'],
     ...summaryData.map(row => [

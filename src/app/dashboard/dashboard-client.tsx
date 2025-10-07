@@ -324,6 +324,7 @@ export default function DashboardClient() {
                 }, 0);
               })()}
               onTrainerFeeTotalChange={setTrainerFeeTotal}
+              displayCurrency={displayCurrency}
             />
             
             {/* Trainer Splits Editor */}
@@ -331,6 +332,7 @@ export default function DashboardClient() {
               eventId={selectedEvent.ProdID}
               event={selectedEvent}
               commissions={commissions}
+              displayCurrency={displayCurrency}
             />
           </>
         )}
