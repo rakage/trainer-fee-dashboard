@@ -4,16 +4,17 @@ import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { FileSpreadsheet, FileText, File } from 'lucide-react';
-import { Commission, ExportFormat } from '@/types';
+import { Commission, ExportFormat, SupportedCurrency } from '@/types';
 import { useSession } from 'next-auth/react';
 
 interface ExportControlsProps {
   eventId: number;
   trainerOverride?: string;
   commissions: Commission;
+  displayCurrency?: SupportedCurrency;
 }
 
-export function ExportControls({ eventId, trainerOverride, commissions }: ExportControlsProps) {
+export function ExportControls({ eventId, trainerOverride, commissions, displayCurrency }: ExportControlsProps) {
   const { data: session } = useSession();
   const [isExporting, setIsExporting] = useState(false);
 
@@ -33,6 +34,7 @@ export function ExportControls({ eventId, trainerOverride, commissions }: Export
           format,
           trainerOverride,
           commissions,
+          displayCurrency,
         }),
       });
 

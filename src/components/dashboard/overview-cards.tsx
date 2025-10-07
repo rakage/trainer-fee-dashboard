@@ -1,17 +1,19 @@
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { EventDetail, Commission } from '@/types';
+import { EventDetail, Commission, SupportedCurrency } from '@/types';
 import { formatCurrency, calculateEventOverview } from '@/lib/utils';
+import { convertCurrency, formatCurrencyAmount } from '@/lib/currency';
 
 interface EventOverviewCardsProps {
   event: EventDetail;
   commissions: Commission;
   trainerName?: string;
   trainerFeeTotal?: number;
+  displayCurrency?: SupportedCurrency;
 }
 
-export function EventOverviewCards({ event, commissions, trainerName, trainerFeeTotal }: EventOverviewCardsProps) {
+export function EventOverviewCards({ event, commissions, trainerName, trainerFeeTotal, displayCurrency }: EventOverviewCardsProps) {
   const overview = calculateEventOverview(event.tickets, commissions, [], trainerName);
   
   // Use provided trainerFeeTotal if available, otherwise use calculated overview value
@@ -21,10 +23,15 @@ export function EventOverviewCards({ event, commissions, trainerName, trainerFee
   const adjustedBalance = overview.cashSales - displayTrainerFee;
   const adjustedPayable = displayTrainerFee - overview.cashSales;
   
-  // Determine currency and locale based on event currency
-  const currency = event.Currency || 'EUR';
-  const locale = currency === 'JPY' ? 'ja-JP' : 'de-DE';
-  const formatOptions = { locale, currency };
+  // Determine currency conversion
+  const eventCurrency = (event.Currency || 'EUR') as SupportedCurrency;
+  const targetCurrency = displayCurrency || eventCurrency;
+  
+  // Convert amounts to display currency
+  const convertedTrainerFee = convertCurrency(displayTrainerFee, eventCurrency, targetCurrency);
+  const convertedCashSales = convertCurrency(overview.cashSales, eventCurrency, targetCurrency);
+  const convertedBalance = convertCurrency(adjustedBalance, eventCurrency, targetCurrency);
+  const convertedPayable = convertCurrency(adjustedPayable, eventCurrency, targetCurrency);
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -34,7 +41,7 @@ export function EventOverviewCards({ event, commissions, trainerName, trainerFee
           <span className="text-xs text-muted-foreground">Total</span>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{formatCurrency(displayTrainerFee, formatOptions)}</div>
+          <div className="text-2xl font-bold">{formatCurrencyAmount(convertedTrainerFee, targetCurrency)}</div>
         </CardContent>
       </Card>
 
@@ -43,7 +50,7 @@ export function EventOverviewCards({ event, commissions, trainerName, trainerFee
           <CardTitle className="text-sm font-medium">Cash Sales</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{formatCurrency(overview.cashSales, formatOptions)}</div>
+          <div className="text-2xl font-bold">{formatCurrencyAmount(convertedCashSales, targetCurrency)}</div>
         </CardContent>
       </Card>
 
@@ -52,7 +59,7 @@ export function EventOverviewCards({ event, commissions, trainerName, trainerFee
           <CardTitle className="text-sm font-medium">Balance</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{formatCurrency(adjustedBalance, formatOptions)}</div>
+          <div className="text-2xl font-bold">{formatCurrencyAmount(convertedBalance, targetCurrency)}</div>
         </CardContent>
       </Card>
 
@@ -62,9 +69,9 @@ export function EventOverviewCards({ event, commissions, trainerName, trainerFee
         </CardHeader>
         <CardContent>
           <div className={`text-2xl font-bold ${
-            adjustedPayable < 0 ? 'text-red-600' : 'text-green-600'
+            convertedPayable < 0 ? 'text-red-600' : 'text-green-600'
           }`}>
-            {formatCurrency(adjustedPayable, formatOptions)}
+            {formatCurrencyAmount(convertedPayable, targetCurrency)}
           </div>
           <p className="text-xs text-muted-foreground">
             Amount to pay trainer

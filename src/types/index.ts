@@ -114,6 +114,7 @@ export interface ExportRequest {
   trainerOverride?: string;
   commissions?: Commission;
   includeDeleted?: boolean;
+  displayCurrency?: SupportedCurrency;
 }
 
 // Form Types
@@ -131,6 +132,14 @@ export interface EventFilters {
 export interface CurrencyOptions {
   locale: string;
   currency: string;
+}
+
+export type SupportedCurrency = 'EUR' | 'JPY' | 'USD' | 'GBP' | 'AUD' | 'CAD' | 'CHF';
+
+export interface CurrencyConversion {
+  fromCurrency: SupportedCurrency;
+  toCurrency: SupportedCurrency;
+  rate: number;
 }
 
 // Audit Trail Types

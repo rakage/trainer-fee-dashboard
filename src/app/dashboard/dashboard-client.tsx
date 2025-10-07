@@ -13,8 +13,10 @@ import { EventReportSkeleton, NoEventFound } from '@/components/dashboard/event-
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { EventDetail, Commission } from '@/types';
+import { EventDetail, Commission, SupportedCurrency } from '@/types';
 import { parseGermanDecimal, formatGermanDecimal, getCustomTrainerFee } from '@/lib/utils';
+import { convertCurrency, formatAmount } from '@/lib/currency';
+import { CurrencySelector } from '@/components/dashboard/currency-selector';
 import { useQuery } from '@tanstack/react-query';
 
 export default function DashboardClient() {
@@ -30,6 +32,7 @@ export default function DashboardClient() {
     nanna: 0,
   });
   const [trainerFeeTotal, setTrainerFeeTotal] = useState<number | undefined>(undefined);
+  const [displayCurrency, setDisplayCurrency] = useState<SupportedCurrency>('EUR');
 
   // React Query to fetch event by ID from URL parameter
   const { data: urlEventResponse, isLoading: isUrlEventLoading, isError, refetch } = useQuery({
@@ -66,6 +69,10 @@ export default function DashboardClient() {
     setSelectedEvent(event);
     setTrainerOverride(event?.Trainer_1 || '');
     setTrainerFeeTotal(undefined); // Reset trainer fee total for new event
+    // Set display currency to event's currency by default
+    if (event?.Currency) {
+      setDisplayCurrency(event.Currency as SupportedCurrency);
+    }
   };
 
   const handleCommissionChange = (field: keyof Commission, value: string) => {
@@ -102,7 +109,7 @@ export default function DashboardClient() {
             />
             
             {selectedEvent && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t">
                 <div>
                   <Label htmlFor="trainer-override">Trainer Name</Label>
                   <Input
@@ -135,6 +142,14 @@ export default function DashboardClient() {
                     />
                   </div>
                 </div>
+
+                <div>
+                  <CurrencySelector
+                    value={displayCurrency}
+                    onChange={setDisplayCurrency}
+                    eventCurrency={selectedEvent.Currency}
+                  />
+                </div>
               </div>
             )}
           </CardContent>
@@ -154,6 +169,7 @@ export default function DashboardClient() {
               eventId={selectedEvent.ProdID}
               trainerOverride={trainerOverride}
               commissions={commissions}
+              displayCurrency={displayCurrency}
             />
 
             {/* Overview Cards */}
@@ -162,6 +178,7 @@ export default function DashboardClient() {
               commissions={commissions}
               trainerName={trainerOverride || selectedEvent.Trainer_1}
               trainerFeeTotal={trainerFeeTotal}
+              displayCurrency={displayCurrency}
             />
 
             {/* Tickets Table */}
@@ -202,6 +219,13 @@ export default function DashboardClient() {
                             const trainerFeeAmount = isAlejandro
                               ? ticket.PriceTotal * (ticket.TrainerFeePct || 0) // Use percentage calculation for table
                               : getCustomTrainerFee(currentTrainerName, ticket).amount;
+                            
+                            // Convert amounts to display currency
+                            const eventCurrency = (ticket.Currency || 'EUR') as SupportedCurrency;
+                            const convertedUnitPrice = convertCurrency(ticket.UnitPrice, eventCurrency, displayCurrency);
+                            const convertedPriceTotal = convertCurrency(ticket.PriceTotal, eventCurrency, displayCurrency);
+                            const convertedTrainerFee = convertCurrency(trainerFeeAmount, eventCurrency, displayCurrency);
+                            
                             return (
                               <tr key={index} className="hover:bg-gray-50">
                                 <td className="py-3 px-4">
@@ -227,16 +251,16 @@ export default function DashboardClient() {
                                 <td className="py-3 px-4 text-gray-900">{ticket.TierLevel}</td>
                                 <td className="py-3 px-4 text-right text-gray-900">{ticket.Quantity}</td>
                                 <td className="py-3 px-4 text-right font-medium text-gray-900">
-                                  {ticket.Currency === 'JPY' ? '¥' : '€'}{ticket.Currency === 'JPY' ? Math.round(ticket.UnitPrice).toLocaleString('ja-JP') : ticket.UnitPrice.toFixed(2)}
+                                  {formatAmount(convertedUnitPrice, displayCurrency)}
                                 </td>
                                 <td className="py-3 px-4 text-right font-medium text-gray-900">
-                                  {ticket.Currency === 'JPY' ? '¥' : '€'}{ticket.Currency === 'JPY' ? Math.round(ticket.PriceTotal).toLocaleString('ja-JP') : ticket.PriceTotal.toFixed(2)}
+                                  {formatAmount(convertedPriceTotal, displayCurrency)}
                                 </td>
                                 <td className="py-3 px-4 text-right text-gray-900">
                                   {(trainerFeePercentage * 100).toFixed(1)}%
                                 </td>
                                 <td className="py-3 px-4 text-right font-medium text-gray-900">
-                                  {ticket.Currency === 'JPY' ? '¥' : '€'}{ticket.Currency === 'JPY' ? Math.round(trainerFeeAmount).toLocaleString('ja-JP') : trainerFeeAmount.toFixed(2)}
+                                  {formatAmount(convertedTrainerFee, displayCurrency)}
                                 </td>
                               </tr>
                             );
@@ -248,11 +272,10 @@ export default function DashboardClient() {
                             <td className="py-3 px-4"></td>
                             <td className="py-3 px-4 text-right font-bold text-gray-900">
                               {(() => {
+                                const eventCurrency = (selectedEvent.Currency || 'EUR') as SupportedCurrency;
                                 const total = selectedEvent.tickets.reduce((sum, ticket) => sum + ticket.PriceTotal, 0);
-                                const currency = selectedEvent.Currency || 'EUR';
-                                return currency === 'JPY' ? 
-                                  `¥${Math.round(total).toLocaleString('ja-JP')}` : 
-                                  `€${total.toFixed(2)}`;
+                                const convertedTotal = convertCurrency(total, eventCurrency, displayCurrency);
+                                return formatAmount(convertedTotal, displayCurrency);
                               })()}
                             </td>
                             <td className="py-3 px-4"></td>
@@ -260,6 +283,7 @@ export default function DashboardClient() {
                               {(() => {
                                 const currentTrainerName = trainerOverride || selectedEvent.Trainer_1 || '';
                                 const isAlejandro = currentTrainerName.toLowerCase().includes('alejandro');
+                                const eventCurrency = (selectedEvent.Currency || 'EUR') as SupportedCurrency;
                                 
                                 const total = selectedEvent.tickets.reduce((sum, ticket) => {
                                   if (isAlejandro) {
@@ -272,10 +296,8 @@ export default function DashboardClient() {
                                   }
                                 }, 0);
                                 
-                                const currency = selectedEvent.Currency || 'EUR';
-                                return currency === 'JPY' ? 
-                                  `¥${Math.round(total).toLocaleString('ja-JP')}` : 
-                                  `€${total.toFixed(2)}`;
+                                const convertedTotal = convertCurrency(total, eventCurrency, displayCurrency);
+                                return formatAmount(convertedTotal, displayCurrency);
                               })()}
                             </td>
                           </tr>

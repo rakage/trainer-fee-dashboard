@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DatabaseService } from '@/lib/database';
 import { requireRole, rateLimit } from '@/lib/middleware';
-import { ExportRequest } from '@/types';
+import { ExportRequest, SupportedCurrency } from '@/types';
 import { generateExportFilename, calculateEventSummary, getCustomTrainerFee } from '@/lib/utils';
+import { convertCurrency, formatAmount as formatCurrencyAmount } from '@/lib/currency';
 import ExcelJS from 'exceljs';
 import { stringify } from 'csv-stringify/sync';
 
@@ -38,7 +39,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     }
 
     const body: ExportRequest = await request.json();
-    const { format, trainerOverride, commissions, includeDeleted = false } = body;
+    const { format, trainerOverride, commissions, includeDeleted = false, displayCurrency } = body;
 
     if (!['xlsx', 'csv', 'pdf'].includes(format)) {
       return NextResponse.json(
@@ -73,11 +74,11 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
     switch (format) {
       case 'xlsx':
-        return await generateXLSXExport(event, splits, expenses, commissions, trainerOverride, filename);
+        return await generateXLSXExport(event, splits, expenses, commissions, trainerOverride, filename, displayCurrency);
       case 'csv':
-        return await generateCSVExport(event, splits, expenses, commissions, trainerOverride, filename);
+        return await generateCSVExport(event, splits, expenses, commissions, trainerOverride, filename, displayCurrency);
       case 'pdf':
-        return await generatePDFExport(event, splits, expenses, commissions, trainerOverride, filename);
+        return await generatePDFExport(event, splits, expenses, commissions, trainerOverride, filename, displayCurrency);
       default:
         return NextResponse.json(
           { success: false, error: 'Unsupported format' },
@@ -135,7 +136,7 @@ function calculateAdjustedTrainerFee(event: any, expenses: any[], trainerName?: 
   };
 }
 
-async function generateXLSXExport(event: any, splits: any[], expenses: any[], commissions: any, trainerOverride?: string, filename?: string) {
+async function generateXLSXExport(event: any, splits: any[], expenses: any[], commissions: any, trainerOverride?: string, filename?: string, displayCurrency?: SupportedCurrency) {
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet('Event Report');
 
@@ -145,15 +146,14 @@ async function generateXLSXExport(event: any, splits: any[], expenses: any[], co
     return date.toLocaleDateString('de-DE');
   };
 
-  // Determine currency for this event
-  const currentTrainerName = trainerOverride || event.Trainer_1 || '';
-  const isGrace = currentTrainerName.toLowerCase().includes('grace');
-  const isJapan = event.Country?.toLowerCase().includes('japan');
-  const currency = isGrace && isJapan ? '¥' : '€';
+  // Determine event currency and display currency
+  const eventCurrency = (event.Currency || 'EUR') as SupportedCurrency;
+  const targetCurrency = displayCurrency || eventCurrency;
+  
+  // Helper function to convert and format amounts
   const formatAmount = (amount: number) => {
-    return isGrace && isJapan ? 
-      `¥${Math.round(amount).toLocaleString('ja-JP')}` : 
-      `€${amount.toFixed(2)}`;
+    const convertedAmount = convertCurrency(amount, eventCurrency, targetCurrency);
+    return formatCurrencyAmount(convertedAmount, targetCurrency);
   };
 
   // Add header information
@@ -275,8 +275,12 @@ async function generateXLSXExport(event: any, splits: any[], expenses: any[], co
   });
 }
 
-async function generateCSVExport(event: any, splits: any[], expenses: any[], commissions: any, trainerOverride?: string, filename?: string) {
+async function generateCSVExport(event: any, splits: any[], expenses: any[], commissions: any, trainerOverride?: string, filename?: string, displayCurrency?: SupportedCurrency) {
   const summaryData = calculateEventSummary(event.tickets);
+  
+  // Determine event currency and display currency
+  const eventCurrency = (event.Currency || 'EUR') as SupportedCurrency;
+  const targetCurrency = displayCurrency || eventCurrency;
   
   const csvData = [
     ['Event Report'],
@@ -286,6 +290,7 @@ async function generateCSVExport(event: any, splits: any[], expenses: any[], com
     ['Country', event.Country],
     ['Venue', event.Venue],
     ['Trainer', trainerOverride || event.Trainer_1],
+    ['Display Currency', targetCurrency],
     [],
     ['Attendance', 'Payment Method', 'Tier Level', 'Quantity', 'Ticket Price', 'Ticket Price Total', 'Trainer Fee %', 'Trainer Fee Amount'],
     ...summaryData.map(row => [
@@ -293,10 +298,10 @@ async function generateCSVExport(event: any, splits: any[], expenses: any[], com
       row.PaymentMethod || 'N/A',
       row.TierLevel || 'N/A',
       row.sumQuantity,
-      row.UnitPrice,
-      row.sumPriceTotal,
+      convertCurrency(row.UnitPrice, eventCurrency, targetCurrency),
+      convertCurrency(row.sumPriceTotal, eventCurrency, targetCurrency),
       row.TrainerFeePct,
-      row.sumTrainerFee
+      convertCurrency(row.sumTrainerFee, eventCurrency, targetCurrency)
     ])
   ];
 
@@ -310,22 +315,21 @@ async function generateCSVExport(event: any, splits: any[], expenses: any[], com
   });
 }
 
-async function generatePDFExport(event: any, splits: any[], expenses: any[], commissions: any, trainerOverride?: string, filename?: string) {
+async function generatePDFExport(event: any, splits: any[], expenses: any[], commissions: any, trainerOverride?: string, filename?: string, displayCurrency?: SupportedCurrency) {
   try {
     const puppeteer = require('puppeteer');
     const fs = require('fs');
     const path = require('path');
     const summaryData = calculateEventSummary(event.tickets);
     
-    // Determine currency for this event
-    const currentTrainerName = trainerOverride || event.Trainer_1 || '';
-    const isGrace = currentTrainerName.toLowerCase().includes('grace');
-    const isJapan = event.Country?.toLowerCase().includes('japan');
-    const currency = isGrace && isJapan ? '¥' : '€';
+    // Determine event currency and display currency
+    const eventCurrency = (event.Currency || 'EUR') as SupportedCurrency;
+    const targetCurrency = displayCurrency || eventCurrency;
+    
+    // Helper function to convert and format amounts
     const formatAmount = (amount: number) => {
-      return isGrace && isJapan ? 
-        `¥${Math.round(amount).toLocaleString('ja-JP')}` : 
-        `€${amount.toFixed(2)}`;
+      const convertedAmount = convertCurrency(amount, eventCurrency, targetCurrency);
+      return formatCurrencyAmount(convertedAmount, targetCurrency);
     };
     
     // Calculate overview metrics and adjusted trainer fee
@@ -400,6 +404,7 @@ async function generatePDFExport(event: any, splits: any[], expenses: any[], com
           <div class="info-label">Country:</div><div>${event.Country}</div>
           <div class="info-label">Venue:</div><div>${event.Venue}</div>
           <div class="info-label">Trainer:</div><div>${trainerOverride || event.Trainer_1}</div>
+          <div class="info-label">Display Currency:</div><div>${targetCurrency}${eventCurrency !== targetCurrency ? ` (converted from ${eventCurrency})` : ''}</div>
         </div>
         
         <h2>Event Summary</h2>
