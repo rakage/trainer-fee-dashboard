@@ -140,7 +140,7 @@ export function calculateEventOverview(
     );
     
     const cashSales = tickets
-      .filter((ticket) => ticket.PaymentMethod === 'Cash')
+      .filter((ticket) => ticket.PaymentMethod === 'Cash' && ticket.Attendance !== 'Unattended')
       .reduce((sum, ticket) => sum + ticket.PriceTotal, 0);
     
     const balance = trainerFee - cashSales;
@@ -171,8 +171,9 @@ export function calculateEventOverview(
       }, 0);
 
   // Cash Sales (Price Total from Cash payment method only, without multiplying by quantity)
+  // Exclude tickets that are both Unattended and Cash
   const cashSales = tickets
-    .filter((ticket) => ticket.PaymentMethod === 'Cash')
+    .filter((ticket) => ticket.PaymentMethod === 'Cash' && ticket.Attendance !== 'Unattended')
     .reduce((sum, ticket) => sum + ticket.PriceTotal, 0);
 
   // Balance = Trainer Fee - Cash Sales
