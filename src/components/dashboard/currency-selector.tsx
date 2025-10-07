@@ -37,9 +37,7 @@ export function CurrencySelector({ value, onChange, eventCurrency }: CurrencySel
         </SelectContent>
       </Select>
       <p className="text-xs text-muted-foreground">
-        {eventCurrency && eventCurrency !== value && (
-          <>Event data is in {eventCurrency}, amounts will be converted to {value}</>
-        )}
+        Changes how currency is displayed (amounts remain unchanged)
       </p>
     </div>
   );

@@ -1,7 +1,7 @@
 # Currency Selection Feature Implementation
 
 ## Overview
-This document describes the implementation of the currency selection feature that allows users to view event reports in different currencies (EUR, JPY, USD, GBP, AUD, CAD, CHF) with automatic conversion.
+This document describes the implementation of the currency selection feature that allows users to view event reports with different currency symbols and formatting (EUR, JPY, USD, GBP, AUD, CAD, CHF). **Note: This feature changes only the display currency symbol and formatting - amounts are NOT converted.**
 
 ## Features Implemented
 
@@ -12,17 +12,17 @@ This document describes the implementation of the currency selection feature tha
 - **Default Behavior**: Automatically selects the event's native currency when an event is loaded
 
 ### 2. Supported Currencies
-The following currencies are supported with fixed exchange rates (base: EUR):
-- **EUR (€)**: Euro - 1.0 (base)
-- **JPY (¥)**: Japanese Yen - 163.5
-- **USD ($)**: US Dollar - 1.08
-- **GBP (£)**: British Pound - 0.83
-- **AUD (A$)**: Australian Dollar - 1.63
-- **CAD (C$)**: Canadian Dollar - 1.48
-- **CHF**: Swiss Franc - 0.94
+The following currencies are supported for display formatting:
+- **EUR (€)**: Euro
+- **JPY (¥)**: Japanese Yen
+- **USD ($)**: US Dollar
+- **GBP (£)**: British Pound
+- **AUD (A$)**: Australian Dollar
+- **CAD (C$)**: Canadian Dollar
+- **CHF**: Swiss Franc
 
 ### 3. Frontend Display Updates
-All monetary values in the dashboard are converted and displayed in the selected currency:
+All monetary values in the dashboard are displayed with the selected currency symbol and formatting (amounts remain unchanged):
 
 #### Overview Cards
 - Trainer Fee
@@ -37,41 +37,41 @@ All monetary values in the dashboard are converted and displayed in the selected
 - Footer totals row
 
 ### 4. Export Functionality
-All export formats (Excel, CSV, PDF) support currency conversion:
+All export formats (Excel, CSV, PDF) use the selected currency for display:
 
 #### Excel (XLSX) Export
 - Header includes display currency information
-- All monetary values converted to selected currency
-- Summary table with converted amounts
-- Expenses section with converted amounts
-- Overview section with converted amounts
-- Trainer splits with converted amounts
+- All monetary values formatted with selected currency symbol
+- Summary table with selected currency
+- Expenses section with selected currency
+- Overview section with selected currency
+- Trainer splits with selected currency
 
 #### CSV Export
 - Header includes display currency field
-- All monetary values converted to selected currency
-- Raw numbers for easy import into other systems
+- Raw numbers remain unchanged
+- Currency field indicates the display format
 
 #### PDF Export
-- Header includes display currency information with conversion note
-- Professional formatting with converted amounts
-- All sections (summary, expenses, overview, splits) show converted values
-- Visual indication when currency conversion was applied
+- Header includes display currency information
+- Professional formatting with selected currency symbol
+- All sections (summary, expenses, overview, splits) show selected currency
+- Amounts remain in their original values
 
 ## Technical Implementation
 
 ### New Files Created
 
 1. **`src/lib/currency.ts`**
-   - Currency conversion utilities
-   - Exchange rate definitions
-   - Currency formatting functions
+   - Currency formatting utilities
+   - Currency display information (symbols, locales, decimals)
+   - Formatting functions for different currencies
    - Supported currency types
 
 2. **`src/components/dashboard/currency-selector.tsx`**
    - Dropdown component for currency selection
    - Shows event's default currency
-   - Displays conversion message when applicable
+   - Displays message that amounts are not converted
 
 ### Modified Files
 
@@ -83,14 +83,14 @@ All export formats (Excel, CSV, PDF) support currency conversion:
 2. **`src/app/dashboard/dashboard-client.tsx`**
    - Added currency state management
    - Integrated CurrencySelector component
-   - Updated ticket table to show converted amounts
-   - Updated totals row with conversion
+   - Updated ticket table to display with selected currency format
+   - Updated totals row formatting
    - Passed displayCurrency to all child components
 
 3. **`src/components/dashboard/overview-cards.tsx`**
    - Added displayCurrency prop
-   - Implemented currency conversion for all cards
-   - Updated formatting to use new currency utilities
+   - Updated formatting to use selected currency symbol
+   - No conversion logic - amounts remain unchanged
 
 4. **`src/components/dashboard/export-controls.tsx`**
    - Added displayCurrency prop
@@ -98,21 +98,15 @@ All export formats (Excel, CSV, PDF) support currency conversion:
 
 5. **`src/app/api/events/[prodId]/export/route.ts`**
    - Updated all export functions to accept displayCurrency
-   - Implemented conversion in XLSX export
-   - Implemented conversion in CSV export
-   - Implemented conversion in PDF export
+   - Formats amounts with selected currency in XLSX export
+   - Formats amounts with selected currency in CSV export
+   - Formats amounts with selected currency in PDF export
    - Added currency information to export headers
 
-## Currency Conversion Logic
+## Currency Formatting Logic
 
-### Conversion Formula
-```typescript
-// Convert from source currency to EUR (base)
-amountInEur = fromCurrency === 'EUR' ? amount : amount / EXCHANGE_RATES[fromCurrency]
-
-// Convert from EUR to target currency
-convertedAmount = toCurrency === 'EUR' ? amountInEur : amountInEur * EXCHANGE_RATES[toCurrency]
-```
+### Formatting Only - No Conversion
+**Important**: This feature only changes how currency is displayed. The actual amounts remain unchanged from the database values.
 
 ### Formatting Rules
 - **EUR, USD, GBP, AUD, CAD, CHF**: 2 decimal places
@@ -124,65 +118,76 @@ convertedAmount = toCurrency === 'EUR' ? amountInEur : amountInEur * EXCHANGE_RA
 ### For Users
 
 1. **Select an Event**: Choose an event from the event picker
-2. **Choose Currency**: Use the "Display Currency" dropdown to select your preferred currency
-3. **View Converted Amounts**: All amounts on the page update automatically
-4. **Export Reports**: Click any export button (Excel, CSV, PDF) to download reports in the selected currency
+2. **Choose Currency**: Use the "Display Currency" dropdown to select your preferred currency symbol
+3. **View Updated Display**: All currency symbols on the page update automatically (amounts stay the same)
+4. **Export Reports**: Click any export button (Excel, CSV, PDF) to download reports with the selected currency format
 
 ### Currency Selection Tips
 - The dropdown shows "(Event Default)" next to the event's native currency
-- A helper text appears when viewing converted amounts: "Event data is in [SOURCE], amounts will be converted to [TARGET]"
+- A helper text appears: "Changes how currency is displayed (amounts remain unchanged)"
+- **Important**: This only changes the currency symbol/format, not the actual values
 - Currency selection persists while viewing the same event
 - Switching to a different event resets to that event's default currency
 
 ## Important Notes
 
-### Exchange Rates
-- Exchange rates are **fixed** in the code (`src/lib/currency.ts`)
-- For production use, consider:
-  - Integrating with a live exchange rate API (e.g., exchangerate-api.com, fixer.io)
-  - Storing historical rates for accurate reporting
-  - Adding a "last updated" timestamp for rates
-  - Allowing admin users to manually update rates
+### No Currency Conversion
+- **This feature does NOT convert amounts between currencies**
+- It only changes the currency symbol and number formatting
+- All amounts remain in their original values from the database
+- Example: If an event has €100, selecting USD will show $100 (not converted to actual USD value)
 
+### Use Case
+- This feature is useful for:
+  - Displaying reports in a preferred currency format
+  - Maintaining consistency in report appearance
+  - Quick visual formatting without changing actual values
+  
 ### Decimal Precision
-- All calculations use JavaScript number precision
-- Currency conversion happens at display time, not at data storage time
-- Original event data remains unchanged in the database
+- EUR, USD, GBP, AUD, CAD, CHF: 2 decimal places
+- JPY: 0 decimal places (whole numbers only)
+- Formatting follows locale conventions (e.g., comma vs period for decimals)
 
 ### Performance
-- Conversion calculations are lightweight and performed client-side
-- No additional API calls required (rates are hardcoded)
-- Export generation includes conversion on-the-fly
+- Formatting is lightweight and performed client-side
+- No API calls or database queries needed
+- Instant currency symbol updates
 
 ## Future Enhancements
 
-### Recommended Improvements
-1. **Live Exchange Rates**: Integrate with a currency exchange API
-2. **Historical Rates**: Store exchange rates with timestamps for accurate historical reporting
-3. **User Preferences**: Remember user's preferred currency across sessions
-4. **Currency Comparison**: Show original and converted amounts side-by-side
-5. **Rate Alerts**: Notify when exchange rates change significantly
-6. **Custom Rates**: Allow admin users to set custom conversion rates for specific events
-7. **Multi-Currency Events**: Support events with mixed currency ticket sales
+### If Currency Conversion is Needed
+If actual currency conversion is required in the future, consider:
+1. **Live Exchange Rates**: Integrate with a currency exchange API (e.g., exchangerate-api.com)
+2. **Historical Rates**: Store exchange rates with timestamps
+3. **Conversion Toggle**: Allow users to choose between "format only" and "convert amounts"
+4. **Dual Display**: Show both original and converted amounts
+5. **Base Currency**: Set a base currency for all conversions
+6. **Custom Rates**: Allow admin users to set manual exchange rates
+
+### Other Improvements
+1. **User Preferences**: Remember user's preferred display currency across sessions
+2. **More Currencies**: Add support for additional currencies
+3. **Real-time Updates**: Update formatting as user types in amount fields
 
 ## Testing Checklist
 
 - [x] Currency selector appears in dashboard
 - [x] Default currency matches event currency
 - [x] All currencies are selectable
-- [x] Overview cards update when currency changes
-- [x] Ticket table amounts convert correctly
-- [x] Totals row converts correctly
-- [x] Excel export includes converted amounts
-- [x] CSV export includes converted amounts
-- [x] PDF export includes converted amounts
+- [x] Overview cards update currency symbol when selection changes
+- [x] Ticket table displays with selected currency format
+- [x] Totals row shows selected currency symbol
+- [x] Excel export uses selected currency format
+- [x] CSV export includes selected currency
+- [x] PDF export uses selected currency format
 - [x] Export headers show currency information
 - [x] TypeScript compilation passes
+- [x] Amounts remain unchanged when currency changes
+- [x] Only currency symbols and formatting change
 - [ ] Manual testing with real events
-- [ ] Verify JPY rounding (no decimals)
-- [ ] Verify EUR/USD decimals (2 places)
+- [ ] Verify JPY formatting (no decimals)
+- [ ] Verify EUR/USD formatting (2 decimal places)
 - [ ] Test all export formats download correctly
-- [ ] Verify conversion accuracy with calculator
 
 ## Related Files
 
@@ -198,9 +203,9 @@ convertedAmount = toCurrency === 'EUR' ? amountInEur : amountInEur * EXCHANGE_RA
 
 ## Support & Maintenance
 
-For questions or issues regarding the currency selection feature, review:
-1. Currency conversion logic in `src/lib/currency.ts`
-2. Exchange rate values in `EXCHANGE_RATES` constant
+For questions or issues regarding the currency display feature, review:
+1. Currency formatting logic in `src/lib/currency.ts`
+2. Currency display information in `CURRENCY_INFO` constant
 3. Export generation code in `src/app/api/events/[prodId]/export/route.ts`
 
-To update exchange rates, modify the `EXCHANGE_RATES` object in `src/lib/currency.ts`.
+To add new currencies or modify formatting, update the `CURRENCY_INFO` object in `src/lib/currency.ts`.

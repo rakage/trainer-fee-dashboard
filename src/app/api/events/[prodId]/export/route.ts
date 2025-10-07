@@ -3,7 +3,7 @@ import { DatabaseService } from '@/lib/database';
 import { requireRole, rateLimit } from '@/lib/middleware';
 import { ExportRequest, SupportedCurrency } from '@/types';
 import { generateExportFilename, calculateEventSummary, getCustomTrainerFee } from '@/lib/utils';
-import { convertCurrency, formatAmount as formatCurrencyAmount } from '@/lib/currency';
+import { formatAmount as formatCurrencyAmount } from '@/lib/currency';
 import ExcelJS from 'exceljs';
 import { stringify } from 'csv-stringify/sync';
 
@@ -146,14 +146,12 @@ async function generateXLSXExport(event: any, splits: any[], expenses: any[], co
     return date.toLocaleDateString('de-DE');
   };
 
-  // Determine event currency and display currency
-  const eventCurrency = (event.Currency || 'EUR') as SupportedCurrency;
-  const targetCurrency = displayCurrency || eventCurrency;
+  // Use display currency for formatting (no conversion)
+  const targetCurrency = displayCurrency || (event.Currency as SupportedCurrency) || 'EUR';
   
-  // Helper function to convert and format amounts
+  // Helper function to format amounts
   const formatAmount = (amount: number) => {
-    const convertedAmount = convertCurrency(amount, eventCurrency, targetCurrency);
-    return formatCurrencyAmount(convertedAmount, targetCurrency);
+    return formatCurrencyAmount(amount, targetCurrency);
   };
 
   // Add header information
@@ -278,9 +276,8 @@ async function generateXLSXExport(event: any, splits: any[], expenses: any[], co
 async function generateCSVExport(event: any, splits: any[], expenses: any[], commissions: any, trainerOverride?: string, filename?: string, displayCurrency?: SupportedCurrency) {
   const summaryData = calculateEventSummary(event.tickets);
   
-  // Determine event currency and display currency
-  const eventCurrency = (event.Currency || 'EUR') as SupportedCurrency;
-  const targetCurrency = displayCurrency || eventCurrency;
+  // Use display currency for formatting (no conversion)
+  const targetCurrency = displayCurrency || (event.Currency as SupportedCurrency) || 'EUR';
   
   const csvData = [
     ['Event Report'],
@@ -298,10 +295,10 @@ async function generateCSVExport(event: any, splits: any[], expenses: any[], com
       row.PaymentMethod || 'N/A',
       row.TierLevel || 'N/A',
       row.sumQuantity,
-      convertCurrency(row.UnitPrice, eventCurrency, targetCurrency),
-      convertCurrency(row.sumPriceTotal, eventCurrency, targetCurrency),
+      row.UnitPrice,
+      row.sumPriceTotal,
       row.TrainerFeePct,
-      convertCurrency(row.sumTrainerFee, eventCurrency, targetCurrency)
+      row.sumTrainerFee
     ])
   ];
 
@@ -322,14 +319,12 @@ async function generatePDFExport(event: any, splits: any[], expenses: any[], com
     const path = require('path');
     const summaryData = calculateEventSummary(event.tickets);
     
-    // Determine event currency and display currency
-    const eventCurrency = (event.Currency || 'EUR') as SupportedCurrency;
-    const targetCurrency = displayCurrency || eventCurrency;
+    // Use display currency for formatting (no conversion)
+    const targetCurrency = displayCurrency || (event.Currency as SupportedCurrency) || 'EUR';
     
-    // Helper function to convert and format amounts
+    // Helper function to format amounts
     const formatAmount = (amount: number) => {
-      const convertedAmount = convertCurrency(amount, eventCurrency, targetCurrency);
-      return formatCurrencyAmount(convertedAmount, targetCurrency);
+      return formatCurrencyAmount(amount, targetCurrency);
     };
     
     // Calculate overview metrics and adjusted trainer fee
@@ -404,7 +399,7 @@ async function generatePDFExport(event: any, splits: any[], expenses: any[], com
           <div class="info-label">Country:</div><div>${event.Country}</div>
           <div class="info-label">Venue:</div><div>${event.Venue}</div>
           <div class="info-label">Trainer:</div><div>${trainerOverride || event.Trainer_1}</div>
-          <div class="info-label">Display Currency:</div><div>${targetCurrency}${eventCurrency !== targetCurrency ? ` (converted from ${eventCurrency})` : ''}</div>
+          <div class="info-label">Display Currency:</div><div>${targetCurrency}</div>
         </div>
         
         <h2>Event Summary</h2>
