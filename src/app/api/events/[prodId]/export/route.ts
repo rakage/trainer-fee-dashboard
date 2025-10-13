@@ -241,7 +241,7 @@ async function generateXLSXExport(event: any, splits: any[], expenses: any[], co
   const adjustedPayable = adjustedCalc.adjustedTrainerFee - overview.cashSales;
   worksheet.addRow(['Balance', formatAmount(adjustedPayable)]);
   const payableLabel = adjustedPayable >= 0 ? 'Payable to Trainer' : 'Receivable from Trainer';
-  worksheet.addRow([payableLabel, formatAmount(Math.abs(adjustedPayable))]);
+  worksheet.addRow([payableLabel, formatAmount(adjustedPayable)]);
 
   // Add trainer splits if any
   if (splits.length > 0) {
@@ -322,7 +322,7 @@ async function generateCSVExport(event: any, splits: any[], expenses: any[], com
     ['Trainer Fee', formatAmount(adjustedCalc.adjustedTrainerFee)],
     ['Cash Sales', formatAmount(overview.cashSales)],
     ['Balance', formatAmount(adjustedPayable)],
-    [payableLabel, formatAmount(Math.abs(adjustedPayable))]
+    [payableLabel, formatAmount(adjustedPayable)]
   ];
 
   const csvString = stringify(csvData);
@@ -520,7 +520,7 @@ async function generatePDFExport(event: any, splits: any[], expenses: any[], com
             </tr>
             <tr>
               <td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">${adjustedPayable >= 0 ? 'Payable to Trainer' : 'Receivable from Trainer'}</td>
-              <td style="border: 1px solid #ddd; padding: 8px; text-align: right; font-weight: bold; ${adjustedPayable < 0 ? 'color: #dc3545;' : 'color: #000000;'}">${formatAmount(Math.abs(adjustedPayable))}</td>
+              <td style="border: 1px solid #ddd; padding: 8px; text-align: right; font-weight: bold; ${adjustedPayable < 0 ? 'color: #dc3545;' : 'color: #000000;'}">${formatAmount(adjustedPayable)}</td>
             </tr>
           </tbody>
         </table>
