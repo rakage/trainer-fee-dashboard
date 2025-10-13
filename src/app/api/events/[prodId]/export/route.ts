@@ -238,10 +238,10 @@ async function generateXLSXExport(event: any, splits: any[], expenses: any[], co
   worksheet.addRow(['Overview']);
   worksheet.addRow(['Trainer Fee', formatAmount(adjustedCalc.adjustedTrainerFee)]);
   worksheet.addRow(['Cash Sales', formatAmount(overview.cashSales)]);
-  const adjustedBalance = overview.cashSales - adjustedCalc.adjustedTrainerFee;
   const adjustedPayable = adjustedCalc.adjustedTrainerFee - overview.cashSales;
-  worksheet.addRow(['Balance', formatAmount(adjustedBalance)]);
-  worksheet.addRow(['Receivable from Trainer', formatAmount(adjustedPayable)]);
+  worksheet.addRow(['Balance', formatAmount(adjustedPayable)]);
+  const payableLabel = adjustedPayable >= 0 ? 'Payable to Trainer' : 'Receivable from Trainer';
+  worksheet.addRow([payableLabel, formatAmount(Math.abs(adjustedPayable))]);
 
   // Add trainer splits if any
   if (splits.length > 0) {
@@ -282,6 +282,21 @@ async function generateCSVExport(event: any, splits: any[], expenses: any[], com
     return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
   };
   
+  // Use display currency for formatting (no conversion)
+  const targetCurrency = displayCurrency || (event.Currency as SupportedCurrency) || 'EUR';
+  
+  // Helper function to format amounts
+  const formatAmount = (amount: number) => {
+    return formatCurrencyAmount(amount, targetCurrency);
+  };
+  
+  // Calculate overview and adjusted trainer fee
+  const { calculateEventOverview } = require('@/lib/utils');
+  const overview = calculateEventOverview(event.tickets, commissions, splits);
+  const adjustedCalc = calculateAdjustedTrainerFee(event, expenses, trainerOverride);
+  const adjustedPayable = adjustedCalc.adjustedTrainerFee - overview.cashSales;
+  const payableLabel = adjustedPayable >= 0 ? 'Payable to Trainer' : 'Receivable from Trainer';
+  
   const csvData = [
     ['Event Report'],
     ['ProdID', event.ProdID],
@@ -301,7 +316,13 @@ async function generateCSVExport(event: any, splits: any[], expenses: any[], com
       row.sumPriceTotal,
       row.TrainerFeePct,
       row.sumTrainerFee
-    ])
+    ]),
+    [],
+    ['Overview'],
+    ['Trainer Fee', formatAmount(adjustedCalc.adjustedTrainerFee)],
+    ['Cash Sales', formatAmount(overview.cashSales)],
+    ['Balance', formatAmount(adjustedPayable)],
+    [payableLabel, formatAmount(Math.abs(adjustedPayable))]
   ];
 
   const csvString = stringify(csvData);
@@ -334,8 +355,7 @@ async function generatePDFExport(event: any, splits: any[], expenses: any[], com
     const overview = calculateEventOverview(event.tickets, commissions, splits);
     const adjustedCalc = calculateAdjustedTrainerFee(event, expenses, trainerOverride);
     
-    // Calculate adjusted balance and payable
-    const adjustedBalance = overview.cashSales - adjustedCalc.adjustedTrainerFee;
+    // Calculate adjusted payable
     const adjustedPayable = adjustedCalc.adjustedTrainerFee - overview.cashSales;
     
     // Calculate totals for grand total row
@@ -496,11 +516,11 @@ async function generatePDFExport(event: any, splits: any[], expenses: any[], com
             </tr>
             <tr>
               <td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">Balance</td>
-              <td style="border: 1px solid #ddd; padding: 8px; text-align: right; ${adjustedBalance < 0 ? 'color: #dc3545;' : ''}">${formatAmount(adjustedBalance)}</td>
+              <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${formatAmount(adjustedPayable)}</td>
             </tr>
             <tr>
-              <td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">Receivable from Trainer</td>
-              <td style="border: 1px solid #ddd; padding: 8px; text-align: right; font-weight: bold; ${adjustedPayable < 0 ? 'color: #dc3545;' : 'color: #28a745;'}">${formatAmount(adjustedPayable)}</td>
+              <td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">${adjustedPayable >= 0 ? 'Payable to Trainer' : 'Receivable from Trainer'}</td>
+              <td style="border: 1px solid #ddd; padding: 8px; text-align: right; font-weight: bold; ${adjustedPayable < 0 ? 'color: #dc3545;' : 'color: #000000;'}">${formatAmount(Math.abs(adjustedPayable))}</td>
             </tr>
           </tbody>
         </table>
