@@ -33,17 +33,20 @@ export function formatCurrencyAmount(amount: number, currency: SupportedCurrency
  * Format amount with symbol prefix (for tables)
  * @param amount - Amount to format
  * @param currency - Currency code
- * @returns Formatted string like "€123.45" or "¥12,345"
+ * @returns Formatted string like "€123.45" or "¥12,345" or "-€123.45"
  */
 export function formatAmount(amount: number, currency: SupportedCurrency): string {
   const info = CURRENCY_INFO[currency];
   const roundedAmount = info.decimals === 0 ? Math.round(amount) : amount;
-  const formattedNumber = roundedAmount.toLocaleString(info.locale, {
+  const isNegative = roundedAmount < 0;
+  const absoluteAmount = Math.abs(roundedAmount);
+  
+  const formattedNumber = absoluteAmount.toLocaleString(info.locale, {
     minimumFractionDigits: info.decimals,
     maximumFractionDigits: info.decimals,
   });
 
-  return `${info.symbol}${formattedNumber}`;
+  return isNegative ? `-${info.symbol}${formattedNumber}` : `${info.symbol}${formattedNumber}`;
 }
 
 /**
