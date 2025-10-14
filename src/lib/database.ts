@@ -479,18 +479,31 @@ export class DatabaseService {
           // Extract program and category from the event name
           const { program, category } = this.extractProgramAndCategory(eventRow.ProdName || '');
           const tierLevel = group.TierLevel;
-
-          console.log(`JPY conversion for Japan event: ${program}-${category}-${tierLevel} for EUR ${unitPrice}`);
+          const venue = eventRow.Location || 'Unknown';
+          
+          // Generate event_type_key to match against database
+          let eventTypeKey = `${program}-${category}-${tierLevel === 'Free' ? '' : tierLevel}`;
+          if (venue === 'Online') {
+            eventTypeKey += '-Online';
+          }
+          
+          console.log('\n=== JPY CONVERSION ATTEMPT ===');
+          console.log(`Event: ${eventRow.ProdName}`);
+          console.log(`Country: ${eventRow.Country}`);
+          console.log(`Venue/Location: ${venue}`);
+          console.log(`Generated event_type_key: ${eventTypeKey}`);
+          console.log(`EUR Unit Price: ${unitPrice}`);
 
           // Convert EUR to JPY
-          const jpyAmount = await this.convertEurToJpy(unitPrice, program, category, tierLevel);
+          const jpyAmount = await this.convertEurToJpy(unitPrice, program, category, tierLevel, venue);
           if (jpyAmount !== null) {
             unitPrice = jpyAmount;
             priceTotal = jpyAmount * group.Quantity;
-            console.log(`Converted to JPY: ${jpyAmount}`);
+            console.log(`✓ MATCH FOUND - Converted to JPY: ¥${jpyAmount.toLocaleString('ja-JP')}`);
           } else {
-            console.log('No conversion found for this tier level');
+            console.log('✗ NO MATCH - No conversion found in database');
           }
+          console.log('=== END JPY CONVERSION ===\n');
         } catch (error) {
           console.error('Error applying JPY price conversion:', error);
           // Continue with original EUR prices if conversion fails
@@ -665,14 +678,32 @@ export class DatabaseService {
   static async getGracePriceConversion(
     program: string,
     category: string,
-    tierLevel: string
+    tierLevel: string,
+    venue?: string
   ): Promise<{ jpyPrice: number; eurPrice: number } | null> {
     try {
       const { GracePriceService } = require('./sqlite');
-      const eventTypeKey = `${program}-${category}-${tierLevel === 'Free' ? '' : tierLevel}`;
+      let eventTypeKey = `${program}-${category}-${tierLevel === 'Free' ? '' : tierLevel}`;
+      if (venue === 'Online') {
+        eventTypeKey += '-Online';
+      }
 
       const conversions = GracePriceService.getAll();
+      
+      console.log('--- Database Lookup ---');
+      console.log(`Looking for: ${eventTypeKey}`);
+      console.log(`Available keys in database (${conversions.length} total):`);
+      conversions.forEach((c: any) => {
+        console.log(`  - ${c.eventTypeKey} (JPY: ¥${c.jpyPrice.toLocaleString('ja-JP')}, EUR: €${c.eurPrice})`);
+      });
+      
       const conversion = conversions.find((c: any) => c.eventTypeKey === eventTypeKey);
+      
+      if (conversion) {
+        console.log(`Match found: ${eventTypeKey}`);
+      } else {
+        console.log(`No match for: ${eventTypeKey}`);
+      }
 
       return conversion
         ? {
@@ -690,11 +721,12 @@ export class DatabaseService {
     eurAmount: number,
     program: string,
     category: string,
-    tierLevel: string
+    tierLevel: string,
+    venue?: string
   ): Promise<number | null> {
     return new Promise(async (resolve) => {
       try {
-        const conversion = await this.getGracePriceConversion(program, category, tierLevel);
+        const conversion = await this.getGracePriceConversion(program, category, tierLevel, venue);
         if (!conversion || conversion.eurPrice === 0) {
           resolve(null);
           return;
