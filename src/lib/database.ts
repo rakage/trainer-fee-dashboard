@@ -324,7 +324,8 @@ export class DatabaseService {
       select *
             , concat(Program, '-', Category, '-', Location, '-', Attendance) as ConcatTrainerPercentKey
             , case
-                when TrainerName like '%Grace%' and Country = 'Japan' then concat(Program, '-', Category, '-', TierLevel)
+                when Country = 'Japan' and Location = 'Venue' then concat(Program, '-', Category, '-', TierLevel)
+                when Country = 'Japan' and Location = 'Online' then concat(Program, '-', Category, '-', TierLevel, '-', Location)
                 else null
             end as GraceKey
       from final_1
