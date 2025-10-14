@@ -342,7 +342,12 @@ export default function FeeParamsPage() {
 
     // Generate eventType and eventTypeKey from form inputs
     const eventType = `${gracePriceForm.program} Training - ${gracePriceForm.tierLevel}`;
-    const eventTypeKey = `${gracePriceForm.program}-${gracePriceForm.category}-${gracePriceForm.tierLevel === 'Free' ? '' : gracePriceForm.tierLevel}`;
+    let eventTypeKey = `${gracePriceForm.program}-${gracePriceForm.category}-${gracePriceForm.tierLevel === 'Free' ? '' : gracePriceForm.tierLevel}`;
+    
+    // Add -Online suffix if venue is Online
+    if (gracePriceForm.venue === 'Online') {
+      eventTypeKey = `${eventTypeKey}-Online`;
+    }
 
     gracePriceMutation.mutate({
       eventType: eventType,
@@ -362,12 +367,16 @@ export default function FeeParamsPage() {
 
   // Helper functions for Grace Price data parsing
   const parseGracePriceData = (gracePrice: GracePrice) => {
-    // Parse eventTypeKey back to components: "Salsation-Instructor training-Early Bird"
+    // Parse eventTypeKey back to components: "Salsation-Instructor training-Early Bird" or "Salsation-Instructor training-Early Bird-Online"
     const parts = gracePrice.eventTypeKey.split('-');
+    
+    // Check if last part is "Online" (venue suffix)
+    const hasOnlineSuffix = parts[parts.length - 1] === 'Online';
+    
     return {
       program: parts[0] || '',
       category: parts[1] || '',
-      tierLevel: parts[2] || 'Free', // If no tier level, it's Free
+      tierLevel: hasOnlineSuffix ? (parts[2] || 'Free') : (parts[2] || 'Free'),
       venue: gracePrice.venue || '',
     };
   };
@@ -1244,7 +1253,12 @@ export default function FeeParamsPage() {
 
                                               // Generate eventType and eventTypeKey from form inputs
                                               const eventType = `${editGracePriceForm.program} Training - ${editGracePriceForm.tierLevel}`;
-                                              const eventTypeKey = `${editGracePriceForm.program}-${editGracePriceForm.category}-${editGracePriceForm.tierLevel === 'Free' ? '' : editGracePriceForm.tierLevel}`;
+                                              let eventTypeKey = `${editGracePriceForm.program}-${editGracePriceForm.category}-${editGracePriceForm.tierLevel === 'Free' ? '' : editGracePriceForm.tierLevel}`;
+                                              
+                                              // Add -Online suffix if venue is Online
+                                              if (editGracePriceForm.venue === 'Online') {
+                                                eventTypeKey = `${eventTypeKey}-Online`;
+                                              }
 
                                               gracePriceMutation.mutate({
                                                 eventType: eventType,
