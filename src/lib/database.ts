@@ -469,20 +469,18 @@ export class DatabaseService {
       let unitPrice = group.UnitPrice;
       let priceTotal = group.UnitPrice * group.Quantity;
 
-      // Apply Grace Price Conversion if trainer is Grace and country is Japan
-      const rawTrainerName = eventRow.TrainerName || eventRow.Vendor || '';
-      const isGraceTrainer = rawTrainerName.toLowerCase().includes('grace');
+      // Apply JPY Price Conversion for all events in Japan
       const isJapan =
         eventRow.Country?.toLowerCase().includes('japan') ||
         eventRow.Country?.toLowerCase().includes('jp');
 
-      if (isGraceTrainer && isJapan && group.TierLevel) {
+      if (isJapan && group.TierLevel) {
         try {
           // Extract program and category from the event name
           const { program, category } = this.extractProgramAndCategory(eventRow.ProdName || '');
           const tierLevel = group.TierLevel;
 
-          console.log(`Grace conversion: ${program}-${category}-${tierLevel} for EUR ${unitPrice}`);
+          console.log(`JPY conversion for Japan event: ${program}-${category}-${tierLevel} for EUR ${unitPrice}`);
 
           // Convert EUR to JPY
           const jpyAmount = await this.convertEurToJpy(unitPrice, program, category, tierLevel);
@@ -494,7 +492,7 @@ export class DatabaseService {
             console.log('No conversion found for this tier level');
           }
         } catch (error) {
-          console.error('Error applying Grace price conversion:', error);
+          console.error('Error applying JPY price conversion:', error);
           // Continue with original EUR prices if conversion fails
         }
       }
@@ -507,14 +505,13 @@ export class DatabaseService {
         PriceTotal: priceTotal, // Total price = unit price Ã— quantity (converted to JPY if applicable)
         TrainerFeePct: feePercent,
         Quantity: group.Quantity,
-        Currency: isGraceTrainer && isJapan ? 'JPY' : 'EUR', // Set currency based on conversion
+        Currency: isJapan ? 'JPY' : 'EUR', // Set currency based on country
       });
     }
 
-    // Determine if this is a Grace event in Japan for currency display
+    // Determine currency display based on country
     const rawTrainerName = eventRow.TrainerName || eventRow.Vendor || 'Unknown';
     const cleanedTrainerName = this.cleanTrainerName(rawTrainerName);
-    const isGraceTrainer = rawTrainerName.toLowerCase().includes('grace');
     const isJapan =
       eventRow.Country?.toLowerCase().includes('japan') ||
       eventRow.Country?.toLowerCase().includes('jp');
@@ -526,7 +523,7 @@ export class DatabaseService {
       Country: eventRow.Country,
       Venue: eventRow.Location || 'Unknown', // Use calculated Location for Venue
       Trainer_1: cleanedTrainerName, // Use cleaned trainer name
-      Currency: isGraceTrainer && isJapan ? 'JPY' : 'EUR', // Set event currency
+      Currency: isJapan ? 'JPY' : 'EUR', // Set event currency based on country
       tickets,
     };
 
