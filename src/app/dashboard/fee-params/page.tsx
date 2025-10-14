@@ -43,6 +43,7 @@ interface GracePrice {
   id: number;
   eventType: string;
   eventTypeKey: string;
+  venue: string | null;
   jpyPrice: number;
   eurPrice: number;
 }
@@ -131,6 +132,7 @@ export default function FeeParamsPage() {
   const [gracePriceForm, setGracePriceForm] = useState({
     program: '',
     category: '',
+    venue: '',
     tierLevel: '',
     jpyPrice: '',
     eurPrice: '',
@@ -141,6 +143,7 @@ export default function FeeParamsPage() {
   const [editGracePriceForm, setEditGracePriceForm] = useState({
     program: '',
     category: '',
+    venue: '',
     tierLevel: '',
     jpyPrice: '',
     eurPrice: '',
@@ -328,7 +331,7 @@ export default function FeeParamsPage() {
   };
 
   const resetGracePriceForm = () => {
-    setGracePriceForm({ program: '', category: '', tierLevel: '', jpyPrice: '', eurPrice: '' });
+    setGracePriceForm({ program: '', category: '', venue: '', tierLevel: '', jpyPrice: '', eurPrice: '' });
   };
 
   // Grace Price form handlers
@@ -344,6 +347,7 @@ export default function FeeParamsPage() {
     gracePriceMutation.mutate({
       eventType: eventType,
       eventTypeKey: eventTypeKey,
+      venue: gracePriceForm.venue || null,
       jpyPrice: parseFloat(gracePriceForm.jpyPrice),
       eurPrice: parseFloat(gracePriceForm.eurPrice),
     });
@@ -364,6 +368,7 @@ export default function FeeParamsPage() {
       program: parts[0] || '',
       category: parts[1] || '',
       tierLevel: parts[2] || 'Free', // If no tier level, it's Free
+      venue: gracePrice.venue || '',
     };
   };
 
@@ -946,7 +951,7 @@ export default function FeeParamsPage() {
                 </CardHeader>
                 <CardContent>
                   <form onSubmit={handleGracePriceSubmit} className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                       <div>
                         <Label htmlFor="program">Program</Label>
                         <Select
@@ -982,6 +987,22 @@ export default function FeeParamsPage() {
                                 {option}
                               </SelectItem>
                             ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label htmlFor="venue">Venue</Label>
+                        <Select
+                          value={gracePriceForm.venue}
+                          onValueChange={(value) => handleGracePriceInputChange('venue', value)}
+                          required
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select venue" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Venue">Venue</SelectItem>
+                            <SelectItem value="Online">Online</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -1082,7 +1103,9 @@ export default function FeeParamsPage() {
                             <TableRow>
                               <TableHead className="min-w-[120px]">Program</TableHead>
                               <TableHead className="min-w-[140px]">Category</TableHead>
+                              <TableHead className="min-w-[100px]">Venue</TableHead>
                               <TableHead className="min-w-[120px]">Tier Level</TableHead>
+                              <TableHead className="min-w-[200px]">Event Type Key</TableHead>
                               <TableHead className="min-w-[120px]">JPY Price</TableHead>
                               <TableHead className="min-w-[120px]">EUR Price</TableHead>
                               <TableHead className="min-w-[160px] text-right">Actions</TableHead>
@@ -1139,6 +1162,25 @@ export default function FeeParamsPage() {
                                       </TableCell>
                                       <TableCell>
                                         <Select
+                                          value={editGracePriceForm.venue}
+                                          onValueChange={(value) =>
+                                            setEditGracePriceForm((p) => ({
+                                              ...p,
+                                              venue: value,
+                                            }))
+                                          }
+                                        >
+                                          <SelectTrigger className="h-8">
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="Venue">Venue</SelectItem>
+                                            <SelectItem value="Online">Online</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      </TableCell>
+                                      <TableCell>
+                                        <Select
                                           value={editGracePriceForm.tierLevel}
                                           onValueChange={(value) =>
                                             setEditGracePriceForm((p) => ({
@@ -1158,6 +1200,9 @@ export default function FeeParamsPage() {
                                             ))}
                                           </SelectContent>
                                         </Select>
+                                      </TableCell>
+                                      <TableCell className="text-xs text-muted-foreground">
+                                        {gracePrice.eventTypeKey}
                                       </TableCell>
                                       <TableCell>
                                         <Input
@@ -1204,6 +1249,7 @@ export default function FeeParamsPage() {
                                               gracePriceMutation.mutate({
                                                 eventType: eventType,
                                                 eventTypeKey: eventTypeKey,
+                                                venue: editGracePriceForm.venue || null,
                                                 jpyPrice: parseFloat(editGracePriceForm.jpyPrice),
                                                 eurPrice: parseFloat(editGracePriceForm.eurPrice),
                                               });
@@ -1230,7 +1276,11 @@ export default function FeeParamsPage() {
                                         {parsedData.program}
                                       </TableCell>
                                       <TableCell>{parsedData.category}</TableCell>
+                                      <TableCell>{parsedData.venue || '-'}</TableCell>
                                       <TableCell>{parsedData.tierLevel}</TableCell>
+                                      <TableCell className="text-xs text-muted-foreground">
+                                        {gracePrice.eventTypeKey}
+                                      </TableCell>
                                       <TableCell>
                                         ¥{gracePrice.jpyPrice.toLocaleString('ja-JP')}
                                       </TableCell>
@@ -1250,6 +1300,7 @@ export default function FeeParamsPage() {
                                               setEditGracePriceForm({
                                                 program: parsedData.program,
                                                 category: parsedData.category,
+                                                venue: parsedData.venue,
                                                 tierLevel: parsedData.tierLevel,
                                                 jpyPrice: String(gracePrice.jpyPrice),
                                                 eurPrice: String(gracePrice.eurPrice),

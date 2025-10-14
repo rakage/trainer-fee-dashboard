@@ -53,12 +53,20 @@ function initializeTables() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       event_type TEXT NOT NULL,
       event_type_key TEXT NOT NULL UNIQUE,
+      venue TEXT,
       jpy_price REAL NOT NULL,
       eur_price REAL NOT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `).run();
+
+  // Add venue column if it doesn't exist (for existing databases)
+  try {
+    db.prepare('ALTER TABLE grace_price_conversion ADD COLUMN venue TEXT').run();
+  } catch (error) {
+    // Column already exists, ignore error
+  }
   
   // Other tables
   db.prepare(`
@@ -108,34 +116,34 @@ function initializeTables() {
 
 function seedGracePrices() {
   const defaultData = [
-    { eventType: 'Salsation Training - Repeater', eventTypeKey: 'Salsation-Instructor training-Repeater', jpyPrice: 19400, eurPrice: 113.449 },
-    { eventType: 'Salsation Training - Troupe', eventTypeKey: 'Salsation-Instructor training-Troupe', jpyPrice: 19400, eurPrice: 113.449 },
-    { eventType: 'Salsation Training - Early Bird', eventTypeKey: 'Salsation-Instructor training-Early Bird', jpyPrice: 29700, eurPrice: 173.685 },
-    { eventType: 'Salsation Training - Regular', eventTypeKey: 'Salsation-Instructor training-Regular', jpyPrice: 36100, eurPrice: 211.11 },
-    { eventType: 'Salsation Training - Rush', eventTypeKey: 'Salsation-Instructor training-Rush', jpyPrice: 42600, eurPrice: 249.12 },
-    { eventType: 'Salsation Training - Free', eventTypeKey: 'Salsation-Instructor training-', jpyPrice: 0, eurPrice: 0 },
-    { eventType: 'Choreology Training - Repeater', eventTypeKey: 'Choreology-Instructor training-Repeater', jpyPrice: 19400, eurPrice: 113.449 },
-    { eventType: 'Choreology Training - Trouper', eventTypeKey: 'Choreology-Instructor training-Troupe', jpyPrice: 19400, eurPrice: 113.449 },
-    { eventType: 'Choreology Training - Early Bird', eventTypeKey: 'Choreology-Instructor training-Early Bird', jpyPrice: 29700, eurPrice: 173.685 },
-    { eventType: 'Choreology Training - Regular', eventTypeKey: 'Choreology-Instructor training-Regular', jpyPrice: 36100, eurPrice: 211.11 },
-    { eventType: 'Choreology Training - Rush', eventTypeKey: 'Choreology-Instructor training-Rush', jpyPrice: 42600, eurPrice: 249.12 },
-    { eventType: 'Choreology Training - Free', eventTypeKey: 'Choreology-Instructor training-', jpyPrice: 0, eurPrice: 0 },
-    { eventType: 'KID Instructor Training - Repeater', eventTypeKey: 'Kid-Instructor training-Repeater', jpyPrice: 19400, eurPrice: 113.449 },
-    { eventType: 'KID Instructor Training - Trouper', eventTypeKey: 'Kid-Instructor training-Troupe', jpyPrice: 19400, eurPrice: 113.449 },
-    { eventType: 'KID Instructor Training - Early Bird', eventTypeKey: 'Kid-Instructor training-Early Bird', jpyPrice: 29700, eurPrice: 173.685 },
-    { eventType: 'KID Instructor Training - Regular', eventTypeKey: 'Kid-Instructor training-Regular', jpyPrice: 36100, eurPrice: 211.11 },
-    { eventType: 'KID Instructor Training - Rush', eventTypeKey: 'Kid-Instructor training-Rush', jpyPrice: 42600, eurPrice: 249.12 },
-    { eventType: 'KID Instructor Training - Free', eventTypeKey: 'Kid-Instructor training-', jpyPrice: 0, eurPrice: 0 },
+    { eventType: 'Salsation Training - Repeater', eventTypeKey: 'Salsation-Instructor training-Repeater', venue: 'Venue', jpyPrice: 19400, eurPrice: 113.449 },
+    { eventType: 'Salsation Training - Troupe', eventTypeKey: 'Salsation-Instructor training-Troupe', venue: 'Venue', jpyPrice: 19400, eurPrice: 113.449 },
+    { eventType: 'Salsation Training - Early Bird', eventTypeKey: 'Salsation-Instructor training-Early Bird', venue: 'Venue', jpyPrice: 29700, eurPrice: 173.685 },
+    { eventType: 'Salsation Training - Regular', eventTypeKey: 'Salsation-Instructor training-Regular', venue: 'Venue', jpyPrice: 36100, eurPrice: 211.11 },
+    { eventType: 'Salsation Training - Rush', eventTypeKey: 'Salsation-Instructor training-Rush', venue: 'Venue', jpyPrice: 42600, eurPrice: 249.12 },
+    { eventType: 'Salsation Training - Free', eventTypeKey: 'Salsation-Instructor training-', venue: 'Venue', jpyPrice: 0, eurPrice: 0 },
+    { eventType: 'Choreology Training - Repeater', eventTypeKey: 'Choreology-Instructor training-Repeater', venue: 'Venue', jpyPrice: 19400, eurPrice: 113.449 },
+    { eventType: 'Choreology Training - Trouper', eventTypeKey: 'Choreology-Instructor training-Troupe', venue: 'Venue', jpyPrice: 19400, eurPrice: 113.449 },
+    { eventType: 'Choreology Training - Early Bird', eventTypeKey: 'Choreology-Instructor training-Early Bird', venue: 'Venue', jpyPrice: 29700, eurPrice: 173.685 },
+    { eventType: 'Choreology Training - Regular', eventTypeKey: 'Choreology-Instructor training-Regular', venue: 'Venue', jpyPrice: 36100, eurPrice: 211.11 },
+    { eventType: 'Choreology Training - Rush', eventTypeKey: 'Choreology-Instructor training-Rush', venue: 'Venue', jpyPrice: 42600, eurPrice: 249.12 },
+    { eventType: 'Choreology Training - Free', eventTypeKey: 'Choreology-Instructor training-', venue: 'Venue', jpyPrice: 0, eurPrice: 0 },
+    { eventType: 'KID Instructor Training - Repeater', eventTypeKey: 'Kid-Instructor training-Repeater', venue: 'Venue', jpyPrice: 19400, eurPrice: 113.449 },
+    { eventType: 'KID Instructor Training - Trouper', eventTypeKey: 'Kid-Instructor training-Troupe', venue: 'Venue', jpyPrice: 19400, eurPrice: 113.449 },
+    { eventType: 'KID Instructor Training - Early Bird', eventTypeKey: 'Kid-Instructor training-Early Bird', venue: 'Venue', jpyPrice: 29700, eurPrice: 173.685 },
+    { eventType: 'KID Instructor Training - Regular', eventTypeKey: 'Kid-Instructor training-Regular', venue: 'Venue', jpyPrice: 36100, eurPrice: 211.11 },
+    { eventType: 'KID Instructor Training - Rush', eventTypeKey: 'Kid-Instructor training-Rush', venue: 'Venue', jpyPrice: 42600, eurPrice: 249.12 },
+    { eventType: 'KID Instructor Training - Free', eventTypeKey: 'Kid-Instructor training-', venue: 'Venue', jpyPrice: 0, eurPrice: 0 },
   ];
   
   const insert = db.prepare(`
-    INSERT OR IGNORE INTO grace_price_conversion (event_type, event_type_key, jpy_price, eur_price) 
-    VALUES (?, ?, ?, ?)
+    INSERT OR IGNORE INTO grace_price_conversion (event_type, event_type_key, venue, jpy_price, eur_price) 
+    VALUES (?, ?, ?, ?, ?)
   `);
   
   let count = 0;
   for (const item of defaultData) {
-    const result = insert.run(item.eventType, item.eventTypeKey, item.jpyPrice, item.eurPrice);
+    const result = insert.run(item.eventType, item.eventTypeKey, item.venue, item.jpyPrice, item.eurPrice);
     if (result.changes > 0) count++;
   }
   

@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { eventType, eventTypeKey, jpyPrice, eurPrice } = body;
+    const { eventType, eventTypeKey, venue, jpyPrice, eurPrice } = body;
 
     // Validation
     if (!eventType || !eventTypeKey || typeof jpyPrice !== 'number' || typeof eurPrice !== 'number') {
@@ -54,6 +54,7 @@ export async function POST(request: NextRequest) {
     GracePriceService.upsert({
       eventType,
       eventTypeKey,
+      venue: venue || null,
       jpyPrice,
       eurPrice,
     });
