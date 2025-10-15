@@ -154,6 +154,27 @@ export function DashboardHeader() {
                 Dashboard
               </Button>
             </Link>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  Alejandro Reports
+                  <ChevronDown className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem asChild>
+                  <Link href="/dashboard/alejandro-report" className="w-full cursor-pointer">
+                    Alejandro Instructor Trainer Fee
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/dashboard/alejandro-events" className="w-full cursor-pointer">
+                    Alejandro&apos;s Events
+                  </Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             {session?.user?.role === 'admin' && (
               <>
                 <Link href="/dashboard/fee-params">
@@ -162,27 +183,6 @@ export function DashboardHeader() {
                     Fee Parameters
                   </Button>
                 </Link>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" className="flex items-center gap-2">
-                      <FileText className="h-4 w-4" />
-                      Alejandro Reports
-                      <ChevronDown className="h-3 w-3" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start">
-                    <DropdownMenuItem asChild>
-                      <Link href="/dashboard/alejandro-report" className="w-full cursor-pointer">
-                        Alejandro Instructor Trainer Fee
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link href="/dashboard/alejandro-events" className="w-full cursor-pointer">
-                        Alejandro&apos;s Events
-                      </Link>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
                 <Link href="/admin">
                   <Button variant="ghost" size="sm" className="flex items-center gap-2">
                     <Shield className="h-4 w-4" />
