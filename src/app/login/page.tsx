@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, Suspense, useEffect } from 'react';
-import { signIn, getSession, useSession } from 'next-auth/react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { signIn, useSession } from 'next-auth/react';
+import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,7 +10,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { LoginCredentials } from '@/types';
 
 function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const { data: session, status } = useSession();
   const [credentials, setCredentials] = useState<LoginCredentials>({
@@ -26,9 +25,9 @@ function LoginForm() {
   // Redirect if already authenticated
   useEffect(() => {
     if (status === 'authenticated' && session) {
-      router.push(callbackUrl);
+      window.location.href = callbackUrl;
     }
-  }, [status, session, router, callbackUrl]);
+  }, [status, session, callbackUrl]);
 
   // Show loading while checking session
   if (status === 'loading') {
@@ -43,13 +42,7 @@ function LoginForm() {
 
   // Don't render form if authenticated (prevents flash before redirect)
   if (status === 'authenticated') {
-    return (
-      <Card>
-        <CardContent className="flex items-center justify-center py-6">
-          <div className="text-center">Redirecting...</div>
-        </CardContent>
-      </Card>
-    );
+    return null;
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -66,17 +59,13 @@ function LoginForm() {
 
       if (result?.error) {
         setError('Invalid email or password');
-      } else {
-        // Get session to check user role and redirect appropriately
-        const session = await getSession();
-        if (session) {
-          router.push(callbackUrl);
-          router.refresh();
-        }
+        setIsLoading(false);
+      } else if (result?.ok) {
+        // Use window.location for a hard redirect to avoid session sync issues
+        window.location.href = callbackUrl;
       }
     } catch {
       setError('An error occurred. Please try again.');
-    } finally {
       setIsLoading(false);
     }
   };
