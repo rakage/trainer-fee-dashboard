@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/middleware';
 import { DatabaseService } from '@/lib/database';
+import { getTrainersEventsSummary } from '@/lib/trainers-events-summary';
 
 export async function GET(request: NextRequest) {
   try {
@@ -15,24 +16,24 @@ export async function GET(request: NextRequest) {
     const page = searchParams.get('page') ? parseInt(searchParams.get('page')!) : 1;
     const pageSize = searchParams.get('pageSize') ? parseInt(searchParams.get('pageSize')!) : 50;
 
-    // Get summary for cards (all filtered data - not affected by pagination)
-    const summary = await DatabaseService.getTrainersEventsSummary(year, month);
-    
-    // Get paginated data (only for table display)
-    const trainersEvents = await DatabaseService.getTrainersEvents(year, month, page, pageSize);
+    // Call both queries in parallel for better performance
+    const [summary, trainersEvents] = await Promise.all([
+      getTrainersEventsSummary(year, month), // Get totals from ALL filtered events
+      DatabaseService.getTrainersEvents(year, month, page, pageSize) // Get current page data
+    ]);
 
     return NextResponse.json({
       data: trainersEvents,
       summary: {
-        totalEvents: summary.totalEvents || 0, // From ALL filtered events (year/month)
-        uniqueTrainers: summary.uniqueTrainers || 0, // From ALL filtered events (year/month)
-        totalTickets: summary.totalTickets || 0, // From ALL filtered events (year/month)
-        totalRevenue: summary.totalRevenue || 0, // From ALL filtered events (year/month)
+        totalEvents: summary.totalEvents || 0,
+        uniqueTrainers: summary.uniqueTrainers || 0,
+        totalTickets: summary.totalTickets || 0,
+        totalRevenue: summary.totalRevenue || 0,
       },
       pagination: {
         page,
         pageSize,
-        totalCount: summary.totalEvents || 0,
+        totalCount: summary.totalEvents || 0, // Use total from summary
         totalPages: Math.ceil((summary.totalEvents || 0) / pageSize),
       }
     });

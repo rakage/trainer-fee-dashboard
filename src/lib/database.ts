@@ -1724,8 +1724,20 @@ export class DatabaseService {
     }
   }
 
-  // Get summary totals for cards (ALL filtered data, no pagination) - runs your FULL query
+  // TODO: Implement this as a SQL Server Stored Procedure for better performance
+  // This would run your full query and return aggregate totals for the cards
+  /*
   static async getTrainersEventsSummary(year?: number, month?: number) {
+    // This needs to run your FULL 20+ CTE query to calculate:
+    // - totalEvents: COUNT(DISTINCT prodid)
+    // - uniqueTrainers: COUNT(DISTINCT trainer)
+    // - totalTickets: SUM(totaltickets)
+    // - totalRevenue: SUM(totalrevenue)
+    // Recommended: Create a stored procedure in SQL Server for this
+  }
+  */
+
+  static async getTrainersEvents(year?: number, month?: number, page: number = 1, pageSize: number = 50) {
     try {
       const pool = await getConnection();
       const request = pool.request();
@@ -1739,17 +1751,16 @@ export class DatabaseService {
       if (month) {
         request.input('month', sql.Int, month);
       }
+      
+      // Pagination parameters
+      const offset = (page - 1) * pageSize;
+      request.input('offset', sql.Int, offset);
+      request.input('pageSize', sql.Int, pageSize);
 
-      // Run your FULL query WITHOUT pagination, but only SELECT aggregates
+      // Your original query with pagination optimization at the start
       const query = `
-        SELECT 
-          COUNT(DISTINCT prodid) as totalEvents,
-          COUNT(DISTINCT trainer) as uniqueTrainers,
-          ISNULL(SUM(totaltickets), 0) as totalTickets,
-          ISNULL(SUM(totalrevenue), 0) as totalRevenue
-        FROM (
-          -- Your FULL original query WITHOUT pagination CTEs
-          with base as (
+        -- Pagination CTEs: Filter events BEFORE processing through your complex logic
+        WITH PaginatedEvents as (
             select distinct
             p.id as ProdID, 
             p.name as ProdName,  
@@ -1799,8 +1810,204 @@ export class DatabaseService {
             ${month ? "AND MONTH(CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE)) = @month" : ''}
             and p.id not in ('53000', '55053')
             )
-            -- Copy ALL remaining CTEs from your original query here
-            -- (I'll add them from the getTrainersEvents method)
+            , finals as (
+            select 
+                *
+                , row_number() over(partition by ProdID order by eventdate asc) as rn
+            from base
+            )
+            , EventDataRaw as (
+            select 
+                ProdID,
+            ProdName,
+            Category,
+            Program,
+            ReportingGroup,
+            EventDate,
+            ProductPrice,
+            Vendor,
+            Country,
+            StockQuantity,
+            Cancelled,
+            Status_Event
+            from finals
+            where 1=1
+            and rn = 1
+            )
+            , base_order as (
+            select distinct
+            o.id as OrderID, 
+            o.PaidDateUtc as DatePaid, 
+            CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE) as EventDate, 
+            p.id as ProdID, 
+            p.name as ProdName,  
+            c.name as Category, 
+            sao2.name as Program,
+            oi.quantity, 
+            p.price as ProductPrice, 
+            oi.UnitPriceInclTax as UnitPrice, 
+            oi.PriceInclTax - o.RefundedAmount as PriceTotal,
+            tp.Designation as TierLevel,
+            v.Name as Vendor,
+            sao.Name as Country,
+            cu.id as CustomerID,
+            cu.username as Customer,
+            CASE  WHEN (o.CaptureTransactionId IS NOT NULL and oi.UnitPriceInclTax = 0)
+                THEN 'Free Ticket'
+                WHEN o.CaptureTransactionId IS NOT NULL 
+                THEN 'Paypal'
+                WHEN (o.CaptureTransactionId IS NULL and oi.UnitPriceInclTax = 0)
+                THEN 'Free Ticket'
+                ELSE 'Cash'
+            END AS PaymentMethod,
+            CASE WHEN ss.attendedsetdateUTC IS NOT NULL
+                THEN 'Attended'
+                ELSE 'Unattended'
+            END AS Attendance,
+            o.paymentstatusid as PaymentStatus,
+            p.StockQuantity
+            from product p WITH (NOLOCK)
+            left join OrderItem oi WITH (NOLOCK)
+            on p.id = oi.ProductId
+            left join [Order] o WITH (NOLOCK)
+            on oi.OrderId = o.id
+            left join Product_Category_Mapping pcm WITH (NOLOCK)
+            on p.id = pcm.ProductId
+            left join Product_ProductAttribute_Mapping pam WITH (NOLOCK)
+            on p.id = pam.ProductId
+            left join SalsationEvent_Country_Mapping scm WITH (NOLOCK)
+            on p.id = scm.ProductId
+            left join country cn WITH (NOLOCK)
+            on scm.CountryId = cn.Id
+            left join ProductAttributeValue pav WITH (NOLOCK)
+            on pam.id = pav.ProductAttributeMappingId
+            left join Category c WITH (NOLOCK)
+            on pcm.CategoryId = c.id
+            left join Vendor v WITH (NOLOCK)
+            on p.VendorId = v.Id
+            left join Customer cu WITH (NOLOCK)
+            on o.CustomerId = cu.id
+            left join customer_customerrole_mapping crm WITH (NOLOCK)
+            on cu.id = crm.customer_id
+            left join customerrole cr WITH (NOLOCK)
+            on crm.customerrole_id = cr.id
+            left join Product_SpecificationAttribute_Mapping psm WITH (NOLOCK)
+            on p.Id = psm.productid
+            left join SpecificationAttributeOption sao WITH (NOLOCK)
+            on psm.SpecificationAttributeOptionId = sao.Id 
+            left join SpecificationAttribute sa WITH (NOLOCK)
+            on sao.SpecificationAttributeId = sa.Id
+            left join Product_SpecificationAttribute_Mapping psm2 WITH (NOLOCK)
+            on p.Id = psm2.productid
+            left join SpecificationAttributeOption sao2 WITH (NOLOCK)
+            on psm2.SpecificationAttributeOptionId = sao2.Id 
+            left join SpecificationAttribute sa2 WITH (NOLOCK)
+            on sao2.SpecificationAttributeId = sa2.Id
+            left join SalsationSubscriber ss WITH (NOLOCK)
+            on (oi.Id = ss.OrderItemId
+            and cu.id = ss.CustomerId
+            and p.id = ss.parentid
+            and o.id = ss.orderid)
+            left join TierPrice tp WITH (NOLOCK)
+            on (p.id = tp.productId
+            and oi.PriceInclTax = tp.price
+            and oi.Quantity = tp.Quantity)
+            where sa.id = 10
+            and sa2.id = 6
+            and o.orderstatusid = '30'
+            and o.paymentstatusid in ('30','35')
+            and (p.Published = 1
+            or (p.id = '40963' and p.Published = 0))
+            and p.id not in ('54958', '53000', '55053')
+            ${year ? "AND pav.name like '%' + CAST(@year AS VARCHAR(4)) + '%'" : "AND (pav.name like '%2024%' or pav.name like '%2025%')"}
+            ${month ? "AND MONTH(CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE)) = @month" : ''}
+            UNION
+            select distinct
+            o.id as OrderID, 
+            o.PaidDateUtc as DatePaid, 
+            CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE) as EventDate, 
+            p.id as ProdID, 
+            p.name as ProdName,  
+            c.name as Category, 
+            sao2.name as Program,
+            oi.quantity, 
+            p.price as ProductPrice, 
+            oi.UnitPriceInclTax as UnitPrice, 
+            oi.PriceInclTax - o.RefundedAmount as PriceTotal,
+            tp.Designation as TierLevel,
+            v.Name as Vendor,
+            sao.Name as Country,
+            cu.id as CustomerID,
+            cu.username as Customer,
+            CASE  WHEN (o.CaptureTransactionId IS NOT NULL and oi.UnitPriceInclTax = 0)
+                THEN 'Free Ticket'
+                WHEN o.CaptureTransactionId IS NOT NULL 
+                THEN 'Paypal'
+                WHEN (o.CaptureTransactionId IS NULL and oi.UnitPriceInclTax = 0)
+                THEN 'Free Ticket'
+                ELSE 'Cash'
+            END AS PaymentMethod,
+            CASE WHEN ss.attendedsetdateUTC IS NOT NULL
+            THEN 'Attended'
+            ELSE 'Unattended'
+            END AS Attendance,
+            o.paymentstatusid as PaymentStatus,
+            p.StockQuantity
+            from product p WITH (NOLOCK)
+            left join OrderItem oi WITH (NOLOCK)
+            on p.id = oi.ProductId
+            left join [Order] o WITH (NOLOCK)
+            on oi.OrderId = o.id
+            left join Product_Category_Mapping pcm WITH (NOLOCK)
+            on p.id = pcm.ProductId
+            left join Product_ProductAttribute_Mapping pam WITH (NOLOCK)
+            on p.id = pam.ProductId
+            left join SalsationEvent_Country_Mapping scm WITH (NOLOCK)
+            on p.id = scm.ProductId
+            left join country cn WITH (NOLOCK)
+            on scm.CountryId = cn.Id
+            left join ProductAttributeValue pav WITH (NOLOCK)
+            on pam.id = pav.ProductAttributeMappingId
+            left join Category c WITH (NOLOCK)
+            on pcm.CategoryId = c.id
+            left join Vendor v WITH (NOLOCK)
+            on p.VendorId = v.Id
+            left join Customer cu WITH (NOLOCK)
+            on o.CustomerId = cu.id
+            left join customer_customerrole_mapping crm WITH (NOLOCK)
+            on cu.id = crm.customer_id
+            left join customerrole cr WITH (NOLOCK)
+            on crm.customerrole_id = cr.id
+            left join Product_SpecificationAttribute_Mapping psm WITH (NOLOCK)
+            on p.Id = psm.productid
+            left join SpecificationAttributeOption sao WITH (NOLOCK)
+            on psm.SpecificationAttributeOptionId = sao.Id 
+            left join SpecificationAttribute sa WITH (NOLOCK)
+            on sao.SpecificationAttributeId = sa.Id
+            left join Product_SpecificationAttribute_Mapping psm2 WITH (NOLOCK)
+            on p.Id = psm2.productid
+            left join SpecificationAttributeOption sao2 WITH (NOLOCK)
+            on psm2.SpecificationAttributeOptionId = sao2.Id 
+            left join SpecificationAttribute sa2 WITH (NOLOCK)
+            on sao2.SpecificationAttributeId = sa2.Id
+            left join SalsationSubscriber ss WITH (NOLOCK)
+            on (oi.Id = ss.OrderItemId
+            and cu.id = ss.CustomerId
+            and p.id = ss.parentid
+            and o.id = ss.orderid)
+            left join TierPrice tp WITH (NOLOCK)
+            on (p.id = tp.productId
+            and oi.PriceInclTax = tp.price
+            and oi.Quantity = tp.Quantity)
+            where sa.id = 10
+            and sa2.id = 6
+            and o.orderstatusid = '30'
+            and o.paymentstatusid in ('30','35')
+            and p.id in ('54958')
+            and p.id not in ('53000', '55053')
+            ${year ? "AND YEAR(o.PaidDateUtc) = @year" : "AND (o.PaidDateUtc like '%2024%' or o.PaidDateUtc like '%2025%')"}
+            ${month ? "AND MONTH(o.PaidDateUtc) = @month" : ''}
+            )
         ) as SummaryData
       `;
 
