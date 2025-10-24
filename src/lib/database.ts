@@ -1724,13 +1724,13 @@ export class DatabaseService {
     }
   }
 
-  static async getTrainersEvents(year?: number, month?: number) {
+  static async getTrainersEvents(year?: number, month?: number, page: number = 1, pageSize: number = 50) {
     try {
       const pool = await getConnection();
       const request = pool.request();
       
-      // Set a longer timeout for this complex query (60 seconds)
-      request.timeout = 60000;
+      // Set a longer timeout for this complex query (120 seconds)
+      (request as any).timeout = 120000;
 
       if (year) {
         request.input('year', sql.Int, year);
@@ -1738,9 +1738,40 @@ export class DatabaseService {
       if (month) {
         request.input('month', sql.Int, month);
       }
+      
+      // Pagination parameters
+      const offset = (page - 1) * pageSize;
+      request.input('offset', sql.Int, offset);
+      request.input('pageSize', sql.Int, pageSize);
 
+      // Paginated query - process only a subset of events
       const query = `
-        with base as (
+        -- Step 1: Get ONLY the events for this page (CRITICAL for performance)
+        with PaginatedEvents as (
+            select 
+                p.id as prodid,
+                ROW_NUMBER() OVER (ORDER BY CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE) DESC, p.id DESC) as RowNum
+            from product p WITH (NOLOCK)
+            inner join Product_Category_Mapping pcm WITH (NOLOCK) on p.id = pcm.ProductId
+            inner join Product_ProductAttribute_Mapping pam WITH (NOLOCK) on p.id = pam.ProductId
+            inner join ProductAttributeValue pav WITH (NOLOCK) on pam.id = pav.ProductAttributeMappingId
+            inner join Product_SpecificationAttribute_Mapping psm WITH (NOLOCK) on p.Id = psm.productid
+            inner join SpecificationAttribute sa WITH (NOLOCK) on psm.SpecificationAttributeOptionId = sa.Id
+            inner join Product_SpecificationAttribute_Mapping psm2 WITH (NOLOCK) on p.Id = psm2.productid
+            inner join SpecificationAttribute sa2 WITH (NOLOCK) on psm2.SpecificationAttributeOptionId = sa2.Id
+            where sa.id = 10
+            and sa2.id = 6
+            and p.id not in ('53000', '55053')
+            ${year ? "AND pav.name like '%' + CAST(@year AS VARCHAR(4)) + '%'" : "AND (pav.name like '%2024%' or pav.name like '%2025%')"}
+            ${month ? "AND MONTH(CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE)) = @month" : ''}
+        )
+        , PagedProductIds as (
+            select prodid
+            from PaginatedEvents
+            where RowNum > @offset AND RowNum <= (@offset + @pageSize)
+        )
+        -- Step 2: Get full event details ONLY for paged events
+        , base as (
             select distinct
             p.id as ProdID, 
             p.name as ProdName,  
@@ -1753,43 +1784,25 @@ export class DatabaseService {
             sao.Name as Country,
             p.StockQuantity,
             p.DisableBuyButton as Cancelled,
-            case
-                when p.Published = 1 then 'Active'
-                else 'Cancelled'
-            end as Status_Event
+            case when p.Published = 1 then 'Active' else 'Cancelled' end as Status_Event
             from product p WITH (NOLOCK)
-            left join Product_Category_Mapping pcm WITH (NOLOCK)
-            on p.id = pcm.ProductId
-            left join Product_ProductAttribute_Mapping pam WITH (NOLOCK)
-            on p.id = pam.ProductId
-            left join SalsationEvent_Country_Mapping scm WITH (NOLOCK)
-            on p.id = scm.ProductId
-            left join country cn WITH (NOLOCK)
-            on scm.CountryId = cn.Id
-            left join ProductAttributeValue pav WITH (NOLOCK)
-            on pam.id = pav.ProductAttributeMappingId
-            left join Category c WITH (NOLOCK)
-            on pcm.CategoryId = c.id
-            left join Vendor v WITH (NOLOCK)
-            on p.VendorId = v.Id
-            left join Product_SpecificationAttribute_Mapping psm WITH (NOLOCK)
-            on p.Id = psm.productid
-            left join SpecificationAttributeOption sao WITH (NOLOCK)
-            on psm.SpecificationAttributeOptionId = sao.Id 
-            left join SpecificationAttribute sa WITH (NOLOCK)
-            on sao.SpecificationAttributeId = sa.Id
-            left join Product_SpecificationAttribute_Mapping psm2 WITH (NOLOCK)
-            on p.Id = psm2.productid
-            left join SpecificationAttributeOption sao2 WITH (NOLOCK)
-            on psm2.SpecificationAttributeOptionId = sao2.Id 
-            left join SpecificationAttribute sa2 WITH (NOLOCK)
-            on sao2.SpecificationAttributeId = sa2.Id
+            inner join PagedProductIds pp on p.id = pp.prodid
+            left join Product_Category_Mapping pcm WITH (NOLOCK) on p.id = pcm.ProductId
+            left join Product_ProductAttribute_Mapping pam WITH (NOLOCK) on p.id = pam.ProductId
+            left join SalsationEvent_Country_Mapping scm WITH (NOLOCK) on p.id = scm.ProductId
+            left join country cn WITH (NOLOCK) on scm.CountryId = cn.Id
+            left join ProductAttributeValue pav WITH (NOLOCK) on pam.id = pav.ProductAttributeMappingId
+            left join Category c WITH (NOLOCK) on pcm.CategoryId = c.id
+            left join Vendor v WITH (NOLOCK) on p.VendorId = v.Id
+            left join Product_SpecificationAttribute_Mapping psm WITH (NOLOCK) on p.Id = psm.productid
+            left join SpecificationAttributeOption sao WITH (NOLOCK) on psm.SpecificationAttributeOptionId = sao.Id 
+            left join SpecificationAttribute sa WITH (NOLOCK) on sao.SpecificationAttributeId = sa.Id
+            left join Product_SpecificationAttribute_Mapping psm2 WITH (NOLOCK) on p.Id = psm2.productid
+            left join SpecificationAttributeOption sao2 WITH (NOLOCK) on psm2.SpecificationAttributeOptionId = sao2.Id 
+            left join SpecificationAttribute sa2 WITH (NOLOCK) on sao2.SpecificationAttributeId = sa2.Id
             where sa.id = 10
             and sa2.id = 6
-            and p.id not in ('53000', '55053')
-            ${year ? "AND pav.name like '%' + CAST(@year AS VARCHAR(4)) + '%'" : "AND (pav.name like '%2024%' or pav.name like '%2025%')"}
-            ${month ? "AND MONTH(CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE)) = @month" : ''}
-            )
+        )
             , finals as (
             select 
                 *
