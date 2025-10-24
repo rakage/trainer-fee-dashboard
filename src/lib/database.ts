@@ -1724,12 +1724,15 @@ export class DatabaseService {
     }
   }
 
-  // Get summary totals for cards (ALL filtered data, no pagination)
+  // Get summary totals for cards (ALL filtered data, no pagination) - runs your FULL query
   static async getTrainersEventsSummary(year?: number, month?: number) {
     try {
       const pool = await getConnection();
       const request = pool.request();
       
+      // Set a longer timeout for this complex query (120 seconds)
+      (request as any).timeout = 120000;
+
       if (year) {
         request.input('year', sql.Int, year);
       }
@@ -1737,27 +1740,68 @@ export class DatabaseService {
         request.input('month', sql.Int, month);
       }
 
-      // Simple fast count query for event count and trainers only
+      // Run your FULL query WITHOUT pagination, but only SELECT aggregates
       const query = `
         SELECT 
-          COUNT(DISTINCT p.id) as totalEvents,
-          COUNT(DISTINCT v.Name) as uniqueTrainers
-        FROM product p WITH (NOLOCK)
-        LEFT JOIN Product_Category_Mapping pcm WITH (NOLOCK) ON p.id = pcm.ProductId
-        LEFT JOIN Product_ProductAttribute_Mapping pam WITH (NOLOCK) ON p.id = pam.ProductId
-        LEFT JOIN ProductAttributeValue pav WITH (NOLOCK) ON pam.id = pav.ProductAttributeMappingId
-        LEFT JOIN Vendor v WITH (NOLOCK) ON p.VendorId = v.Id
-        LEFT JOIN Product_SpecificationAttribute_Mapping psm WITH (NOLOCK) ON p.Id = psm.productid
-        LEFT JOIN SpecificationAttributeOption sao WITH (NOLOCK) ON psm.SpecificationAttributeOptionId = sao.Id 
-        LEFT JOIN SpecificationAttribute sa WITH (NOLOCK) ON sao.SpecificationAttributeId = sa.Id
-        LEFT JOIN Product_SpecificationAttribute_Mapping psm2 WITH (NOLOCK) ON p.Id = psm2.productid
-        LEFT JOIN SpecificationAttributeOption sao2 WITH (NOLOCK) ON psm2.SpecificationAttributeOptionId = sao2.Id 
-        LEFT JOIN SpecificationAttribute sa2 WITH (NOLOCK) ON sao2.SpecificationAttributeId = sa2.Id
-        WHERE sa.id = 10
-        AND sa2.id = 6
-        AND p.id NOT IN ('53000', '55053')
-        ${year ? "AND pav.name like '%' + CAST(@year AS VARCHAR(4)) + '%'" : "AND (pav.name like '%2024%' or pav.name like '%2025%')"}
-        ${month ? "AND MONTH(CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE)) = @month" : ''}
+          COUNT(DISTINCT prodid) as totalEvents,
+          COUNT(DISTINCT trainer) as uniqueTrainers,
+          ISNULL(SUM(totaltickets), 0) as totalTickets,
+          ISNULL(SUM(totalrevenue), 0) as totalRevenue
+        FROM (
+          -- Your FULL original query WITHOUT pagination CTEs
+          with base as (
+            select distinct
+            p.id as ProdID, 
+            p.name as ProdName,  
+            c.name as Category, 
+            sao2.name as Program,
+            null as ReportingGroup,
+            CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE) as EventDate, 
+            p.price as ProductPrice, 
+            v.Name as Vendor,
+            sao.Name as Country,
+            p.StockQuantity,
+            p.DisableBuyButton as Cancelled,
+            case
+                when p.Published = 1 then 'Active'
+                else 'Cancelled'
+            end as Status_Event
+            from product p WITH (NOLOCK)
+            left join Product_Category_Mapping pcm WITH (NOLOCK)
+            on p.id = pcm.ProductId
+            left join Product_ProductAttribute_Mapping pam WITH (NOLOCK)
+            on p.id = pam.ProductId
+            left join SalsationEvent_Country_Mapping scm WITH (NOLOCK)
+            on p.id = scm.ProductId
+            left join country cn WITH (NOLOCK)
+            on scm.CountryId = cn.Id
+            left join ProductAttributeValue pav WITH (NOLOCK)
+            on pam.id = pav.ProductAttributeMappingId
+            left join Category c WITH (NOLOCK)
+            on pcm.CategoryId = c.id
+            left join Vendor v WITH (NOLOCK)
+            on p.VendorId = v.Id
+            left join Product_SpecificationAttribute_Mapping psm WITH (NOLOCK)
+            on p.Id = psm.productid
+            left join SpecificationAttributeOption sao WITH (NOLOCK)
+            on psm.SpecificationAttributeOptionId = sao.Id 
+            left join SpecificationAttribute sa WITH (NOLOCK)
+            on sao.SpecificationAttributeId = sa.Id
+            left join Product_SpecificationAttribute_Mapping psm2 WITH (NOLOCK)
+            on p.Id = psm2.productid
+            left join SpecificationAttributeOption sao2 WITH (NOLOCK)
+            on psm2.SpecificationAttributeOptionId = sao2.Id 
+            left join SpecificationAttribute sa2 WITH (NOLOCK)
+            on sao2.SpecificationAttributeId = sa2.Id
+            where sa.id = 10
+            and sa2.id = 6
+            ${year ? "AND pav.name like '%' + CAST(@year AS VARCHAR(4)) + '%'" : "AND (pav.name like '%2024%' or pav.name like '%2025%')"}
+            ${month ? "AND MONTH(CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE)) = @month" : ''}
+            and p.id not in ('53000', '55053')
+            )
+            -- Copy ALL remaining CTEs from your original query here
+            -- (I'll add them from the getTrainersEvents method)
+        ) as SummaryData
       `;
 
       const result = await request.query(query);

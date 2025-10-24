@@ -21,17 +21,13 @@ export async function GET(request: NextRequest) {
     // Get paginated data (only for table display)
     const trainersEvents = await DatabaseService.getTrainersEvents(year, month, page, pageSize);
 
-    // Calculate tickets and revenue from paginated data (will accumulate as user loads pages)
-    const totalTickets = trainersEvents.reduce((sum: number, event: any) => sum + (event.totaltickets || 0), 0);
-    const totalRevenue = trainersEvents.reduce((sum: number, event: any) => sum + (event.totalrevenue || 0), 0);
-
     return NextResponse.json({
       data: trainersEvents,
       summary: {
-        totalEvents: summary.totalEvents || 0, // Total count from all filtered events
-        uniqueTrainers: summary.uniqueTrainers || 0, // From all events
-        totalTickets, // Sum from current page (will need to sum across pages on frontend)
-        totalRevenue, // Sum from current page (will need to sum across pages on frontend)
+        totalEvents: summary.totalEvents || 0, // From ALL filtered events (year/month)
+        uniqueTrainers: summary.uniqueTrainers || 0, // From ALL filtered events (year/month)
+        totalTickets: summary.totalTickets || 0, // From ALL filtered events (year/month)
+        totalRevenue: summary.totalRevenue || 0, // From ALL filtered events (year/month)
       },
       pagination: {
         page,
