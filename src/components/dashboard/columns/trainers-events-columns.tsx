@@ -6,57 +6,70 @@ import { formatCurrency } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 
 export interface TrainersEventsData {
-  Month: number;
-  Year: number;
-  ProdID: number;
-  ProdName: string;
-  Category: string;
-  Program: string;
-  EventDate: string;
-  Country: string;
-  Status_Event: string;
-  ReportingGroup: string;
-  MainTrainerName: string;
-  CoTrainers: string | null;
-  TotalTickets: number;
-  TotalRevenue: number;
+  prodid: number;
+  prodname: string;
+  category: string;
+  program: string;
+  eventdate: string;
+  productprice: number;
+  country: string;
+  location: string | null;
+  status_event: string;
+  trainer: string;
+  cotrainer1: string | null;
+  cotrainer2: string | null;
+  cotrainer3: string | null;
+  totalrevenue: number;
+  totaltickets: number;
 }
 
 export const trainersEventsColumns: ColumnDef<TrainersEventsData>[] = [
   {
-    accessorKey: 'ProdID',
+    accessorKey: 'prodid',
     header: ({ column }) => <DataTableColumnHeader column={column} title="Product ID" />,
     cell: ({ row }) => {
-      return <div className="font-mono">{row.getValue('ProdID')}</div>;
+      return <div className="font-mono">{row.getValue('prodid')}</div>;
     },
   },
   {
-    accessorKey: 'ProdName',
+    accessorKey: 'prodname',
     header: ({ column }) => <DataTableColumnHeader column={column} title="Event Name" />,
     cell: ({ row }) => {
-      return <div className="max-w-[300px] truncate">{row.getValue('ProdName')}</div>;
+      return <div className="max-w-[300px] truncate">{row.getValue('prodname')}</div>;
     },
   },
   {
-    accessorKey: 'EventDate',
+    accessorKey: 'eventdate',
     header: ({ column }) => <DataTableColumnHeader column={column} title="Event Date" />,
     cell: ({ row }) => {
-      const date = new Date(row.getValue('EventDate'));
+      const date = new Date(row.getValue('eventdate'));
       return <div>{date.toLocaleDateString()}</div>;
     },
   },
   {
-    accessorKey: 'Country',
+    accessorKey: 'country',
     header: ({ column }) => <DataTableColumnHeader column={column} title="Country" />,
     cell: ({ row }) => {
-      return <div>{row.getValue('Country')}</div>;
+      return <div>{row.getValue('country')}</div>;
     },
   },
   {
-    accessorKey: 'Program',
+    accessorKey: 'location',
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Location" />,
+    cell: ({ row }) => {
+      const location = row.getValue('location') as string | null;
+      return (
+        <Badge variant="outline" className="whitespace-nowrap">
+          {location || 'N/A'}
+        </Badge>
+      );
+    },
+  },
+  {
+    accessorKey: 'program',
     header: ({ column }) => <DataTableColumnHeader column={column} title="Program" />,
     cell: ({ row }) => {
-      const program = row.getValue('Program') as string;
+      const program = row.getValue('program') as string;
       return (
         <Badge variant="outline" className="whitespace-nowrap">
           {program}
@@ -65,10 +78,10 @@ export const trainersEventsColumns: ColumnDef<TrainersEventsData>[] = [
     },
   },
   {
-    accessorKey: 'Category',
+    accessorKey: 'category',
     header: ({ column }) => <DataTableColumnHeader column={column} title="Category" />,
     cell: ({ row }) => {
-      const category = row.getValue('Category') as string;
+      const category = row.getValue('category') as string;
       return (
         <Badge variant="secondary" className="whitespace-nowrap">
           {category}
@@ -77,10 +90,10 @@ export const trainersEventsColumns: ColumnDef<TrainersEventsData>[] = [
     },
   },
   {
-    accessorKey: 'Status_Event',
+    accessorKey: 'status_event',
     header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
     cell: ({ row }) => {
-      const status = row.getValue('Status_Event') as string;
+      const status = row.getValue('status_event') as string;
       return (
         <Badge 
           variant={status === 'Active' ? 'default' : 'destructive'} 
@@ -92,47 +105,64 @@ export const trainersEventsColumns: ColumnDef<TrainersEventsData>[] = [
     },
   },
   {
-    accessorKey: 'MainTrainerName',
+    accessorKey: 'trainer',
     header: ({ column }) => <DataTableColumnHeader column={column} title="Main Trainer" />,
     cell: ({ row }) => {
-      return <div className="font-medium">{row.getValue('MainTrainerName')}</div>;
+      return <div className="font-medium">{row.getValue('trainer')}</div>;
     },
   },
   {
-    accessorKey: 'CoTrainers',
-    header: ({ column }) => <DataTableColumnHeader column={column} title="Co-Trainers" />,
+    accessorKey: 'cotrainer1',
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Co-Trainer 1" />,
     cell: ({ row }) => {
-      const coTrainers = row.getValue('CoTrainers') as string | null;
+      const coTrainer = row.getValue('cotrainer1') as string | null;
       return (
-        <div className="max-w-[200px] truncate">
-          {coTrainers || <span className="text-muted-foreground">-</span>}
+        <div className="max-w-[150px] truncate">
+          {coTrainer || <span className="text-muted-foreground">-</span>}
         </div>
       );
     },
   },
   {
-    accessorKey: 'ReportingGroup',
-    header: ({ column }) => <DataTableColumnHeader column={column} title="Reporting Group" />,
+    accessorKey: 'cotrainer2',
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Co-Trainer 2" />,
     cell: ({ row }) => {
-      return <div className="max-w-[200px] truncate">{row.getValue('ReportingGroup')}</div>;
+      const coTrainer = row.getValue('cotrainer2') as string | null;
+      return (
+        <div className="max-w-[150px] truncate">
+          {coTrainer || <span className="text-muted-foreground">-</span>}
+        </div>
+      );
     },
   },
   {
-    accessorKey: 'TotalTickets',
+    accessorKey: 'cotrainer3',
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Co-Trainer 3" />,
+    cell: ({ row }) => {
+      const coTrainer = row.getValue('cotrainer3') as string | null;
+      return (
+        <div className="max-w-[150px] truncate">
+          {coTrainer || <span className="text-muted-foreground">-</span>}
+        </div>
+      );
+    },
+  },
+  {
+    accessorKey: 'totaltickets',
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Tickets" className="text-right" />
     ),
     cell: ({ row }) => {
-      return <div className="text-right">{row.getValue('TotalTickets')}</div>;
+      return <div className="text-right">{row.getValue('totaltickets')}</div>;
     },
   },
   {
-    accessorKey: 'TotalRevenue',
+    accessorKey: 'totalrevenue',
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Revenue" className="text-right" />
     ),
     cell: ({ row }) => {
-      const amount = parseFloat(row.getValue('TotalRevenue'));
+      const amount = parseFloat(row.getValue('totalrevenue'));
       return <div className="text-right font-medium">{formatCurrency(amount)}</div>;
     },
   },

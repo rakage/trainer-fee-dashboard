@@ -92,18 +92,19 @@ export default function TrainersEventsPage() {
     if (eventsData.length === 0) return;
 
     const headers = [
-      'Month',
-      'Year',
       'Product ID',
       'Product Name',
       'Category',
       'Program',
       'Event Date',
+      'Product Price',
       'Country',
+      'Location',
       'Status',
-      'Reporting Group',
       'Main Trainer',
-      'Co-Trainers',
+      'Co-Trainer 1',
+      'Co-Trainer 2',
+      'Co-Trainer 3',
       'Total Tickets',
       'Total Revenue',
     ];
@@ -112,20 +113,21 @@ export default function TrainersEventsPage() {
       headers.join(','),
       ...eventsData.map((row) =>
         [
-          row.Month,
-          row.Year,
-          row.ProdID,
-          `"${row.ProdName.replace(/"/g, '""')}"`,
-          row.Category,
-          row.Program,
-          row.EventDate,
-          row.Country,
-          row.Status_Event,
-          `"${row.ReportingGroup.replace(/"/g, '""')}"`,
-          `"${row.MainTrainerName.replace(/"/g, '""')}"`,
-          row.CoTrainers ? `"${row.CoTrainers.replace(/"/g, '""')}"` : '',
-          row.TotalTickets,
-          row.TotalRevenue.toFixed(2),
+          row.prodid,
+          `"${row.prodname.replace(/"/g, '""')}"`,
+          row.category,
+          row.program,
+          row.eventdate,
+          row.productprice,
+          row.country,
+          row.location || '',
+          row.status_event,
+          `"${row.trainer.replace(/"/g, '""')}"`,
+          row.cotrainer1 ? `"${row.cotrainer1.replace(/"/g, '""')}"` : '',
+          row.cotrainer2 ? `"${row.cotrainer2.replace(/"/g, '""')}"` : '',
+          row.cotrainer3 ? `"${row.cotrainer3.replace(/"/g, '""')}"` : '',
+          row.totaltickets,
+          row.totalrevenue.toFixed(2),
         ].join(',')
       ),
     ].join('\n');
@@ -138,9 +140,9 @@ export default function TrainersEventsPage() {
   };
 
   const totalEvents = eventsData.length;
-  const totalTickets = eventsData.reduce((sum, row) => sum + (row.TotalTickets || 0), 0);
-  const totalRevenue = eventsData.reduce((sum, row) => sum + (row.TotalRevenue || 0), 0);
-  const uniqueTrainers = new Set(eventsData.map((row) => row.MainTrainerName)).size;
+  const totalTickets = eventsData.reduce((sum, row) => sum + (row.totaltickets || 0), 0);
+  const totalRevenue = eventsData.reduce((sum, row) => sum + (row.totalrevenue || 0), 0);
+  const uniqueTrainers = new Set(eventsData.map((row) => row.trainer)).size;
 
   return (
     <DashboardLayout>
@@ -302,15 +304,18 @@ export default function TrainersEventsPage() {
                 columns={trainersEventsColumns}
                 data={eventsData}
                 searchKeys={[
-                  'ProdID',
-                  'ProdName',
-                  'Country',
-                  'MainTrainerName',
-                  'CoTrainers',
-                  'Program',
-                  'Category',
+                  'prodid',
+                  'prodname',
+                  'country',
+                  'trainer',
+                  'cotrainer1',
+                  'cotrainer2',
+                  'cotrainer3',
+                  'program',
+                  'category',
+                  'location',
                 ]}
-                searchPlaceholder="Search by Product ID, Name, Country, Trainer, Program, or Category..."
+                searchPlaceholder="Search by Product ID, Name, Country, Trainer, Program, Category, or Location..."
                 enableColumnVisibility={true}
                 enableRowSelection={false}
               />
