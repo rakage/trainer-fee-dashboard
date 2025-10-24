@@ -1824,11 +1824,13 @@ export class DatabaseService {
                   WHEN (o.CaptureTransactionId IS NULL and oi.UnitPriceInclTax = 0) THEN 'Free Ticket'
                   ELSE 'Cash' END AS PaymentMethod,
             CASE WHEN ss.attendedsetdateUTC IS NOT NULL THEN 'Attended' ELSE 'Unattended' END AS Attendance,
-            o.paymentstatusid AS PaymentStatus
+            o.paymentstatusid AS PaymentStatus,
+            cu.id AS CustomerID
           FROM product p WITH (NOLOCK)
           INNER JOIN AllEvents ae ON p.id = ae.ProdID
           LEFT JOIN OrderItem oi WITH (NOLOCK) ON p.id = oi.ProductId
           LEFT JOIN [Order] o WITH (NOLOCK) ON oi.OrderId = o.id
+          LEFT JOIN Customer cu WITH (NOLOCK) ON o.CustomerId = cu.id
           LEFT JOIN Product_ProductAttribute_Mapping pam WITH (NOLOCK) ON p.id = pam.ProductId
           LEFT JOIN ProductAttributeValue pav WITH (NOLOCK) ON pam.id = pav.ProductAttributeMappingId
           LEFT JOIN Product_SpecificationAttribute_Mapping psm WITH (NOLOCK) ON p.Id = psm.productid
@@ -1861,11 +1863,13 @@ export class DatabaseService {
                   WHEN (o.CaptureTransactionId IS NULL and oi.UnitPriceInclTax = 0) THEN 'Free Ticket'
                   ELSE 'Cash' END AS PaymentMethod,
             CASE WHEN ss.attendedsetdateUTC IS NOT NULL THEN 'Attended' ELSE 'Unattended' END AS Attendance,
-            o.paymentstatusid AS PaymentStatus
+            o.paymentstatusid AS PaymentStatus,
+            cu.id AS CustomerID
           FROM product p WITH (NOLOCK)
           INNER JOIN AllEvents ae ON p.id = ae.ProdID
           LEFT JOIN OrderItem oi WITH (NOLOCK) ON p.id = oi.ProductId
           LEFT JOIN [Order] o WITH (NOLOCK) ON oi.OrderId = o.id
+          LEFT JOIN Customer cu WITH (NOLOCK) ON o.CustomerId = cu.id
           LEFT JOIN Product_ProductAttribute_Mapping pam WITH (NOLOCK) ON p.id = pam.ProductId
           LEFT JOIN ProductAttributeValue pav WITH (NOLOCK) ON pam.id = pav.ProductAttributeMappingId
           LEFT JOIN Product_SpecificationAttribute_Mapping psm WITH (NOLOCK) ON p.Id = psm.productid
@@ -1885,7 +1889,7 @@ export class DatabaseService {
             ${month ? "AND MONTH(o.PaidDateUtc) = @month" : ''}
         )
         , FinalsOrder AS (
-          SELECT *, ROW_NUMBER() OVER (PARTITION BY OrderID, CustomerId, ProdID ORDER BY EventDate ASC) AS rn
+          SELECT *, ROW_NUMBER() OVER (PARTITION BY OrderID, CustomerID, ProdID ORDER BY EventDate ASC) AS rn
           FROM OrdersBase
         )
         , OrderData AS (
@@ -1928,7 +1932,7 @@ export class DatabaseService {
     }
   }
 
-  static async getTrainersEvents(year?: number, month?: number, page: number = 1, pageSize: number = 50) {
+  static async getTrainersEventsOld(year?: number, month?: number, page: number = 1, pageSize: number = 50) {
     try {
       const pool = await getConnection();
       const request = pool.request();
