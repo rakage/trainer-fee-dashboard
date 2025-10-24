@@ -121,7 +121,7 @@ export default function TrainersEventsPage() {
 
     const csvContent = [
       headers.join(','),
-      ...eventsData.map((row) =>
+      ...eventsData.map((row: any) =>
         [
           row.prodid,
           `"${row.prodname.replace(/"/g, '""')}"`,

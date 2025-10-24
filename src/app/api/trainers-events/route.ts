@@ -15,23 +15,19 @@ export async function GET(request: NextRequest) {
     const page = searchParams.get('page') ? parseInt(searchParams.get('page')!) : 1;
     const pageSize = searchParams.get('pageSize') ? parseInt(searchParams.get('pageSize')!) : 50;
 
-    // Get summary for cards (all filtered data)
+    // Get summary for cards (all filtered data - not affected by pagination)
     const summary = await DatabaseService.getTrainersEventsSummary(year, month);
     
-    // Get paginated data
+    // Get paginated data (only for table display)
     const trainersEvents = await DatabaseService.getTrainersEvents(year, month, page, pageSize);
-
-    // Calculate totals from the paginated data (will need to sum all pages in frontend)
-    const totalTickets = trainersEvents.reduce((sum: number, event: any) => sum + (event.totaltickets || 0), 0);
-    const totalRevenue = trainersEvents.reduce((sum: number, event: any) => sum + (event.totalrevenue || 0), 0);
 
     return NextResponse.json({
       data: trainersEvents,
       summary: {
         totalEvents: summary.totalEvents || 0,
         uniqueTrainers: summary.uniqueTrainers || 0,
-        totalTickets, // Sum from current page only
-        totalRevenue, // Sum from current page only
+        totalTickets: summary.totalTickets || 0, // From ALL filtered events
+        totalRevenue: summary.totalRevenue || 0, // From ALL filtered events
       },
       pagination: {
         page,

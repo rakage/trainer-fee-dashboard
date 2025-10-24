@@ -1738,7 +1738,7 @@ export class DatabaseService {
       }
 
       const query = `
-        -- Simple count query for summary cards
+        -- Summary query for cards - aggregates ALL filtered data
         WITH EventList AS (
           SELECT DISTINCT p.id as prodid, v.Name as vendor
           FROM product p WITH (NOLOCK)
@@ -1757,11 +1757,44 @@ export class DatabaseService {
           AND p.id NOT IN ('53000', '55053')
           ${year ? "AND pav.name like '%' + CAST(@year AS VARCHAR(4)) + '%'" : "AND (pav.name like '%2024%' or pav.name like '%2025%')"}
           ${month ? "AND MONTH(CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE)) = @month" : ''}
+        ),
+        OrderSummary AS (
+          SELECT 
+            el.prodid,
+            -- Count tickets by type
+            SUM(CASE 
+              WHEN o.CaptureTransactionId IS NOT NULL AND oi.UnitPriceInclTax = 0 THEN 1
+              WHEN o.CaptureTransactionId IS NULL AND oi.UnitPriceInclTax = 0 THEN 1
+              ELSE 0 
+            END) as freeTickets,
+            SUM(CASE 
+              WHEN tp.Designation = 'Repeater' THEN 1
+              ELSE 0 
+            END) as repeaterTickets,
+            SUM(CASE 
+              WHEN oi.UnitPriceInclTax > 0 AND ISNULL(tp.Designation, '') != 'Repeater' THEN 1
+              ELSE 0 
+            END) as paidTickets,
+            -- Sum revenue (excluding free tickets and unattended refunded orders)
+            SUM(CASE 
+              WHEN ss.attendedsetdateUTC IS NULL AND o.paymentstatusid = 35 THEN 0
+              ELSE (oi.PriceInclTax - ISNULL(o.RefundedAmount, 0))
+            END) as totalRevenue
+          FROM EventList el
+          LEFT JOIN OrderItem oi WITH (NOLOCK) ON el.prodid = oi.ProductId
+          LEFT JOIN [Order] o WITH (NOLOCK) ON oi.OrderId = o.id
+          LEFT JOIN TierPrice tp WITH (NOLOCK) ON (el.prodid = tp.productId AND oi.PriceInclTax = tp.price AND oi.Quantity = tp.Quantity)
+          LEFT JOIN SalsationSubscriber ss WITH (NOLOCK) ON (oi.Id = ss.OrderItemId AND el.prodid = ss.parentid AND o.id = ss.orderid)
+          WHERE o.orderstatusid = '30'
+          AND o.paymentstatusid IN ('30','35')
+          GROUP BY el.prodid
         )
         SELECT 
-          COUNT(DISTINCT prodid) as totalEvents,
-          COUNT(DISTINCT vendor) as uniqueTrainers
-        FROM EventList
+          (SELECT COUNT(DISTINCT prodid) FROM EventList) as totalEvents,
+          (SELECT COUNT(DISTINCT vendor) FROM EventList) as uniqueTrainers,
+          ISNULL(SUM(freeTickets + paidTickets + repeaterTickets), 0) as totalTickets,
+          ISNULL(SUM(totalRevenue), 0) as totalRevenue
+        FROM OrderSummary
       `;
 
       const result = await request.query(query);
