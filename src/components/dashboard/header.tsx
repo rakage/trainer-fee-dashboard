@@ -1,7 +1,7 @@
 'use client';
 
 import { signOut, useSession } from 'next-auth/react';
-import { LogOut, Settings, BarChart3, Percent, Shield, FileText, ChevronDown } from 'lucide-react';
+import { LogOut, Settings, BarChart3, Percent, Shield, FileText, ChevronDown, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -152,6 +152,12 @@ export function DashboardHeader() {
               <Button variant="ghost" size="sm" className="flex items-center gap-2">
                 <BarChart3 className="h-4 w-4" />
                 Dashboard
+              </Button>
+            </Link>
+            <Link href="/dashboard/trainers-events">
+              <Button variant="ghost" size="sm" className="flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Trainer&apos;s Events
               </Button>
             </Link>
             <DropdownMenu>

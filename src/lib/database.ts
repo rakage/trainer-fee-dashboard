@@ -1723,4 +1723,394 @@ export class DatabaseService {
         return trainerName;
     }
   }
+
+  static async getTrainersEvents(year?: number, month?: number) {
+    try {
+      const pool = await getConnection();
+      const request = pool.request();
+
+      if (year) {
+        request.input('year', sql.Int, year);
+      }
+      if (month) {
+        request.input('month', sql.Int, month);
+      }
+
+      const query = `
+        with base as (
+          select distinct
+          p.id as ProdID, 
+          p.name as ProdName,  
+          c.name as Category, 
+          sao2.name as Program,
+          CASE 
+            WHEN c.name = 'Instructor training' THEN 
+              CASE 
+                WHEN sao2.name = 'Choreology' THEN 'Choreology Instructor training'
+                WHEN sao2.name = 'Kid' THEN 'Kid Instructor training'
+                WHEN sao2.name = 'Rootz' THEN 'Rootz Instructor training'
+                WHEN sao2.name = 'Salsation' THEN 'Salsation Instructor training'
+                ELSE CONCAT(sao2.name, ' ', c.name)
+              END
+            WHEN c.name = 'Workshops' THEN 
+              CASE 
+                WHEN sao2.name = 'Choreology' THEN 'Choreology Workshops Venue'
+                WHEN sao2.name = 'Rootz' THEN 'Rootz Workshops Venue'
+                WHEN sao2.name = 'Salsation' THEN 'Salsation Workshops Venue'
+                ELSE CONCAT(sao2.name, ' ', c.name, ' Venue')
+              END
+            WHEN c.name = 'Seminar' THEN 
+              CASE 
+                WHEN sao2.name = 'Salsation' THEN 'Salsation Seminar Venue'
+                ELSE CONCAT(sao2.name, ' ', c.name, ' Venue')
+              END
+            WHEN c.name = 'Method Training' THEN 'Salsation Method Training'
+            WHEN c.name = 'On Demand' THEN 'Salsation On Demand'
+            WHEN c.name = 'On-Demand' THEN 'Salsation On-Demand'
+            ELSE CONCAT(sao2.name, ' ', c.name)
+          END as ReportingGroup,
+          CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE) as EventDate, 
+          p.price as ProductPrice, 
+          v.Name as Vendor,
+          sao.Name as Country,
+          p.StockQuantity,
+          p.DisableBuyButton as Cancelled,
+          case
+            when p.Published = 1 then 'Active'
+            else 'Cancelled'
+          end as Status_Event
+          from product p
+          left join Product_Category_Mapping pcm
+          on p.id = pcm.ProductId
+          left join Product_ProductAttribute_Mapping pam
+          on p.id = pam.ProductId
+          left join SalsationEvent_Country_Mapping scm
+          on p.id = scm.ProductId
+          left join country cn
+          on scm.CountryId = cn.Id
+          left join ProductAttributeValue pav
+          on pam.id = pav.ProductAttributeMappingId
+          left join Category c
+          on pcm.CategoryId = c.id
+          left join Vendor v 
+          on p.VendorId = v.Id
+          left join Product_SpecificationAttribute_Mapping psm
+          on p.Id = psm.productid
+          left join SpecificationAttributeOption sao 
+          on psm.SpecificationAttributeOptionId = sao.Id 
+          left join SpecificationAttribute sa 
+          on sao.SpecificationAttributeId = sa.Id
+          left join Product_SpecificationAttribute_Mapping psm2
+          on p.Id = psm2.productid
+          left join SpecificationAttributeOption sao2 
+          on psm2.SpecificationAttributeOptionId = sao2.Id 
+          left join SpecificationAttribute sa2 
+          on sao2.SpecificationAttributeId = sa2.Id
+          where sa.id = 10
+          and sa2.id = 6
+          and (pav.name like '%2024%'
+          or pav.name like '%2025%')
+          and p.id not in ('53000', '55053')
+          ${year ? "AND YEAR(CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE)) = @year" : ''}
+          ${month ? "AND MONTH(CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE)) = @month" : ''}
+        )
+        , finals as (
+          select 
+            *
+            , row_number() over(partition by ProdID order by eventdate asc) as rn
+          from base
+        )
+        , EventDataRaw as (
+          select 
+            ProdID,
+            ProdName,
+            Category,
+            Program,
+            ReportingGroup,
+            EventDate,
+            ProductPrice,
+            Vendor,
+            Country,
+            StockQuantity,
+            Cancelled,
+            Status_Event
+          from finals
+          where rn = 1
+        )
+        , base_order as (
+            select distinct
+            o.id as OrderID, 
+            o.PaidDateUtc as DatePaid, 
+            CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE) as EventDate, 
+            p.id as ProdID, 
+            p.name as ProdName,  
+            c.name as Category, 
+            sao2.name as Program,
+            oi.quantity, 
+            p.price as ProductPrice, 
+            oi.UnitPriceInclTax as UnitPrice, 
+            oi.PriceInclTax - o.RefundedAmount as PriceTotal,
+            tp.Designation as TierLevel,
+            v.Name as Vendor,
+            sao.Name as Country,
+            cu.id as CustomerID,
+            cu.username as Customer,
+            CASE  WHEN (o.CaptureTransactionId IS NOT NULL and oi.UnitPriceInclTax = 0)
+                THEN 'Free Ticket'
+                WHEN o.CaptureTransactionId IS NOT NULL 
+                THEN 'Paypal'
+                WHEN (o.CaptureTransactionId IS NULL and oi.UnitPriceInclTax = 0)
+                THEN 'Free Ticket'
+                ELSE 'Cash'
+            END AS PaymentMethod,
+            CASE WHEN ss.attendedsetdateUTC IS NOT NULL
+                THEN 'Attended'
+                ELSE 'Unattended'
+            END AS Attendance,
+            o.paymentstatusid as PaymentStatus,
+            p.StockQuantity
+            from product p
+            left join OrderItem oi
+            on p.id = oi.ProductId
+            left join [Order] o
+            on oi.OrderId = o.id
+            left join Product_Category_Mapping pcm
+            on p.id = pcm.ProductId
+            left join Product_ProductAttribute_Mapping pam
+            on p.id = pam.ProductId
+            left join SalsationEvent_Country_Mapping scm
+            on p.id = scm.ProductId
+            left join country cn
+            on scm.CountryId = cn.Id
+            left join ProductAttributeValue pav
+            on pam.id = pav.ProductAttributeMappingId
+            left join Category c
+            on pcm.CategoryId = c.id
+            left join Vendor v 
+            on p.VendorId = v.Id
+            left join Customer cu
+            on o.CustomerId = cu.id
+            left join customer_customerrole_mapping crm
+            on cu.id = crm.customer_id
+            left join customerrole cr 
+            on crm.customerrole_id = cr.id
+            left join Product_SpecificationAttribute_Mapping psm
+            on p.Id = psm.productid
+            left join SpecificationAttributeOption sao 
+            on psm.SpecificationAttributeOptionId = sao.Id 
+            left join SpecificationAttribute sa 
+            on sao.SpecificationAttributeId = sa.Id
+            left join Product_SpecificationAttribute_Mapping psm2
+            on p.Id = psm2.productid
+            left join SpecificationAttributeOption sao2 
+            on psm2.SpecificationAttributeOptionId = sao2.Id 
+            left join SpecificationAttribute sa2 
+            on sao2.SpecificationAttributeId = sa2.Id
+            left join SalsationSubscriber ss 
+            on (oi.Id = ss.OrderItemId
+            and cu.id = ss.CustomerId
+            and p.id = ss.parentid
+            and o.id = ss.orderid)
+            left join TierPrice tp
+            on (p.id = tp.productId
+            and oi.PriceInclTax = tp.price
+            and oi.Quantity = tp.Quantity)
+            where sa.id = 10
+            and sa2.id = 6
+            and o.orderstatusid = '30'
+            and o.paymentstatusid in ('30','35')
+            and (p.Published = 1
+            or (p.id = '40963' and p.Published = 0))
+            and (pav.name like '%2024%'
+            or pav.name like '%2025%')
+            and p.id not in ('54958', '53000', '55053')
+            UNION
+            select distinct
+            o.id as OrderID, 
+            o.PaidDateUtc as DatePaid, 
+            CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE) as EventDate, 
+            p.id as ProdID, 
+            p.name as ProdName,  
+            c.name as Category, 
+            sao2.name as Program,
+            oi.quantity, 
+            p.price as ProductPrice, 
+            oi.UnitPriceInclTax as UnitPrice, 
+            oi.PriceInclTax - o.RefundedAmount as PriceTotal,
+            tp.Designation as TierLevel,
+            v.Name as Vendor,
+            sao.Name as Country,
+            cu.id as CustomerID,
+            cu.username as Customer,
+            CASE  WHEN (o.CaptureTransactionId IS NOT NULL and oi.UnitPriceInclTax = 0)
+                THEN 'Free Ticket'
+                WHEN o.CaptureTransactionId IS NOT NULL 
+                THEN 'Paypal'
+                WHEN (o.CaptureTransactionId IS NULL and oi.UnitPriceInclTax = 0)
+                THEN 'Free Ticket'
+                ELSE 'Cash'
+            END AS PaymentMethod,
+            CASE WHEN ss.attendedsetdateUTC IS NOT NULL
+            THEN 'Attended'
+            ELSE 'Unattended'
+            END AS Attendance,
+            o.paymentstatusid as PaymentStatus,
+            p.StockQuantity
+            from product p
+            left join OrderItem oi
+            on p.id = oi.ProductId
+            left join [Order] o
+            on oi.OrderId = o.id
+            left join Product_Category_Mapping pcm
+            on p.id = pcm.ProductId
+            left join Product_ProductAttribute_Mapping pam
+            on p.id = pam.ProductId
+            left join SalsationEvent_Country_Mapping scm
+            on p.id = scm.ProductId
+            left join country cn
+            on scm.CountryId = cn.Id
+            left join ProductAttributeValue pav
+            on pam.id = pav.ProductAttributeMappingId
+            left join Category c
+            on pcm.CategoryId = c.id
+            left join Vendor v 
+            on p.VendorId = v.Id
+            left join Customer cu
+            on o.CustomerId = cu.id
+            left join customer_customerrole_mapping crm
+            on cu.id = crm.customer_id
+            left join customerrole cr 
+            on crm.customerrole_id = cr.id
+            left join Product_SpecificationAttribute_Mapping psm
+            on p.Id = psm.productid
+            left join SpecificationAttributeOption sao 
+            on psm.SpecificationAttributeOptionId = sao.Id 
+            left join SpecificationAttribute sa 
+            on sao.SpecificationAttributeId = sa.Id
+            left join Product_SpecificationAttribute_Mapping psm2
+            on p.Id = psm2.productid
+            left join SpecificationAttributeOption sao2 
+            on psm2.SpecificationAttributeOptionId = sao2.Id 
+            left join SpecificationAttribute sa2 
+            on sao2.SpecificationAttributeId = sa2.Id
+            left join SalsationSubscriber ss 
+            on (oi.Id = ss.OrderItemId
+            and cu.id = ss.CustomerId
+            and p.id = ss.parentid
+            and o.id = ss.orderid)
+            left join TierPrice tp
+            on (p.id = tp.productId
+            and oi.PriceInclTax = tp.price
+            and oi.Quantity = tp.Quantity)
+            where sa.id = 10
+            and sa2.id = 6
+            and o.orderstatusid = '30'
+            and o.paymentstatusid in ('30','35')
+            and p.id in ('54958')
+            and p.id not in ('53000', '55053')
+            and (o.PaidDateUtc like '%2024%'
+            or o.PaidDateUtc like '%2025%')
+            )
+            , finals_order as (
+            select
+                *
+                , row_number() over(partition by orderid, customerid, prodid order by eventdate asc) rn
+            from base_order
+            )
+            , orderdataraw as (
+            select 
+            OrderID,
+            DatePaid,
+            EventDate,
+            ProdID,
+            ProdName,
+            Category,
+            Program,
+            quantity,
+            ProductPrice,
+            UnitPrice,
+            PriceTotal,
+            TierLevel,
+            Vendor,
+            Country,
+            CustomerID,
+            Customer,
+            PaymentMethod,
+            Attendance,
+            PaymentStatus,
+            StockQuantity
+            from finals_order
+            where rn = 1
+            )
+            , OrderData as (
+            select 
+                ProdID as ProductId,
+                SUM(quantity) as TotalTickets,
+                SUM(PriceTotal) as TotalRevenue
+            from orderdataraw
+            group by ProdID
+        )
+        , final_report as (
+          select
+                     MONTH(e.EventDate) as Month,
+                     YEAR(e.EventDate) as Year,
+                     e.ProdID,
+                     e.ProdName,
+                     e.Category,
+                     e.Program,
+                     e.EventDate,
+                     e.Country,
+                     e.Status_Event,
+                     e.ReportingGroup,
+                     CASE
+                         WHEN e.ProdName LIKE '% with %' THEN
+                             LTRIM(RTRIM(
+                                 CASE
+                                     WHEN CHARINDEX(' & ', e.ProdName, CHARINDEX(' with ', e.ProdName)) > 0
+                                          AND CHARINDEX(' & ', e.ProdName, CHARINDEX(' with ', e.ProdName)) <
+         CHARINDEX(',', e.ProdName, CHARINDEX(' with ', e.ProdName))
+                                     THEN
+                                         SUBSTRING(
+                                             e.ProdName,
+                                             CHARINDEX(' with ', e.ProdName) + 6,
+                                             CHARINDEX(' & ', e.ProdName, CHARINDEX(' with ', e.ProdName)) -
+         CHARINDEX(' with ', e.ProdName) - 6
+                                         )
+                                     ELSE
+                                         SUBSTRING(
+                                             e.ProdName,
+                                             CHARINDEX(' with ', e.ProdName) + 6,
+                                             CHARINDEX(',', e.ProdName, CHARINDEX(' with ', e.ProdName)) -
+         CHARINDEX(' with ', e.ProdName) - 6
+                                         )
+                                 END
+                             ))
+                         ELSE COALESCE(e.Vendor, 'Unknown')
+                     END AS MainTrainerName,
+                     STUFF((
+                         SELECT DISTINCT' & ' + v2.Name
+                         FROM SalsationSubscriber ss
+                         INNER JOIN Customer c ON ss.CustomerId = c.Id
+                         INNER JOIN Vendor v2 ON c.VendorId = v2.Id
+                         WHERE ss.ParentId = e.ProdID
+                             AND ss.IsCoInstructor = 1
+                             AND ss.Deleted = 0
+                         FOR XML PATH(''), TYPE).value('.', 'NVARCHAR(MAX)'), 1, 3, '') AS CoTrainers,
+                     COALESCE(od.TotalTickets, 0) as TotalTickets,
+                     COALESCE(od.TotalRevenue, 0) as TotalRevenue
+                 from EventDataRaw e
+                 left join OrderData od on e.ProdID = od.ProductId
+        )
+        select *
+        from final_report
+        order by Month asc, Year asc, ProdID asc
+      `;
+
+      const result = await request.query(query);
+      return result.recordset;
+    } catch (error) {
+      console.error('Error fetching trainers events:', error);
+      throw error;
+    }
+  }
 }
