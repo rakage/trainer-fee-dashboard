@@ -1757,39 +1757,37 @@ export class DatabaseService {
                 when p.Published = 1 then 'Active'
                 else 'Cancelled'
             end as Status_Event
-            from product p
-            left join Product_Category_Mapping pcm
+            from product p WITH (NOLOCK)
+            left join Product_Category_Mapping pcm WITH (NOLOCK)
             on p.id = pcm.ProductId
-            left join Product_ProductAttribute_Mapping pam
+            left join Product_ProductAttribute_Mapping pam WITH (NOLOCK)
             on p.id = pam.ProductId
-            left join SalsationEvent_Country_Mapping scm
+            left join SalsationEvent_Country_Mapping scm WITH (NOLOCK)
             on p.id = scm.ProductId
-            left join country cn
+            left join country cn WITH (NOLOCK)
             on scm.CountryId = cn.Id
-            left join ProductAttributeValue pav
+            left join ProductAttributeValue pav WITH (NOLOCK)
             on pam.id = pav.ProductAttributeMappingId
-            left join Category c
+            left join Category c WITH (NOLOCK)
             on pcm.CategoryId = c.id
-            left join Vendor v 
+            left join Vendor v WITH (NOLOCK)
             on p.VendorId = v.Id
-            left join Product_SpecificationAttribute_Mapping psm
+            left join Product_SpecificationAttribute_Mapping psm WITH (NOLOCK)
             on p.Id = psm.productid
-            left join SpecificationAttributeOption sao 
+            left join SpecificationAttributeOption sao WITH (NOLOCK)
             on psm.SpecificationAttributeOptionId = sao.Id 
-            left join SpecificationAttribute sa 
+            left join SpecificationAttribute sa WITH (NOLOCK)
             on sao.SpecificationAttributeId = sa.Id
-            left join Product_SpecificationAttribute_Mapping psm2
+            left join Product_SpecificationAttribute_Mapping psm2 WITH (NOLOCK)
             on p.Id = psm2.productid
-            left join SpecificationAttributeOption sao2 
+            left join SpecificationAttributeOption sao2 WITH (NOLOCK)
             on psm2.SpecificationAttributeOptionId = sao2.Id 
-            left join SpecificationAttribute sa2 
+            left join SpecificationAttribute sa2 WITH (NOLOCK)
             on sao2.SpecificationAttributeId = sa2.Id
             where sa.id = 10
             and sa2.id = 6
-            and (pav.name like '%2024%'
-            or pav.name like '%2025%')
             and p.id not in ('53000', '55053')
-            ${year ? "AND YEAR(CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE)) = @year" : ''}
+            ${year ? "AND pav.name like '%' + CAST(@year AS VARCHAR(4)) + '%'" : "AND (pav.name like '%2024%' or pav.name like '%2025%')"}
             ${month ? "AND MONTH(CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE)) = @month" : ''}
             )
             , finals as (
@@ -1848,49 +1846,49 @@ export class DatabaseService {
             END AS Attendance,
             o.paymentstatusid as PaymentStatus,
             p.StockQuantity
-            from product p
-            left join OrderItem oi
+            from product p WITH (NOLOCK)
+            left join OrderItem oi WITH (NOLOCK)
             on p.id = oi.ProductId
-            left join [Order] o
+            left join [Order] o WITH (NOLOCK)
             on oi.OrderId = o.id
-            left join Product_Category_Mapping pcm
+            left join Product_Category_Mapping pcm WITH (NOLOCK)
             on p.id = pcm.ProductId
-            left join Product_ProductAttribute_Mapping pam
+            left join Product_ProductAttribute_Mapping pam WITH (NOLOCK)
             on p.id = pam.ProductId
-            left join SalsationEvent_Country_Mapping scm
+            left join SalsationEvent_Country_Mapping scm WITH (NOLOCK)
             on p.id = scm.ProductId
-            left join country cn
+            left join country cn WITH (NOLOCK)
             on scm.CountryId = cn.Id
-            left join ProductAttributeValue pav
+            left join ProductAttributeValue pav WITH (NOLOCK)
             on pam.id = pav.ProductAttributeMappingId
-            left join Category c
+            left join Category c WITH (NOLOCK)
             on pcm.CategoryId = c.id
-            left join Vendor v 
+            left join Vendor v WITH (NOLOCK)
             on p.VendorId = v.Id
-            left join Customer cu
+            left join Customer cu WITH (NOLOCK)
             on o.CustomerId = cu.id
-            left join customer_customerrole_mapping crm
+            left join customer_customerrole_mapping crm WITH (NOLOCK)
             on cu.id = crm.customer_id
-            left join customerrole cr 
+            left join customerrole cr WITH (NOLOCK)
             on crm.customerrole_id = cr.id
-            left join Product_SpecificationAttribute_Mapping psm
+            left join Product_SpecificationAttribute_Mapping psm WITH (NOLOCK)
             on p.Id = psm.productid
-            left join SpecificationAttributeOption sao 
+            left join SpecificationAttributeOption sao WITH (NOLOCK)
             on psm.SpecificationAttributeOptionId = sao.Id 
-            left join SpecificationAttribute sa 
+            left join SpecificationAttribute sa WITH (NOLOCK)
             on sao.SpecificationAttributeId = sa.Id
-            left join Product_SpecificationAttribute_Mapping psm2
+            left join Product_SpecificationAttribute_Mapping psm2 WITH (NOLOCK)
             on p.Id = psm2.productid
-            left join SpecificationAttributeOption sao2 
+            left join SpecificationAttributeOption sao2 WITH (NOLOCK)
             on psm2.SpecificationAttributeOptionId = sao2.Id 
-            left join SpecificationAttribute sa2 
+            left join SpecificationAttribute sa2 WITH (NOLOCK)
             on sao2.SpecificationAttributeId = sa2.Id
-            left join SalsationSubscriber ss 
+            left join SalsationSubscriber ss WITH (NOLOCK)
             on (oi.Id = ss.OrderItemId
             and cu.id = ss.CustomerId
             and p.id = ss.parentid
             and o.id = ss.orderid)
-            left join TierPrice tp
+            left join TierPrice tp WITH (NOLOCK)
             on (p.id = tp.productId
             and oi.PriceInclTax = tp.price
             and oi.Quantity = tp.Quantity)
@@ -1900,10 +1898,8 @@ export class DatabaseService {
             and o.paymentstatusid in ('30','35')
             and (p.Published = 1
             or (p.id = '40963' and p.Published = 0))
-            and (pav.name like '%2024%'
-            or pav.name like '%2025%')
             and p.id not in ('54958', '53000', '55053')
-            ${year ? "AND YEAR(CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE)) = @year" : ''}
+            ${year ? "AND pav.name like '%' + CAST(@year AS VARCHAR(4)) + '%'" : "AND (pav.name like '%2024%' or pav.name like '%2025%')"}
             ${month ? "AND MONTH(CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE)) = @month" : ''}
             UNION
             select distinct
@@ -1937,49 +1933,49 @@ export class DatabaseService {
             END AS Attendance,
             o.paymentstatusid as PaymentStatus,
             p.StockQuantity
-            from product p
-            left join OrderItem oi
+            from product p WITH (NOLOCK)
+            left join OrderItem oi WITH (NOLOCK)
             on p.id = oi.ProductId
-            left join [Order] o
+            left join [Order] o WITH (NOLOCK)
             on oi.OrderId = o.id
-            left join Product_Category_Mapping pcm
+            left join Product_Category_Mapping pcm WITH (NOLOCK)
             on p.id = pcm.ProductId
-            left join Product_ProductAttribute_Mapping pam
+            left join Product_ProductAttribute_Mapping pam WITH (NOLOCK)
             on p.id = pam.ProductId
-            left join SalsationEvent_Country_Mapping scm
+            left join SalsationEvent_Country_Mapping scm WITH (NOLOCK)
             on p.id = scm.ProductId
-            left join country cn
+            left join country cn WITH (NOLOCK)
             on scm.CountryId = cn.Id
-            left join ProductAttributeValue pav
+            left join ProductAttributeValue pav WITH (NOLOCK)
             on pam.id = pav.ProductAttributeMappingId
-            left join Category c
+            left join Category c WITH (NOLOCK)
             on pcm.CategoryId = c.id
-            left join Vendor v 
+            left join Vendor v WITH (NOLOCK)
             on p.VendorId = v.Id
-            left join Customer cu
+            left join Customer cu WITH (NOLOCK)
             on o.CustomerId = cu.id
-            left join customer_customerrole_mapping crm
+            left join customer_customerrole_mapping crm WITH (NOLOCK)
             on cu.id = crm.customer_id
-            left join customerrole cr 
+            left join customerrole cr WITH (NOLOCK)
             on crm.customerrole_id = cr.id
-            left join Product_SpecificationAttribute_Mapping psm
+            left join Product_SpecificationAttribute_Mapping psm WITH (NOLOCK)
             on p.Id = psm.productid
-            left join SpecificationAttributeOption sao 
+            left join SpecificationAttributeOption sao WITH (NOLOCK)
             on psm.SpecificationAttributeOptionId = sao.Id 
-            left join SpecificationAttribute sa 
+            left join SpecificationAttribute sa WITH (NOLOCK)
             on sao.SpecificationAttributeId = sa.Id
-            left join Product_SpecificationAttribute_Mapping psm2
+            left join Product_SpecificationAttribute_Mapping psm2 WITH (NOLOCK)
             on p.Id = psm2.productid
-            left join SpecificationAttributeOption sao2 
+            left join SpecificationAttributeOption sao2 WITH (NOLOCK)
             on psm2.SpecificationAttributeOptionId = sao2.Id 
-            left join SpecificationAttribute sa2 
+            left join SpecificationAttribute sa2 WITH (NOLOCK)
             on sao2.SpecificationAttributeId = sa2.Id
-            left join SalsationSubscriber ss 
+            left join SalsationSubscriber ss WITH (NOLOCK)
             on (oi.Id = ss.OrderItemId
             and cu.id = ss.CustomerId
             and p.id = ss.parentid
             and o.id = ss.orderid)
-            left join TierPrice tp
+            left join TierPrice tp WITH (NOLOCK)
             on (p.id = tp.productId
             and oi.PriceInclTax = tp.price
             and oi.Quantity = tp.Quantity)
@@ -1989,9 +1985,7 @@ export class DatabaseService {
             and o.paymentstatusid in ('30','35')
             and p.id in ('54958')
             and p.id not in ('53000', '55053')
-            and (o.PaidDateUtc like '%2024%'
-            or o.PaidDateUtc like '%2025%')
-            ${year ? "AND YEAR(o.PaidDateUtc) = @year" : ''}
+            ${year ? "AND YEAR(o.PaidDateUtc) = @year" : "AND (o.PaidDateUtc like '%2024%' or o.PaidDateUtc like '%2025%')"}
             ${month ? "AND MONTH(o.PaidDateUtc) = @month" : ''}
             )
             , finals_order as (
@@ -2064,10 +2058,10 @@ export class DatabaseService {
             )
             , cotrainers as (
             select ParentId as ProdID, CustomerId, c.name
-            from SALSATION_PP.dbo.SalsationSubscriber a
-            left join Customer b
+            from SALSATION_PP.dbo.SalsationSubscriber a WITH (NOLOCK)
+            left join Customer b WITH (NOLOCK)
             on a.customerid = b.id
-            left join vendor c
+            left join vendor c WITH (NOLOCK)
             on b.VendorId = c.id
             where IsCoInstructor = 1
             )
@@ -2619,6 +2613,7 @@ export class DatabaseService {
             	, totalrevenue
             	, ticketsfree + paidtickets + ticketsRepeater as totaltickets
             from final_new_1
+            OPTION (MAXDOP 4, OPTIMIZE FOR UNKNOWN)
       `;
 
       const result = await request.query(query);
