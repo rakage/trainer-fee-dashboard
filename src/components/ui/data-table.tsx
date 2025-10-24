@@ -44,6 +44,11 @@ interface DataTableProps<TData, TValue> {
   enableColumnVisibility?: boolean;
   className?: string;
   onRowClick?: (row: TData) => void;
+  // Server-side pagination props
+  manualPagination?: boolean;
+  pageCount?: number;
+  pagination?: { pageIndex: number; pageSize: number };
+  onPaginationChange?: (pagination: { pageIndex: number; pageSize: number }) => void;
 }
 
 export function DataTable<TData, TValue>({
@@ -56,12 +61,20 @@ export function DataTable<TData, TValue>({
   enableColumnVisibility = true,
   className,
   onRowClick,
+  manualPagination = false,
+  pageCount,
+  pagination: controlledPagination,
+  onPaginationChange,
 }: Readonly<DataTableProps<TData, TValue>>) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
   const [globalFilter, setGlobalFilter] = React.useState('');
+  const [internalPagination, setInternalPagination] = React.useState({ pageIndex: 0, pageSize: 10 });
+
+  const paginationState = controlledPagination || internalPagination;
+  const handlePaginationChange = onPaginationChange || setInternalPagination;
 
   const table = useReactTable({
     data,
@@ -69,12 +82,23 @@ export function DataTable<TData, TValue>({
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
+    getPaginationRowModel: manualPagination ? undefined : getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
     onGlobalFilterChange: setGlobalFilter,
+    manualPagination,
+    pageCount: pageCount || -1,
+    state: {
+      sorting,
+      columnFilters,
+      columnVisibility,
+      rowSelection,
+      globalFilter,
+      pagination: paginationState,
+    },
+    onPaginationChange: handlePaginationChange,
     globalFilterFn: (row, columnId, value) => {
       // If searchKeys is provided, search across multiple columns
       if (searchKeys && searchKeys.length > 0) {
@@ -99,13 +123,6 @@ export function DataTable<TData, TValue>({
         return stringValue.toLowerCase().includes(value.toLowerCase());
       }
       return false;
-    },
-    state: {
-      sorting,
-      columnFilters,
-      columnVisibility,
-      rowSelection,
-      globalFilter,
     },
   });
 

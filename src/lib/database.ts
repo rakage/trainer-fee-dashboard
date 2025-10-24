@@ -1724,6 +1724,54 @@ export class DatabaseService {
     }
   }
 
+  // Get summary totals for cards (ALL filtered data, no pagination)
+  static async getTrainersEventsSummary(year?: number, month?: number) {
+    try {
+      const pool = await getConnection();
+      const request = pool.request();
+      
+      if (year) {
+        request.input('year', sql.Int, year);
+      }
+      if (month) {
+        request.input('month', sql.Int, month);
+      }
+
+      const query = `
+        -- Simple count query for summary cards
+        WITH EventList AS (
+          SELECT DISTINCT p.id as prodid, v.Name as vendor
+          FROM product p WITH (NOLOCK)
+          INNER JOIN Product_Category_Mapping pcm WITH (NOLOCK) ON p.id = pcm.ProductId
+          INNER JOIN Product_ProductAttribute_Mapping pam WITH (NOLOCK) ON p.id = pam.ProductId
+          INNER JOIN ProductAttributeValue pav WITH (NOLOCK) ON pam.id = pav.ProductAttributeMappingId
+          INNER JOIN Vendor v WITH (NOLOCK) ON p.VendorId = v.Id
+          INNER JOIN Product_SpecificationAttribute_Mapping psm WITH (NOLOCK) ON p.Id = psm.productid
+          INNER JOIN SpecificationAttributeOption sao WITH (NOLOCK) ON psm.SpecificationAttributeOptionId = sao.Id 
+          INNER JOIN SpecificationAttribute sa WITH (NOLOCK) ON sao.SpecificationAttributeId = sa.Id
+          INNER JOIN Product_SpecificationAttribute_Mapping psm2 WITH (NOLOCK) ON p.Id = psm2.productid
+          INNER JOIN SpecificationAttributeOption sao2 WITH (NOLOCK) ON psm2.SpecificationAttributeOptionId = sao2.Id 
+          INNER JOIN SpecificationAttribute sa2 WITH (NOLOCK) ON sao2.SpecificationAttributeId = sa2.Id
+          WHERE sa.id = 10
+          AND sa2.id = 6
+          AND p.id NOT IN ('53000', '55053')
+          ${year ? "AND pav.name like '%' + CAST(@year AS VARCHAR(4)) + '%'" : "AND (pav.name like '%2024%' or pav.name like '%2025%')"}
+          ${month ? "AND MONTH(CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE)) = @month" : ''}
+        )
+        SELECT 
+          COUNT(DISTINCT prodid) as totalEvents,
+          COUNT(DISTINCT vendor) as uniqueTrainers
+        FROM EventList
+      `;
+
+      const result = await request.query(query);
+      return result.recordset[0];
+    } catch (error) {
+      console.error('Error fetching trainers events summary:', error);
+      throw error;
+    }
+  }
+
   static async getTrainersEvents(year?: number, month?: number, page: number = 1, pageSize: number = 50) {
     try {
       const pool = await getConnection();

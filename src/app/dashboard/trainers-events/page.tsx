@@ -48,27 +48,35 @@ export default function TrainersEventsPage() {
     year: 'all',
     month: 'all',
   });
+  const [pagination, setPagination] = useState({
+    pageIndex: 0,
+    pageSize: 50,
+  });
   const [cardsLoading, setCardsLoading] = useState(false);
   const [tableLoading, setTableLoading] = useState(false);
 
   const {
-    data: eventsData = [],
+    data: response,
     isFetching,
     refetch,
   } = useQuery({
-    queryKey: ['trainers-events', filters.year, filters.month],
+    queryKey: ['trainers-events', filters.year, filters.month, pagination.pageIndex, pagination.pageSize],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (filters.year && filters.year !== 'all') params.set('year', filters.year);
       if (filters.month && filters.month !== 'all') params.set('month', filters.month);
+      params.set('page', String(pagination.pageIndex + 1)); // API uses 1-based indexing
+      params.set('pageSize', String(pagination.pageSize));
 
       const response = await fetch(`/api/trainers-events?${params.toString()}`);
       if (!response.ok) throw new Error('Failed to fetch trainers events');
-      const data = (await response.json()) as TrainersEventsData[];
-
-      return data;
+      return await response.json();
     },
   });
+
+  const eventsData = response?.data || [];
+  const summary = response?.summary || { totalEvents: 0, uniqueTrainers: 0, totalTickets: 0, totalRevenue: 0 };
+  const paginationInfo = response?.pagination || { totalCount: 0, totalPages: 0 };
 
   React.useEffect(() => {
     if (isFetching) {
@@ -82,10 +90,12 @@ export default function TrainersEventsPage() {
 
   const handleFilterChange = (field: string, value: string) => {
     setFilters((prev) => ({ ...prev, [field]: value }));
+    setPagination({ pageIndex: 0, pageSize: 50 }); // Reset to first page when filter changes
   };
 
   const clearFilters = () => {
     setFilters({ year: 'all', month: 'all' });
+    setPagination({ pageIndex: 0, pageSize: 50 }); // Reset to first page
   };
 
   const exportToCSV = () => {
@@ -135,14 +145,15 @@ export default function TrainersEventsPage() {
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `trainers-events-${new Date().toISOString().split('T')[0]}.csv`;
+    link.download = `trainers-events-page${pagination.pageIndex + 1}-${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
   };
 
-  const totalEvents = eventsData.length;
-  const totalTickets = eventsData.reduce((sum, row) => sum + (row.totaltickets || 0), 0);
-  const totalRevenue = eventsData.reduce((sum, row) => sum + (row.totalrevenue || 0), 0);
-  const uniqueTrainers = new Set(eventsData.map((row) => row.trainer)).size;
+  // Use summary data from API (reflects all filtered data, not just current page)
+  const totalEvents = summary.totalEvents;
+  const totalTickets = summary.totalTickets;
+  const totalRevenue = summary.totalRevenue;
+  const uniqueTrainers = summary.uniqueTrainers;
 
   return (
     <DashboardLayout>
@@ -156,7 +167,7 @@ export default function TrainersEventsPage() {
             </Button>
             <Button onClick={exportToCSV} disabled={eventsData.length === 0}>
               <Download className="w-4 h-4 mr-2" />
-              Export CSV
+              Export Page CSV
             </Button>
           </div>
         </div>
@@ -290,7 +301,7 @@ export default function TrainersEventsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Events Report ({eventsData.length} events)</CardTitle>
+            <CardTitle>Events Report (Page {pagination.pageIndex + 1} of {paginationInfo.totalPages} - {paginationInfo.totalCount} total events)</CardTitle>
           </CardHeader>
           <CardContent>
             {tableLoading ? (
@@ -318,6 +329,10 @@ export default function TrainersEventsPage() {
                 searchPlaceholder="Search by Product ID, Name, Country, Trainer, Program, Category, or Location..."
                 enableColumnVisibility={true}
                 enableRowSelection={false}
+                manualPagination={true}
+                pageCount={paginationInfo.totalPages}
+                pagination={pagination}
+                onPaginationChange={setPagination}
               />
             )}
           </CardContent>
