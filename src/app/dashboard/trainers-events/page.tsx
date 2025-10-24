@@ -271,7 +271,7 @@ export default function TrainersEventsPage() {
               </Card>
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Tickets</CardTitle>
+                  <CardTitle className="text-sm font-medium">Total Tickets (Current Page)</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">{totalTickets.toLocaleString()}</div>
@@ -279,7 +279,7 @@ export default function TrainersEventsPage() {
               </Card>
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+                  <CardTitle className="text-sm font-medium">Total Revenue (Current Page)</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">

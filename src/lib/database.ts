@@ -1737,64 +1737,27 @@ export class DatabaseService {
         request.input('month', sql.Int, month);
       }
 
+      // Simple fast count query for event count and trainers only
       const query = `
-        -- Summary query for cards - aggregates ALL filtered data
-        WITH EventList AS (
-          SELECT DISTINCT p.id as prodid, v.Name as vendor
-          FROM product p WITH (NOLOCK)
-          INNER JOIN Product_Category_Mapping pcm WITH (NOLOCK) ON p.id = pcm.ProductId
-          INNER JOIN Product_ProductAttribute_Mapping pam WITH (NOLOCK) ON p.id = pam.ProductId
-          INNER JOIN ProductAttributeValue pav WITH (NOLOCK) ON pam.id = pav.ProductAttributeMappingId
-          INNER JOIN Vendor v WITH (NOLOCK) ON p.VendorId = v.Id
-          INNER JOIN Product_SpecificationAttribute_Mapping psm WITH (NOLOCK) ON p.Id = psm.productid
-          INNER JOIN SpecificationAttributeOption sao WITH (NOLOCK) ON psm.SpecificationAttributeOptionId = sao.Id 
-          INNER JOIN SpecificationAttribute sa WITH (NOLOCK) ON sao.SpecificationAttributeId = sa.Id
-          INNER JOIN Product_SpecificationAttribute_Mapping psm2 WITH (NOLOCK) ON p.Id = psm2.productid
-          INNER JOIN SpecificationAttributeOption sao2 WITH (NOLOCK) ON psm2.SpecificationAttributeOptionId = sao2.Id 
-          INNER JOIN SpecificationAttribute sa2 WITH (NOLOCK) ON sao2.SpecificationAttributeId = sa2.Id
-          WHERE sa.id = 10
-          AND sa2.id = 6
-          AND p.id NOT IN ('53000', '55053')
-          ${year ? "AND pav.name like '%' + CAST(@year AS VARCHAR(4)) + '%'" : "AND (pav.name like '%2024%' or pav.name like '%2025%')"}
-          ${month ? "AND MONTH(CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE)) = @month" : ''}
-        ),
-        OrderSummary AS (
-          SELECT 
-            el.prodid,
-            -- Count tickets by type
-            SUM(CASE 
-              WHEN o.CaptureTransactionId IS NOT NULL AND oi.UnitPriceInclTax = 0 THEN 1
-              WHEN o.CaptureTransactionId IS NULL AND oi.UnitPriceInclTax = 0 THEN 1
-              ELSE 0 
-            END) as freeTickets,
-            SUM(CASE 
-              WHEN tp.Designation = 'Repeater' THEN 1
-              ELSE 0 
-            END) as repeaterTickets,
-            SUM(CASE 
-              WHEN oi.UnitPriceInclTax > 0 AND ISNULL(tp.Designation, '') != 'Repeater' THEN 1
-              ELSE 0 
-            END) as paidTickets,
-            -- Sum revenue (excluding free tickets and unattended refunded orders)
-            SUM(CASE 
-              WHEN ss.attendedsetdateUTC IS NULL AND o.paymentstatusid = 35 THEN 0
-              ELSE (oi.PriceInclTax - ISNULL(o.RefundedAmount, 0))
-            END) as totalRevenue
-          FROM EventList el
-          LEFT JOIN OrderItem oi WITH (NOLOCK) ON el.prodid = oi.ProductId
-          LEFT JOIN [Order] o WITH (NOLOCK) ON oi.OrderId = o.id
-          LEFT JOIN TierPrice tp WITH (NOLOCK) ON (el.prodid = tp.productId AND oi.PriceInclTax = tp.price AND oi.Quantity = tp.Quantity)
-          LEFT JOIN SalsationSubscriber ss WITH (NOLOCK) ON (oi.Id = ss.OrderItemId AND el.prodid = ss.parentid AND o.id = ss.orderid)
-          WHERE o.orderstatusid = '30'
-          AND o.paymentstatusid IN ('30','35')
-          GROUP BY el.prodid
-        )
         SELECT 
-          (SELECT COUNT(DISTINCT prodid) FROM EventList) as totalEvents,
-          (SELECT COUNT(DISTINCT vendor) FROM EventList) as uniqueTrainers,
-          ISNULL(SUM(freeTickets + paidTickets + repeaterTickets), 0) as totalTickets,
-          ISNULL(SUM(totalRevenue), 0) as totalRevenue
-        FROM OrderSummary
+          COUNT(DISTINCT p.id) as totalEvents,
+          COUNT(DISTINCT v.Name) as uniqueTrainers
+        FROM product p WITH (NOLOCK)
+        LEFT JOIN Product_Category_Mapping pcm WITH (NOLOCK) ON p.id = pcm.ProductId
+        LEFT JOIN Product_ProductAttribute_Mapping pam WITH (NOLOCK) ON p.id = pam.ProductId
+        LEFT JOIN ProductAttributeValue pav WITH (NOLOCK) ON pam.id = pav.ProductAttributeMappingId
+        LEFT JOIN Vendor v WITH (NOLOCK) ON p.VendorId = v.Id
+        LEFT JOIN Product_SpecificationAttribute_Mapping psm WITH (NOLOCK) ON p.Id = psm.productid
+        LEFT JOIN SpecificationAttributeOption sao WITH (NOLOCK) ON psm.SpecificationAttributeOptionId = sao.Id 
+        LEFT JOIN SpecificationAttribute sa WITH (NOLOCK) ON sao.SpecificationAttributeId = sa.Id
+        LEFT JOIN Product_SpecificationAttribute_Mapping psm2 WITH (NOLOCK) ON p.Id = psm2.productid
+        LEFT JOIN SpecificationAttributeOption sao2 WITH (NOLOCK) ON psm2.SpecificationAttributeOptionId = sao2.Id 
+        LEFT JOIN SpecificationAttribute sa2 WITH (NOLOCK) ON sao2.SpecificationAttributeId = sa2.Id
+        WHERE sa.id = 10
+        AND sa2.id = 6
+        AND p.id NOT IN ('53000', '55053')
+        ${year ? "AND pav.name like '%' + CAST(@year AS VARCHAR(4)) + '%'" : "AND (pav.name like '%2024%' or pav.name like '%2025%')"}
+        ${month ? "AND MONTH(CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE)) = @month" : ''}
       `;
 
       const result = await request.query(query);
@@ -1825,10 +1788,10 @@ export class DatabaseService {
       request.input('offset', sql.Int, offset);
       request.input('pageSize', sql.Int, pageSize);
 
-      // Paginated query - process only a subset of events
+      // Your original query with pagination optimization at the start
       const query = `
-        -- Step 1: Get ONLY the events for this page (CRITICAL for performance)
-        with PaginatedEvents as (
+        -- Pagination CTEs: Filter events BEFORE processing through your complex logic
+        WITH PaginatedEvents as (
             select 
                 p.id as prodid,
                 ROW_NUMBER() OVER (ORDER BY CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE) DESC, p.id DESC) as RowNum
@@ -1853,7 +1816,7 @@ export class DatabaseService {
             from PaginatedEvents
             where RowNum > @offset AND RowNum <= (@offset + @pageSize)
         )
-        -- Step 2: Get full event details ONLY for paged events
+        -- YOUR ORIGINAL QUERY STARTS HERE (with INNER JOIN to PagedProductIds for early filtering)
         , base as (
             select distinct
             p.id as ProdID, 
@@ -1867,22 +1830,38 @@ export class DatabaseService {
             sao.Name as Country,
             p.StockQuantity,
             p.DisableBuyButton as Cancelled,
-            case when p.Published = 1 then 'Active' else 'Cancelled' end as Status_Event
+            case
+                when p.Published = 1 then 'Active'
+                else 'Cancelled'
+            end as Status_Event
             from product p WITH (NOLOCK)
-            inner join PagedProductIds pp on p.id = pp.prodid
-            left join Product_Category_Mapping pcm WITH (NOLOCK) on p.id = pcm.ProductId
-            left join Product_ProductAttribute_Mapping pam WITH (NOLOCK) on p.id = pam.ProductId
-            left join SalsationEvent_Country_Mapping scm WITH (NOLOCK) on p.id = scm.ProductId
-            left join country cn WITH (NOLOCK) on scm.CountryId = cn.Id
-            left join ProductAttributeValue pav WITH (NOLOCK) on pam.id = pav.ProductAttributeMappingId
-            left join Category c WITH (NOLOCK) on pcm.CategoryId = c.id
-            left join Vendor v WITH (NOLOCK) on p.VendorId = v.Id
-            left join Product_SpecificationAttribute_Mapping psm WITH (NOLOCK) on p.Id = psm.productid
-            left join SpecificationAttributeOption sao WITH (NOLOCK) on psm.SpecificationAttributeOptionId = sao.Id 
-            left join SpecificationAttribute sa WITH (NOLOCK) on sao.SpecificationAttributeId = sa.Id
-            left join Product_SpecificationAttribute_Mapping psm2 WITH (NOLOCK) on p.Id = psm2.productid
-            left join SpecificationAttributeOption sao2 WITH (NOLOCK) on psm2.SpecificationAttributeOptionId = sao2.Id 
-            left join SpecificationAttribute sa2 WITH (NOLOCK) on sao2.SpecificationAttributeId = sa2.Id
+            INNER JOIN PagedProductIds pp ON p.id = pp.prodid
+            left join Product_Category_Mapping pcm WITH (NOLOCK)
+            on p.id = pcm.ProductId
+            left join Product_ProductAttribute_Mapping pam WITH (NOLOCK)
+            on p.id = pam.ProductId
+            left join SalsationEvent_Country_Mapping scm WITH (NOLOCK)
+            on p.id = scm.ProductId
+            left join country cn WITH (NOLOCK)
+            on scm.CountryId = cn.Id
+            left join ProductAttributeValue pav WITH (NOLOCK)
+            on pam.id = pav.ProductAttributeMappingId
+            left join Category c WITH (NOLOCK)
+            on pcm.CategoryId = c.id
+            left join Vendor v WITH (NOLOCK)
+            on p.VendorId = v.Id
+            left join Product_SpecificationAttribute_Mapping psm WITH (NOLOCK)
+            on p.Id = psm.productid
+            left join SpecificationAttributeOption sao WITH (NOLOCK)
+            on psm.SpecificationAttributeOptionId = sao.Id 
+            left join SpecificationAttribute sa WITH (NOLOCK)
+            on sao.SpecificationAttributeId = sa.Id
+            left join Product_SpecificationAttribute_Mapping psm2 WITH (NOLOCK)
+            on p.Id = psm2.productid
+            left join SpecificationAttributeOption sao2 WITH (NOLOCK)
+            on psm2.SpecificationAttributeOptionId = sao2.Id 
+            left join SpecificationAttribute sa2 WITH (NOLOCK)
+            on sao2.SpecificationAttributeId = sa2.Id
             where sa.id = 10
             and sa2.id = 6
         )
