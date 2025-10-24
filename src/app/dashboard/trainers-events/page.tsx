@@ -263,7 +263,7 @@ export default function TrainersEventsPage() {
             <>
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Events (Current Page)</CardTitle>
+                  <CardTitle className="text-sm font-medium">Total Events</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">{totalEvents}</div>
@@ -271,7 +271,7 @@ export default function TrainersEventsPage() {
               </Card>
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Tickets (Current Page)</CardTitle>
+                  <CardTitle className="text-sm font-medium">Total Tickets</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">{totalTickets.toLocaleString()}</div>
@@ -279,7 +279,7 @@ export default function TrainersEventsPage() {
               </Card>
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Revenue (Current Page)</CardTitle>
+                  <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">
@@ -289,7 +289,7 @@ export default function TrainersEventsPage() {
               </Card>
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Trainers (Current Page)</CardTitle>
+                  <CardTitle className="text-sm font-medium">Unique Trainers</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">{uniqueTrainers}</div>

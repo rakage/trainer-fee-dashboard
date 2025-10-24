@@ -15,26 +15,21 @@ export async function GET(request: NextRequest) {
     const page = searchParams.get('page') ? parseInt(searchParams.get('page')!) : 1;
     const pageSize = searchParams.get('pageSize') ? parseInt(searchParams.get('pageSize')!) : 50;
 
-    // Get paginated data for current page
+    // Get paginated data for current page (sequential to avoid pool contention)
     const trainersEvents = await DatabaseService.getTrainersEvents(year, month, page, pageSize);
-
-    // Calculate totals from current page (temporary - shows page totals only)
-    const totalTickets = trainersEvents.reduce((sum: number, event: any) => sum + (event.totaltickets || 0), 0);
-    const totalRevenue = trainersEvents.reduce((sum: number, event: any) => sum + (event.totalrevenue || 0), 0);
+    // Get global summary using ONLY year/month filters (not affected by pagination)
+    const summary = await DatabaseService.getTrainersEventsSummary(year, month);
+    const totalCount = summary.totalEvents || 0;
+    const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
     return NextResponse.json({
       data: trainersEvents,
-      summary: {
-        totalEvents: trainersEvents.length, // Current page only
-        uniqueTrainers: new Set(trainersEvents.map((e: any) => e.trainer)).size, // Current page only
-        totalTickets, // Current page only
-        totalRevenue, // Current page only
-      },
+      summary,
       pagination: {
         page,
         pageSize,
-        totalCount: trainersEvents.length, // TODO: Get real total count
-        totalPages: 1, // TODO: Calculate real total pages
+        totalCount,
+        totalPages,
       }
     });
   } catch (error) {

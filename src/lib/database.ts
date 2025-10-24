@@ -1737,6 +1737,197 @@ export class DatabaseService {
   }
   */
 
+  static async getTrainersEventsSummary(year?: number, month?: number) {
+    try {
+      const pool = await getConnection();
+      const request = pool.request();
+      (request as any).timeout = 120000;
+
+      if (year) request.input('year', sql.Int, year);
+      if (month) request.input('month', sql.Int, month);
+
+      const query = `
+        WITH AllEvents AS (
+          SELECT DISTINCT
+            p.id AS ProdID,
+            p.name AS ProdName,
+            v.Name AS Vendor,
+            CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE) AS EventDate
+          FROM product p WITH (NOLOCK)
+          INNER JOIN Product_ProductAttribute_Mapping pam WITH (NOLOCK) ON p.id = pam.ProductId
+          INNER JOIN ProductAttributeValue pav WITH (NOLOCK) ON pam.id = pav.ProductAttributeMappingId
+          INNER JOIN Product_SpecificationAttribute_Mapping psm WITH (NOLOCK) ON p.Id = psm.productid
+          INNER JOIN SpecificationAttributeOption sao WITH (NOLOCK) ON psm.SpecificationAttributeOptionId = sao.Id 
+          INNER JOIN SpecificationAttribute sa WITH (NOLOCK) ON sao.SpecificationAttributeId = sa.Id
+          INNER JOIN Product_SpecificationAttribute_Mapping psm2 WITH (NOLOCK) ON p.Id = psm2.productid
+          INNER JOIN SpecificationAttributeOption sao2 WITH (NOLOCK) ON psm2.SpecificationAttributeOptionId = sao2.Id 
+          INNER JOIN SpecificationAttribute sa2 WITH (NOLOCK) ON sao2.SpecificationAttributeId = sa2.Id
+          LEFT JOIN Vendor v WITH (NOLOCK) ON p.VendorId = v.Id
+          WHERE sa.id = 10
+            AND sa2.id = 6
+            AND p.id NOT IN ('53000', '55053')
+            ${year ? "AND pav.name like '%' + CAST(@year AS VARCHAR(4)) + '%'" : "AND (pav.name like '%2024%' or pav.name like '%2025%')"}
+            ${month ? "AND MONTH(CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE)) = @month" : ''}
+        )
+        , ProductsWithTrainer AS (
+          SELECT 
+            ProdID,
+            ProdName,
+            CASE 
+              WHEN ProdName LIKE '% with %' THEN 
+                LTRIM(RTRIM(
+                  CASE 
+                    WHEN CHARINDEX(' & ', SUBSTRING(ProdName, CHARINDEX(' with ', ProdName) + 6, LEN(ProdName))) > 0 THEN
+                      SUBSTRING(ProdName,
+                        CHARINDEX(' with ', ProdName) + 6,
+                        CHARINDEX(' & ', SUBSTRING(ProdName, CHARINDEX(' with ', ProdName) + 6, LEN(ProdName))) - 1
+                      )
+                    ELSE
+                      SUBSTRING(
+                        ProdName,
+                        CHARINDEX(' with ', ProdName) + 6,
+                        CASE 
+                          WHEN CHARINDEX(',', ProdName, CHARINDEX(' with ', ProdName)) > 0 THEN CHARINDEX(',', ProdName, CHARINDEX(' with ', ProdName)) - CHARINDEX(' with ', ProdName) - 6
+                          ELSE LEN(ProdName) - CHARINDEX(' with ', ProdName) - 5
+                        END
+                      )
+                  END
+                ))
+              ELSE COALESCE(Vendor, 'Unknown')
+            END AS TrainerInitial
+          FROM AllEvents
+          LEFT JOIN Vendor v WITH (NOLOCK) ON 1 = 0 -- vendor already joined in AllEvents, placeholder to keep structure
+        )
+        , TrainersNorm AS (
+          SELECT 
+            ProdID,
+            CASE 
+              WHEN TrainerInitial IN ('Kami & Yoyo', 'Kamila Wierzyńska', 'Kamila Wierzynska', 'Yoandro') THEN 'Kami/Yoyo'
+              WHEN TrainerInitial IN ('Kukizz & Javier', 'Diana Kukizz Kurucová', 'Diana Kukizz KurucovÃ¡', 'Javier') THEN 'Kukizz/Javier'
+              ELSE TrainerInitial
+            END AS Trainer
+          FROM ProductsWithTrainer
+        )
+        , OrdersBase AS (
+          SELECT DISTINCT
+            o.id AS OrderID,
+            o.PaidDateUtc AS DatePaid,
+            CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE) AS EventDate,
+            p.id AS ProdID,
+            oi.quantity,
+            p.price AS ProductPrice,
+            oi.UnitPriceInclTax AS UnitPrice,
+            oi.PriceInclTax - o.RefundedAmount AS PriceTotal,
+            tp.Designation AS TierLevel,
+            CASE  WHEN (o.CaptureTransactionId IS NOT NULL and oi.UnitPriceInclTax = 0) THEN 'Free Ticket'
+                  WHEN o.CaptureTransactionId IS NOT NULL THEN 'Paypal'
+                  WHEN (o.CaptureTransactionId IS NULL and oi.UnitPriceInclTax = 0) THEN 'Free Ticket'
+                  ELSE 'Cash' END AS PaymentMethod,
+            CASE WHEN ss.attendedsetdateUTC IS NOT NULL THEN 'Attended' ELSE 'Unattended' END AS Attendance,
+            o.paymentstatusid AS PaymentStatus
+          FROM product p WITH (NOLOCK)
+          INNER JOIN AllEvents ae ON p.id = ae.ProdID
+          LEFT JOIN OrderItem oi WITH (NOLOCK) ON p.id = oi.ProductId
+          LEFT JOIN [Order] o WITH (NOLOCK) ON oi.OrderId = o.id
+          LEFT JOIN Product_ProductAttribute_Mapping pam WITH (NOLOCK) ON p.id = pam.ProductId
+          LEFT JOIN ProductAttributeValue pav WITH (NOLOCK) ON pam.id = pav.ProductAttributeMappingId
+          LEFT JOIN Product_SpecificationAttribute_Mapping psm WITH (NOLOCK) ON p.Id = psm.productid
+          LEFT JOIN SpecificationAttributeOption sao WITH (NOLOCK) ON psm.SpecificationAttributeOptionId = sao.Id 
+          LEFT JOIN SpecificationAttribute sa WITH (NOLOCK) ON sao.SpecificationAttributeId = sa.Id
+          LEFT JOIN Product_SpecificationAttribute_Mapping psm2 WITH (NOLOCK) ON p.Id = psm2.productid
+          LEFT JOIN SpecificationAttributeOption sao2 WITH (NOLOCK) ON psm2.SpecificationAttributeOptionId = sao2.Id 
+          LEFT JOIN SpecificationAttribute sa2 WITH (NOLOCK) ON sao2.SpecificationAttributeId = sa2.Id
+          LEFT JOIN SalsationSubscriber ss WITH (NOLOCK) ON (oi.Id = ss.OrderItemId AND p.id = ss.parentid AND o.id = ss.orderid)
+          LEFT JOIN TierPrice tp WITH (NOLOCK) ON (p.id = tp.productId AND oi.PriceInclTax = tp.price AND oi.Quantity = tp.Quantity)
+          WHERE sa.id = 10 AND sa2.id = 6
+            AND o.orderstatusid = '30'
+            AND o.paymentstatusid IN ('30','35')
+            AND p.id NOT IN ('54958', '53000', '55053')
+            ${year ? "AND pav.name like '%' + CAST(@year AS VARCHAR(4)) + '%'" : "AND (pav.name like '%2024%' or pav.name like '%2025%')"}
+            ${month ? "AND MONTH(CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE)) = @month" : ''}
+          UNION ALL
+          SELECT DISTINCT
+            o.id AS OrderID,
+            o.PaidDateUtc AS DatePaid,
+            CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE) AS EventDate,
+            p.id AS ProdID,
+            oi.quantity,
+            p.price AS ProductPrice,
+            oi.UnitPriceInclTax AS UnitPrice,
+            oi.PriceInclTax - o.RefundedAmount AS PriceTotal,
+            tp.Designation AS TierLevel,
+            CASE  WHEN (o.CaptureTransactionId IS NOT NULL and oi.UnitPriceInclTax = 0) THEN 'Free Ticket'
+                  WHEN o.CaptureTransactionId IS NOT NULL THEN 'Paypal'
+                  WHEN (o.CaptureTransactionId IS NULL and oi.UnitPriceInclTax = 0) THEN 'Free Ticket'
+                  ELSE 'Cash' END AS PaymentMethod,
+            CASE WHEN ss.attendedsetdateUTC IS NOT NULL THEN 'Attended' ELSE 'Unattended' END AS Attendance,
+            o.paymentstatusid AS PaymentStatus
+          FROM product p WITH (NOLOCK)
+          INNER JOIN AllEvents ae ON p.id = ae.ProdID
+          LEFT JOIN OrderItem oi WITH (NOLOCK) ON p.id = oi.ProductId
+          LEFT JOIN [Order] o WITH (NOLOCK) ON oi.OrderId = o.id
+          LEFT JOIN Product_ProductAttribute_Mapping pam WITH (NOLOCK) ON p.id = pam.ProductId
+          LEFT JOIN ProductAttributeValue pav WITH (NOLOCK) ON pam.id = pav.ProductAttributeMappingId
+          LEFT JOIN Product_SpecificationAttribute_Mapping psm WITH (NOLOCK) ON p.Id = psm.productid
+          LEFT JOIN SpecificationAttributeOption sao WITH (NOLOCK) ON psm.SpecificationAttributeOptionId = sao.Id 
+          LEFT JOIN SpecificationAttribute sa WITH (NOLOCK) ON sao.SpecificationAttributeId = sa.Id
+          LEFT JOIN Product_SpecificationAttribute_Mapping psm2 WITH (NOLOCK) ON p.Id = psm2.productid
+          LEFT JOIN SpecificationAttributeOption sao2 WITH (NOLOCK) ON psm2.SpecificationAttributeOptionId = sao2.Id 
+          LEFT JOIN SpecificationAttribute sa2 WITH (NOLOCK) ON sao2.SpecificationAttributeId = sa2.Id
+          LEFT JOIN SalsationSubscriber ss WITH (NOLOCK) ON (oi.Id = ss.OrderItemId AND p.id = ss.parentid AND o.id = ss.orderid)
+          LEFT JOIN TierPrice tp WITH (NOLOCK) ON (p.id = tp.productId AND oi.PriceInclTax = tp.price AND oi.Quantity = tp.Quantity)
+          WHERE sa.id = 10 AND sa2.id = 6
+            AND o.orderstatusid = '30'
+            AND o.paymentstatusid IN ('30','35')
+            AND p.id IN ('54958')
+            AND p.id NOT IN ('53000', '55053')
+            ${year ? "AND YEAR(o.PaidDateUtc) = @year" : "AND (o.PaidDateUtc like '%2024%' or o.PaidDateUtc like '%2025%')"}
+            ${month ? "AND MONTH(o.PaidDateUtc) = @month" : ''}
+        )
+        , FinalsOrder AS (
+          SELECT *, ROW_NUMBER() OVER (PARTITION BY OrderID, CustomerId, ProdID ORDER BY EventDate ASC) AS rn
+          FROM OrdersBase
+        )
+        , OrderData AS (
+          SELECT 
+            *,
+            CASE 
+              WHEN ProdID = 68513 THEN 'Cruise'
+              WHEN TierLevel = 'Repeater' THEN 'Repeater'
+              WHEN PaymentMethod = 'Free Ticket' THEN 'FreeTicket'
+              ELSE 'Regular'
+            END AS repeater,
+            CASE WHEN Attendance = 'Unattended' AND PaymentStatus = 35 THEN 1 ELSE 0 END AS deleted
+          FROM FinalsOrder
+          WHERE rn = 1
+        )
+        SELECT 
+          (SELECT COUNT(DISTINCT ProdID) FROM AllEvents) AS totalEvents,
+          (SELECT COUNT(DISTINCT Trainer) FROM TrainersNorm) AS uniqueTrainers,
+          (
+            SELECT 
+              COALESCE(SUM(CASE WHEN repeater IN ('Regular','Cruise') AND deleted = 0 THEN 1 ELSE 0 END),0)
+              + COALESCE(SUM(CASE WHEN repeater = 'Repeater' AND deleted = 0 THEN 1 ELSE 0 END),0)
+              + COALESCE(SUM(CASE WHEN repeater = 'FreeTicket' AND deleted = 0 THEN 1 ELSE 0 END),0)
+            FROM OrderData
+          ) AS totalTickets,
+          (
+            SELECT 
+              COALESCE(SUM(CASE WHEN PaymentMethod = 'Cash' AND deleted = 0 THEN PriceTotal ELSE 0 END),0)
+              + COALESCE(SUM(CASE WHEN PaymentMethod = 'Paypal' AND deleted = 0 THEN PriceTotal ELSE 0 END),0)
+            FROM OrderData
+          ) AS totalRevenue
+        OPTION (MAXDOP 4, OPTIMIZE FOR UNKNOWN);
+      `;
+
+      const result = await request.query(query);
+      return result.recordset[0] || { totalEvents: 0, uniqueTrainers: 0, totalTickets: 0, totalRevenue: 0 };
+    } catch (error) {
+      console.error('Error fetching trainers events summary:', error);
+      throw error;
+    }
+  }
+
   static async getTrainersEvents(year?: number, month?: number, page: number = 1, pageSize: number = 50) {
     try {
       const pool = await getConnection();
