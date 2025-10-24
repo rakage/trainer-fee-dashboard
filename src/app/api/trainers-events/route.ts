@@ -12,8 +12,10 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const year = searchParams.get('year') ? parseInt(searchParams.get('year')!) : undefined;
     const month = searchParams.get('month') ? parseInt(searchParams.get('month')!) : undefined;
+    const page = searchParams.get('page') ? parseInt(searchParams.get('page')!) : 1;
+    const pageSize = searchParams.get('pageSize') ? parseInt(searchParams.get('pageSize')!) : 50;
 
-    const trainersEvents = await DatabaseService.getTrainersEvents(year, month);
+    const trainersEvents = await DatabaseService.getTrainersEvents(year, month, page, pageSize);
 
     return NextResponse.json(trainersEvents);
   } catch (error) {

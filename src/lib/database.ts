@@ -1756,9 +1756,11 @@ export class DatabaseService {
             inner join Product_ProductAttribute_Mapping pam WITH (NOLOCK) on p.id = pam.ProductId
             inner join ProductAttributeValue pav WITH (NOLOCK) on pam.id = pav.ProductAttributeMappingId
             inner join Product_SpecificationAttribute_Mapping psm WITH (NOLOCK) on p.Id = psm.productid
-            inner join SpecificationAttribute sa WITH (NOLOCK) on psm.SpecificationAttributeOptionId = sa.Id
+            inner join SpecificationAttributeOption sao WITH (NOLOCK) on psm.SpecificationAttributeOptionId = sao.Id 
+            inner join SpecificationAttribute sa WITH (NOLOCK) on sao.SpecificationAttributeId = sa.Id
             inner join Product_SpecificationAttribute_Mapping psm2 WITH (NOLOCK) on p.Id = psm2.productid
-            inner join SpecificationAttribute sa2 WITH (NOLOCK) on psm2.SpecificationAttributeOptionId = sa2.Id
+            inner join SpecificationAttributeOption sao2 WITH (NOLOCK) on psm2.SpecificationAttributeOptionId = sao2.Id 
+            inner join SpecificationAttribute sa2 WITH (NOLOCK) on sao2.SpecificationAttributeId = sa2.Id
             where sa.id = 10
             and sa2.id = 6
             and p.id not in ('53000', '55053')
