@@ -1728,6 +1728,9 @@ export class DatabaseService {
     try {
       const pool = await getConnection();
       const request = pool.request();
+      
+      // Set a longer timeout for this complex query (60 seconds)
+      request.timeout = 60000;
 
       if (year) {
         request.input('year', sql.Int, year);
@@ -1900,6 +1903,8 @@ export class DatabaseService {
             and (pav.name like '%2024%'
             or pav.name like '%2025%')
             and p.id not in ('54958', '53000', '55053')
+            ${year ? "AND YEAR(CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE)) = @year" : ''}
+            ${month ? "AND MONTH(CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE)) = @month" : ''}
             UNION
             select distinct
             o.id as OrderID, 
@@ -1986,6 +1991,8 @@ export class DatabaseService {
             and p.id not in ('53000', '55053')
             and (o.PaidDateUtc like '%2024%'
             or o.PaidDateUtc like '%2025%')
+            ${year ? "AND YEAR(o.PaidDateUtc) = @year" : ''}
+            ${month ? "AND MONTH(o.PaidDateUtc) = @month" : ''}
             )
             , finals_order as (
             select
