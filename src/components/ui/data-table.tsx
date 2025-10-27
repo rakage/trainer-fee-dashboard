@@ -211,7 +211,7 @@ export function DataTable<TData, TValue>({
           <TableBody>
             {isLoading ? (
               // Show skeleton rows while loading
-              Array.from({ length: pagination?.pageSize || 10 }, (_, i) => (
+              Array.from({ length: paginationState.pageSize || 10 }, (_, i) => (
                 <TableRow key={`skeleton-${i}`}>
                   {columns.map((_, cellIndex) => (
                     <TableCell key={`skeleton-cell-${i}-${cellIndex}`}>
