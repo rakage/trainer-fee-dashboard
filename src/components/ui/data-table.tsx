@@ -32,7 +32,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { DataTablePagination } from '@/components/ui/data-table-pagination';
-import { ChevronDown } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import { ChevronDown, Loader2 } from 'lucide-react';
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -51,6 +52,7 @@ interface DataTableProps<TData, TValue> {
   pageCount?: number;
   pagination?: { pageIndex: number; pageSize: number };
   onPaginationChange?: (pagination: { pageIndex: number; pageSize: number }) => void;
+  isLoading?: boolean;
 }
 
 export function DataTable<TData, TValue>({
@@ -69,6 +71,7 @@ export function DataTable<TData, TValue>({
   pageCount,
   pagination: controlledPagination,
   onPaginationChange,
+  isLoading = false,
 }: Readonly<DataTableProps<TData, TValue>>) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
@@ -140,12 +143,20 @@ export function DataTable<TData, TValue>({
       <div className="flex items-center justify-between py-4">
         <div className="flex flex-1 items-center space-x-2">
           {(searchKey || searchKeys || isServerSideSearch) && (
-            <Input
-              placeholder={searchPlaceholder}
-              value={searchValueToUse ?? ''}
-              onChange={(event) => handleSearchChangeInternal(event.target.value)}
-              className="max-w-sm"
-            />
+            <div className="relative max-w-sm">
+              <Input
+                placeholder={searchPlaceholder}
+                value={searchValueToUse ?? ''}
+                onChange={(event) => handleSearchChangeInternal(event.target.value)}
+                disabled={isLoading}
+                className="pr-10"
+              />
+              {isLoading && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                </div>
+              )}
+            </div>
           )}
         </div>
         <div className="flex items-center space-x-2">
@@ -186,9 +197,11 @@ export function DataTable<TData, TValue>({
                 {headerGroup.headers.map((header) => {
                   return (
                     <TableHead key={header.id}>
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(header.column.columnDef.header, header.getContext())}
+                      {isLoading ? (
+                        <Skeleton className="h-5 w-full" />
+                      ) : header.isPlaceholder ? null : (
+                        flexRender(header.column.columnDef.header, header.getContext())
+                      )}
                     </TableHead>
                   );
                 })}
@@ -196,7 +209,18 @@ export function DataTable<TData, TValue>({
             ))}
           </TableHeader>
           <TableBody>
-            {table.getRowModel().rows?.length ? (
+            {isLoading ? (
+              // Show skeleton rows while loading
+              Array.from({ length: pagination?.pageSize || 10 }, (_, i) => (
+                <TableRow key={`skeleton-${i}`}>
+                  {columns.map((_, cellIndex) => (
+                    <TableCell key={`skeleton-cell-${i}-${cellIndex}`}>
+                      <Skeleton className="h-5 w-full" />
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
                 <TableRow 
                   key={row.id} 

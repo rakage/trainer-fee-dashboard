@@ -312,27 +312,20 @@ export default function TrainersEventsPage() {
             <CardTitle>Events Report (Page {pagination.pageIndex + 1} of {paginationInfo.totalPages} - {paginationInfo.totalCount} total events)</CardTitle>
           </CardHeader>
           <CardContent>
-            {tableLoading ? (
-              <div className="space-y-4">
-                {Array.from({ length: 10 }, (_, i) => (
-                  <Skeleton key={`table-skeleton-${i}`} className="h-12 w-full" />
-                ))}
-              </div>
-            ) : (
-              <DataTable
-                columns={trainersEventsColumns}
-                data={eventsData}
-                searchValue={searchQuery}
-                onSearchChange={handleSearchChange}
-                searchPlaceholder="Search by Product ID, Name, Country, Trainer, Program, Category, or Location..."
-                enableColumnVisibility={true}
-                enableRowSelection={false}
-                manualPagination={true}
-                pageCount={paginationInfo.totalPages}
-                pagination={pagination}
-                onPaginationChange={setPagination}
-              />
-            )}
+            <DataTable
+              columns={trainersEventsColumns}
+              data={eventsData}
+              searchValue={searchQuery}
+              onSearchChange={handleSearchChange}
+              searchPlaceholder="Search by Product ID, Name, Country, Trainer, Program, Category, or Location..."
+              enableColumnVisibility={true}
+              enableRowSelection={false}
+              manualPagination={true}
+              pageCount={paginationInfo.totalPages}
+              pagination={pagination}
+              onPaginationChange={setPagination}
+              isLoading={isFetching}
+            />
           </CardContent>
         </Card>
       </div>
