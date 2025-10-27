@@ -134,6 +134,12 @@ export const alejandroEventsColumns: ColumnDef<AlejandroEventData>[] = [
     },
   },
   {
+    accessorKey: 'ExpenseCount',
+    header: () => null,
+    cell: () => null,
+    enableHiding: false,
+  },
+  {
     accessorKey: 'TotalExpenses',
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Expenses" className="text-right" />
