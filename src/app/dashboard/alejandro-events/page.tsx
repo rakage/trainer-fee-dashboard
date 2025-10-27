@@ -354,34 +354,26 @@ export default function AlejandroEventsPage() {
             <CardTitle>Events ({eventsData.length} events)</CardTitle>
           </CardHeader>
           <CardContent>
-            {tableLoading ? (
-              // Loading skeleton for table
-              <div className="space-y-4">
-                {Array.from({ length: 10 }, (_, i) => (
-                  <Skeleton key={`table-skeleton-${i}`} className="h-12 w-full" />
-                ))}
-              </div>
-            ) : (
-              <DataTable
-                columns={alejandroEventsColumns}
-                data={eventsData}
-                searchKeys={[
-                  'ProdID',
-                  'ProdName',
-                  'Country',
-                  'MainTrainer',
-                  'CoTrainer1',
-                  'CoTrainer2',
-                  'CoTrainer3',
-                  'Program',
-                  'Category',
-                ]}
-                searchPlaceholder="Search by Product ID, Name, Country, Trainer, Program, or Category..."
-                enableColumnVisibility={true}
-                enableRowSelection={false}
-                onRowClick={handleRowClick}
-              />
-            )}
+            <DataTable
+              columns={alejandroEventsColumns}
+              data={eventsData}
+              searchKeys={[
+                'ProdID',
+                'ProdName',
+                'Country',
+                'MainTrainer',
+                'CoTrainer1',
+                'CoTrainer2',
+                'CoTrainer3',
+                'Program',
+                'Category',
+              ]}
+              searchPlaceholder="Search by Product ID, Name, Country, Trainer, Program, or Category..."
+              enableColumnVisibility={true}
+              enableRowSelection={false}
+              onRowClick={handleRowClick}
+              isLoading={tableLoading}
+            />
           </CardContent>
         </Card>
       </div>

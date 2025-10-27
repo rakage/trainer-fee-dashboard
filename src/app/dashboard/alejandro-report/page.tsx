@@ -299,23 +299,15 @@ export default function AlejandroReportPage() {
             <CardTitle>Event Report ({reportData.length} events)</CardTitle>
           </CardHeader>
           <CardContent>
-            {tableLoading ? (
-              // Loading skeleton for table
-              <div className="space-y-4">
-                {Array.from({ length: 10 }, (_, i) => (
-                  <Skeleton key={`table-skeleton-${i}`} className="h-12 w-full" />
-                ))}
-              </div>
-            ) : (
-              <DataTable
-                columns={alejandroReportColumns}
-                data={reportData}
-                searchKeys={['ProdID', 'ProdName', 'Country', 'TrainerName', 'Program', 'Category']}
-                searchPlaceholder="Search by Product ID, Name, Country, Trainer, Program, or Category..."
-                enableColumnVisibility={true}
-                enableRowSelection={false}
-              />
-            )}
+            <DataTable
+              columns={alejandroReportColumns}
+              data={reportData}
+              searchKeys={['ProdID', 'ProdName', 'Country', 'TrainerName', 'Program', 'Category']}
+              searchPlaceholder="Search by Product ID, Name, Country, Trainer, Program, or Category..."
+              enableColumnVisibility={true}
+              enableRowSelection={false}
+              isLoading={tableLoading}
+            />
           </CardContent>
         </Card>
       </div>
