@@ -39,6 +39,8 @@ interface DataTableProps<TData, TValue> {
   data: TData[];
   searchKey?: string;
   searchKeys?: string[];
+  searchValue?: string;
+  onSearchChange?: (value: string) => void;
   searchPlaceholder?: string;
   enableRowSelection?: boolean;
   enableColumnVisibility?: boolean;
@@ -56,6 +58,8 @@ export function DataTable<TData, TValue>({
   data,
   searchKey,
   searchKeys,
+  searchValue,
+  onSearchChange,
   searchPlaceholder = 'Search...',
   enableRowSelection = false,
   enableColumnVisibility = true,
@@ -75,6 +79,11 @@ export function DataTable<TData, TValue>({
 
   const paginationState = controlledPagination || internalPagination;
   const handlePaginationChange = onPaginationChange || setInternalPagination;
+  
+  // Use server-side search if searchValue and onSearchChange are provided
+  const isServerSideSearch = searchValue !== undefined && onSearchChange !== undefined;
+  const searchValueToUse = isServerSideSearch ? searchValue : globalFilter;
+  const handleSearchChangeInternal = isServerSideSearch ? onSearchChange : setGlobalFilter;
 
   const table = useReactTable({
     data,
@@ -84,10 +93,10 @@ export function DataTable<TData, TValue>({
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: manualPagination ? undefined : getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
+    getFilteredRowModel: isServerSideSearch ? undefined : getFilteredRowModel(),
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
-    onGlobalFilterChange: setGlobalFilter,
+    onGlobalFilterChange: isServerSideSearch ? undefined : setGlobalFilter,
     manualPagination,
     pageCount: pageCount || -1,
     state: {
@@ -95,11 +104,11 @@ export function DataTable<TData, TValue>({
       columnFilters,
       columnVisibility,
       rowSelection,
-      globalFilter,
+      globalFilter: isServerSideSearch ? '' : globalFilter,
       pagination: paginationState,
     },
     onPaginationChange: handlePaginationChange,
-    globalFilterFn: (row, columnId, value) => {
+    globalFilterFn: isServerSideSearch ? undefined : (row, columnId, value) => {
       // If searchKeys is provided, search across multiple columns
       if (searchKeys && searchKeys.length > 0) {
         return searchKeys.some((key) => {
@@ -130,11 +139,11 @@ export function DataTable<TData, TValue>({
     <div className={className}>
       <div className="flex items-center justify-between py-4">
         <div className="flex flex-1 items-center space-x-2">
-          {(searchKey || searchKeys) && (
+          {(searchKey || searchKeys || isServerSideSearch) && (
             <Input
               placeholder={searchPlaceholder}
-              value={globalFilter ?? ''}
-              onChange={(event) => setGlobalFilter(event.target.value)}
+              value={searchValueToUse ?? ''}
+              onChange={(event) => handleSearchChangeInternal(event.target.value)}
               className="max-w-sm"
             />
           )}

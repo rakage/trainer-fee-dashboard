@@ -14,11 +14,12 @@ export async function GET(request: NextRequest) {
     const month = searchParams.get('month') ? parseInt(searchParams.get('month')!) : undefined;
     const page = searchParams.get('page') ? parseInt(searchParams.get('page')!) : 1;
     const pageSize = searchParams.get('pageSize') ? parseInt(searchParams.get('pageSize')!) : 50;
+    const search = searchParams.get('search') || undefined;
 
     // Get paginated data for current page (sequential to avoid pool contention)
-    const trainersEvents = await DatabaseService.getTrainersEvents(year, month, page, pageSize);
-    // Get global summary using ONLY year/month filters (not affected by pagination)
-    const summary = await DatabaseService.getTrainersEventsSummary(year, month);
+    const trainersEvents = await DatabaseService.getTrainersEvents(year, month, page, pageSize, search);
+    // Get global summary using ONLY year/month/search filters (not affected by pagination)
+    const summary = await DatabaseService.getTrainersEventsSummary(year, month, search);
     const totalCount = summary.totalEvents || 0;
     const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 

@@ -52,6 +52,7 @@ export default function TrainersEventsPage() {
     pageIndex: 0,
     pageSize: 50,
   });
+  const [searchQuery, setSearchQuery] = useState('');
   const [cardsLoading, setCardsLoading] = useState(false);
   const [tableLoading, setTableLoading] = useState(false);
 
@@ -60,13 +61,14 @@ export default function TrainersEventsPage() {
     isFetching,
     refetch,
   } = useQuery({
-    queryKey: ['trainers-events', filters.year, filters.month, pagination.pageIndex, pagination.pageSize],
+    queryKey: ['trainers-events', filters.year, filters.month, pagination.pageIndex, pagination.pageSize, searchQuery],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (filters.year && filters.year !== 'all') params.set('year', filters.year);
       if (filters.month && filters.month !== 'all') params.set('month', filters.month);
       params.set('page', String(pagination.pageIndex + 1)); // API uses 1-based indexing
       params.set('pageSize', String(pagination.pageSize));
+      if (searchQuery) params.set('search', searchQuery);
 
       const response = await fetch(`/api/trainers-events?${params.toString()}`);
       if (!response.ok) throw new Error('Failed to fetch trainers events');
@@ -93,8 +95,14 @@ export default function TrainersEventsPage() {
     setPagination({ pageIndex: 0, pageSize: 50 }); // Reset to first page when filter changes
   };
 
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    setPagination({ pageIndex: 0, pageSize: 50 }); // Reset to first page when search changes
+  };
+
   const clearFilters = () => {
     setFilters({ year: 'all', month: 'all' });
+    setSearchQuery('');
     setPagination({ pageIndex: 0, pageSize: 50 }); // Reset to first page
   };
 
@@ -314,18 +322,8 @@ export default function TrainersEventsPage() {
               <DataTable
                 columns={trainersEventsColumns}
                 data={eventsData}
-                searchKeys={[
-                  'prodid',
-                  'prodname',
-                  'country',
-                  'trainer',
-                  'cotrainer1',
-                  'cotrainer2',
-                  'cotrainer3',
-                  'program',
-                  'category',
-                  'location',
-                ]}
+                searchValue={searchQuery}
+                onSearchChange={handleSearchChange}
                 searchPlaceholder="Search by Product ID, Name, Country, Trainer, Program, Category, or Location..."
                 enableColumnVisibility={true}
                 enableRowSelection={false}

@@ -1737,7 +1737,7 @@ export class DatabaseService {
   }
   */
 
-  static async getTrainersEventsSummary(year?: number, month?: number) {
+  static async getTrainersEventsSummary(year?: number, month?: number, search?: string) {
     try {
       const pool = await getConnection();
       const request = pool.request();
@@ -1745,6 +1745,7 @@ export class DatabaseService {
 
       if (year) request.input('year', sql.Int, year);
       if (month) request.input('month', sql.Int, month);
+      if (search) request.input('search', sql.NVarChar, `%${search}%`);
 
       const query = `
         WITH AllEvents AS (
@@ -1763,11 +1764,23 @@ export class DatabaseService {
           INNER JOIN SpecificationAttributeOption sao2 WITH (NOLOCK) ON psm2.SpecificationAttributeOptionId = sao2.Id 
           INNER JOIN SpecificationAttribute sa2 WITH (NOLOCK) ON sao2.SpecificationAttributeId = sa2.Id
           LEFT JOIN Vendor v WITH (NOLOCK) ON p.VendorId = v.Id
+          LEFT JOIN Product_Category_Mapping pcm WITH (NOLOCK) ON p.id = pcm.ProductId
+          LEFT JOIN Category c WITH (NOLOCK) ON pcm.CategoryId = c.id
+          LEFT JOIN SalsationEvent_Country_Mapping scm WITH (NOLOCK) ON p.id = scm.ProductId
+          LEFT JOIN country cn WITH (NOLOCK) ON scm.CountryId = cn.Id
           WHERE sa.id = 10
             AND sa2.id = 6
             AND p.id NOT IN ('53000', '55053')
             ${year ? "AND pav.name like '%' + CAST(@year AS VARCHAR(4)) + '%'" : "AND (pav.name like '%2024%' or pav.name like '%2025%')"}
             ${month ? "AND MONTH(CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE)) = @month" : ''}
+            ${search ? `AND (
+                CAST(p.id AS NVARCHAR(50)) LIKE @search
+                OR p.name LIKE @search
+                OR ISNULL(sao.Name, '') LIKE @search
+                OR ISNULL(sao2.Name, '') LIKE @search
+                OR ISNULL(c.name, '') LIKE @search
+                OR ISNULL(v.Name, '') LIKE @search
+            )` : ''}
         )
         , ProductsWithTrainer AS (
           SELECT 
@@ -2214,7 +2227,7 @@ export class DatabaseService {
     }
   }
 
-  static async getTrainersEvents(year?: number, month?: number, page: number = 1, pageSize: number = 50) {
+  static async getTrainersEvents(year?: number, month?: number, page: number = 1, pageSize: number = 50, search?: string) {
     try {
       const pool = await getConnection();
       const request = pool.request();
@@ -2227,6 +2240,9 @@ export class DatabaseService {
       }
       if (month) {
         request.input('month', sql.Int, month);
+      }
+      if (search) {
+        request.input('search', sql.NVarChar, `%${search}%`);
       }
       
       // Pagination parameters
@@ -2251,11 +2267,23 @@ export class DatabaseService {
             inner join Product_SpecificationAttribute_Mapping psm2 WITH (NOLOCK) on p.Id = psm2.productid
             inner join SpecificationAttributeOption sao2 WITH (NOLOCK) on psm2.SpecificationAttributeOptionId = sao2.Id 
             inner join SpecificationAttribute sa2 WITH (NOLOCK) on sao2.SpecificationAttributeId = sa2.Id
+            left join Vendor v WITH (NOLOCK) on p.VendorId = v.Id
+            left join SalsationEvent_Country_Mapping scm WITH (NOLOCK) on p.id = scm.ProductId
+            left join country cn WITH (NOLOCK) on scm.CountryId = cn.Id
+            left join Category c WITH (NOLOCK) on pcm.CategoryId = c.id
             where sa.id = 10
             and sa2.id = 6
             and p.id not in ('53000', '55053')
             ${year ? "AND pav.name like '%' + CAST(@year AS VARCHAR(4)) + '%'" : "AND (pav.name like '%2024%' or pav.name like '%2025%')"}
             ${month ? "AND MONTH(CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE)) = @month" : ''}
+            ${search ? `AND (
+                CAST(p.id AS NVARCHAR(50)) LIKE @search
+                OR p.name LIKE @search
+                OR ISNULL(sao.Name, '') LIKE @search
+                OR ISNULL(sao2.Name, '') LIKE @search
+                OR ISNULL(c.name, '') LIKE @search
+                OR ISNULL(v.Name, '') LIKE @search
+            )` : ''}
         )
         , PagedProductIds as (
             select prodid
