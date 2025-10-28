@@ -50,7 +50,7 @@ export default function TrainersEventsPage() {
   });
   const [pagination, setPagination] = useState({
     pageIndex: 0,
-    pageSize: 50,
+    pageSize: 10,
   });
   const [searchQuery, setSearchQuery] = useState('');
   const [cardsLoading, setCardsLoading] = useState(false);
@@ -92,18 +92,18 @@ export default function TrainersEventsPage() {
 
   const handleFilterChange = (field: string, value: string) => {
     setFilters((prev) => ({ ...prev, [field]: value }));
-    setPagination({ pageIndex: 0, pageSize: 50 }); // Reset to first page when filter changes
+    setPagination({ pageIndex: 0, pageSize: 10 }); // Reset to first page when filter changes
   };
 
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);
-    setPagination({ pageIndex: 0, pageSize: 50 }); // Reset to first page when search changes
+    setPagination({ pageIndex: 0, pageSize: 10 }); // Reset to first page when search changes
   };
 
   const clearFilters = () => {
     setFilters({ year: 'all', month: 'all' });
     setSearchQuery('');
-    setPagination({ pageIndex: 0, pageSize: 50 }); // Reset to first page
+    setPagination({ pageIndex: 0, pageSize: 10 }); // Reset to first page
   };
 
   const exportToCSV = () => {
