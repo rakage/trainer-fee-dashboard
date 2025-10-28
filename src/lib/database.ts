@@ -41,12 +41,39 @@ export async function getConnection(): Promise<ConnectionPool> {
   if (!pool || !pool.connected) {
     if (pool && !pool.connected) {
       console.log('Pool exists but not connected, recreating...');
+      try {
+        await pool.close();
+      } catch (e) {
+        // Ignore close errors
+      }
       pool = null;
     }
+    
     pool = new sql.ConnectionPool(config);
-    await pool.connect();
-    console.log('Connected to MSSQL database');
+    
+    // Set up event listeners to track connection state
+    pool.on('error', (err) => {
+      console.error('Database pool error:', err);
+      pool = null;
+    });
+    
+    try {
+      await pool.connect();
+      console.log('Connected to MSSQL database');
+    } catch (err) {
+      console.error('Failed to connect to database:', err);
+      pool = null;
+      throw err;
+    }
   }
+  
+  // Double check connection is still valid
+  if (!pool.connected) {
+    console.log('Pool connected state check failed, retrying...');
+    pool = null;
+    return getConnection(); // Recursive retry
+  }
+  
   return pool;
 }
 
@@ -2255,44 +2282,61 @@ export class DatabaseService {
   }
 
   static async getUniqueTrainers(): Promise<{ trainer: string }[]> {
-    try {
-      const pool = await getConnection();
-      const request = pool.request();
-      (request as any).timeout = 60000;
+    let retries = 0;
+    const maxRetries = 2;
+    
+    while (retries <= maxRetries) {
+      try {
+        const pool = await getConnection();
+        const request = pool.request();
+        (request as any).timeout = 60000;
 
-      const query = `
-        SELECT DISTINCT
-          CASE 
-            WHEN v.Name = 'Kamila Wierzynska' OR v.Name = 'Yoandro' THEN 'Kami/Yoyo'
-            WHEN v.Name = 'Diana Kukizz Kurucová' OR v.Name = 'Javier' THEN 'Kukizz/Javier'
-            ELSE v.Name
-          END AS trainer
-        FROM product p WITH (NOLOCK)
-        INNER JOIN Vendor v WITH (NOLOCK) ON p.VendorId = v.Id
-        INNER JOIN Product_ProductAttribute_Mapping pam WITH (NOLOCK) ON p.id = pam.ProductId
-        INNER JOIN ProductAttributeValue pav WITH (NOLOCK) ON pam.id = pav.ProductAttributeMappingId
-        INNER JOIN Product_SpecificationAttribute_Mapping psm WITH (NOLOCK) ON p.Id = psm.productid
-        INNER JOIN SpecificationAttributeOption sao WITH (NOLOCK) ON psm.SpecificationAttributeOptionId = sao.Id 
-        INNER JOIN SpecificationAttribute sa WITH (NOLOCK) ON sao.SpecificationAttributeId = sa.Id
-        INNER JOIN Product_SpecificationAttribute_Mapping psm2 WITH (NOLOCK) ON p.Id = psm2.productid
-        INNER JOIN SpecificationAttributeOption sao2 WITH (NOLOCK) ON psm2.SpecificationAttributeOptionId = sao2.Id 
-        INNER JOIN SpecificationAttribute sa2 WITH (NOLOCK) ON sao2.SpecificationAttributeId = sa2.Id
-        WHERE sa.id = 10
-          AND sa2.id = 6
-          AND (p.Published = 1 OR (p.id = '40963' AND p.Published = 0))
-          AND (pav.name LIKE '%2024%' OR pav.name LIKE '%2025%')
-          AND p.id NOT IN ('53000', '55053')
-          AND v.Name IS NOT NULL
-          AND v.Name <> ''
-        ORDER BY trainer
-      `;
+        const query = `
+          SELECT DISTINCT
+            CASE 
+              WHEN v.Name = 'Kamila Wierzynska' OR v.Name = 'Yoandro' THEN 'Kami/Yoyo'
+              WHEN v.Name = 'Diana Kukizz Kurucová' OR v.Name = 'Javier' THEN 'Kukizz/Javier'
+              ELSE v.Name
+            END AS trainer
+          FROM product p WITH (NOLOCK)
+          INNER JOIN Vendor v WITH (NOLOCK) ON p.VendorId = v.Id
+          INNER JOIN Product_ProductAttribute_Mapping pam WITH (NOLOCK) ON p.id = pam.ProductId
+          INNER JOIN ProductAttributeValue pav WITH (NOLOCK) ON pam.id = pav.ProductAttributeMappingId
+          INNER JOIN Product_SpecificationAttribute_Mapping psm WITH (NOLOCK) ON p.Id = psm.productid
+          INNER JOIN SpecificationAttributeOption sao WITH (NOLOCK) ON psm.SpecificationAttributeOptionId = sao.Id 
+          INNER JOIN SpecificationAttribute sa WITH (NOLOCK) ON sao.SpecificationAttributeId = sa.Id
+          INNER JOIN Product_SpecificationAttribute_Mapping psm2 WITH (NOLOCK) ON p.Id = psm2.productid
+          INNER JOIN SpecificationAttributeOption sao2 WITH (NOLOCK) ON psm2.SpecificationAttributeOptionId = sao2.Id 
+          INNER JOIN SpecificationAttribute sa2 WITH (NOLOCK) ON sao2.SpecificationAttributeId = sa2.Id
+          WHERE sa.id = 10
+            AND sa2.id = 6
+            AND (p.Published = 1 OR (p.id = '40963' AND p.Published = 0))
+            AND (pav.name LIKE '%2024%' OR pav.name LIKE '%2025%')
+            AND p.id NOT IN ('53000', '55053')
+            AND v.Name IS NOT NULL
+            AND v.Name <> ''
+          ORDER BY trainer
+        `;
 
-      const result = await request.query(query);
-      return result.recordset;
-    } catch (error) {
-      console.error('Error fetching unique trainers:', error);
-      throw error;
+        const result = await request.query(query);
+        return result.recordset;
+      } catch (error: any) {
+        console.error(`Error fetching unique trainers (attempt ${retries + 1}/${maxRetries + 1}):`, error);
+        
+        if (error.code === 'ECONNCLOSED' && retries < maxRetries) {
+          retries++;
+          console.log(`Retrying getUniqueTrainers... (attempt ${retries + 1})`);
+          // Reset the pool to force reconnection
+          pool = null;
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+          continue;
+        }
+        
+        throw error;
+      }
     }
+    
+    throw new Error('Failed to fetch unique trainers after retries');
   }
 
   static async getTrainersEvents(year?: number, month?: number, page: number = 1, pageSize: number = 50, search?: string, trainers?: string[]) {
