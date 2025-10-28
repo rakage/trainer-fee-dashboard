@@ -1737,7 +1737,7 @@ export class DatabaseService {
   }
   */
 
-  static async getTrainersEventsSummary(year?: number, month?: number, search?: string) {
+  static async getTrainersEventsSummary(year?: number, month?: number, search?: string, trainers?: string[]) {
     try {
       const pool = await getConnection();
       const request = pool.request();
@@ -1746,6 +1746,28 @@ export class DatabaseService {
       if (year) request.input('year', sql.Int, year);
       if (month) request.input('month', sql.Int, month);
       if (search) request.input('search', sql.NVarChar, `%${search}%`);
+      
+      // Trainer filter parameters - normalize trainer names
+      let trainerFilterClause = '';
+      if (trainers && trainers.length > 0) {
+        const normalizedTrainers = trainers.flatMap(trainer => {
+          if (trainer === 'Kami/Yoyo') {
+            return ['Kamila Wierzynska', 'Yoandro', 'Kami/Yoyo'];
+          } else if (trainer === 'Kukizz/Javier') {
+            return ['Diana Kukizz Kurucová', 'Javier', 'Kukizz/Javier'];
+          } else {
+            return [trainer];
+          }
+        });
+        
+        const trainerParams = normalizedTrainers.map((trainer, index) => {
+          const paramName = `trainer${index}`;
+          request.input(paramName, sql.NVarChar, trainer);
+          return `@${paramName}`;
+        });
+        
+        trainerFilterClause = `AND v.Name IN (${trainerParams.join(', ')})`;
+      }
 
       const query = `
         WITH AllEvents AS (
@@ -1773,6 +1795,7 @@ export class DatabaseService {
             AND p.id NOT IN ('53000', '55053')
             ${year ? "AND pav.name like '%' + CAST(@year AS VARCHAR(4)) + '%'" : "AND (pav.name like '%2024%' or pav.name like '%2025%')"}
             ${month ? "AND MONTH(CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE)) = @month" : ''}
+            ${trainerFilterClause}
             ${search ? `AND (
                 CAST(p.id AS NVARCHAR(50)) LIKE @search
                 OR p.name LIKE @search
@@ -2227,7 +2250,48 @@ export class DatabaseService {
     }
   }
 
-  static async getTrainersEvents(year?: number, month?: number, page: number = 1, pageSize: number = 50, search?: string) {
+  static async getUniqueTrainers(): Promise<{ trainer: string }[]> {
+    try {
+      const pool = await getConnection();
+      const request = pool.request();
+      (request as any).timeout = 60000;
+
+      const query = `
+        SELECT DISTINCT
+          CASE 
+            WHEN v.Name = 'Kamila Wierzynska' OR v.Name = 'Yoandro' THEN 'Kami/Yoyo'
+            WHEN v.Name = 'Diana Kukizz Kurucová' OR v.Name = 'Javier' THEN 'Kukizz/Javier'
+            ELSE v.Name
+          END AS trainer
+        FROM product p WITH (NOLOCK)
+        INNER JOIN Vendor v WITH (NOLOCK) ON p.VendorId = v.Id
+        INNER JOIN Product_ProductAttribute_Mapping pam WITH (NOLOCK) ON p.id = pam.ProductId
+        INNER JOIN ProductAttributeValue pav WITH (NOLOCK) ON pam.id = pav.ProductAttributeMappingId
+        INNER JOIN Product_SpecificationAttribute_Mapping psm WITH (NOLOCK) ON p.Id = psm.productid
+        INNER JOIN SpecificationAttributeOption sao WITH (NOLOCK) ON psm.SpecificationAttributeOptionId = sao.Id 
+        INNER JOIN SpecificationAttribute sa WITH (NOLOCK) ON sao.SpecificationAttributeId = sa.Id
+        INNER JOIN Product_SpecificationAttribute_Mapping psm2 WITH (NOLOCK) ON p.Id = psm2.productid
+        INNER JOIN SpecificationAttributeOption sao2 WITH (NOLOCK) ON psm2.SpecificationAttributeOptionId = sao2.Id 
+        INNER JOIN SpecificationAttribute sa2 WITH (NOLOCK) ON sao2.SpecificationAttributeId = sa2.Id
+        WHERE sa.id = 10
+          AND sa2.id = 6
+          AND (p.Published = 1 OR (p.id = '40963' AND p.Published = 0))
+          AND (pav.name LIKE '%2024%' OR pav.name LIKE '%2025%')
+          AND p.id NOT IN ('53000', '55053')
+          AND v.Name IS NOT NULL
+          AND v.Name <> ''
+        ORDER BY trainer
+      `;
+
+      const result = await request.query(query);
+      return result.recordset;
+    } catch (error) {
+      console.error('Error fetching unique trainers:', error);
+      throw error;
+    }
+  }
+
+  static async getTrainersEvents(year?: number, month?: number, page: number = 1, pageSize: number = 50, search?: string, trainers?: string[]) {
     try {
       const pool = await getConnection();
       const request = pool.request();
@@ -2243,6 +2307,28 @@ export class DatabaseService {
       }
       if (search) {
         request.input('search', sql.NVarChar, `%${search}%`);
+      }
+      
+      // Trainer filter parameters - normalize trainer names
+      let trainerFilterClause = '';
+      if (trainers && trainers.length > 0) {
+        const normalizedTrainers = trainers.flatMap(trainer => {
+          if (trainer === 'Kami/Yoyo') {
+            return ['Kamila Wierzynska', 'Yoandro', 'Kami/Yoyo'];
+          } else if (trainer === 'Kukizz/Javier') {
+            return ['Diana Kukizz Kurucová', 'Javier', 'Kukizz/Javier'];
+          } else {
+            return [trainer];
+          }
+        });
+        
+        const trainerParams = normalizedTrainers.map((trainer, index) => {
+          const paramName = `trainer${index}`;
+          request.input(paramName, sql.NVarChar, trainer);
+          return `@${paramName}`;
+        });
+        
+        trainerFilterClause = `AND v.Name IN (${trainerParams.join(', ')})`;
       }
       
       // Pagination parameters
@@ -2276,6 +2362,7 @@ export class DatabaseService {
             and p.id not in ('53000', '55053')
             ${year ? "AND pav.name like '%' + CAST(@year AS VARCHAR(4)) + '%'" : "AND (pav.name like '%2024%' or pav.name like '%2025%')"}
             ${month ? "AND MONTH(CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE)) = @month" : ''}
+            ${trainerFilterClause}
             ${search ? `AND (
                 CAST(p.id AS NVARCHAR(50)) LIKE @search
                 OR p.name LIKE @search

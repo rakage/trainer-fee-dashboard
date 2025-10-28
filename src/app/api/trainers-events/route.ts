@@ -15,11 +15,13 @@ export async function GET(request: NextRequest) {
     const page = searchParams.get('page') ? parseInt(searchParams.get('page')!) : 1;
     const pageSize = searchParams.get('pageSize') ? parseInt(searchParams.get('pageSize')!) : 50;
     const search = searchParams.get('search') || undefined;
+    const trainersParam = searchParams.get('trainers');
+    const trainers = trainersParam ? trainersParam.split(',').filter(t => t.trim()) : undefined;
 
     // Get paginated data for current page (sequential to avoid pool contention)
-    const trainersEvents = await DatabaseService.getTrainersEvents(year, month, page, pageSize, search);
-    // Get global summary using ONLY year/month/search filters (not affected by pagination)
-    const summary = await DatabaseService.getTrainersEventsSummary(year, month, search);
+    const trainersEvents = await DatabaseService.getTrainersEvents(year, month, page, pageSize, search, trainers);
+    // Get global summary using ONLY year/month/search/trainers filters (not affected by pagination)
+    const summary = await DatabaseService.getTrainersEventsSummary(year, month, search, trainers);
     const totalCount = summary.totalEvents || 0;
     const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 

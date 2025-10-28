@@ -20,6 +20,7 @@ import {
   trainersEventsColumns,
   TrainersEventsData,
 } from '@/components/dashboard/columns/trainers-events-columns';
+import { MultiSelect } from '@/components/ui/multi-select';
 
 const monthOptions = [
   { value: 'all', label: 'All Months' },
@@ -48,6 +49,7 @@ export default function TrainersEventsPage() {
     year: 'all',
     month: 'all',
   });
+  const [selectedTrainers, setSelectedTrainers] = useState<string[]>([]);
   const [pagination, setPagination] = useState({
     pageIndex: 0,
     pageSize: 10,
@@ -56,12 +58,25 @@ export default function TrainersEventsPage() {
   const [cardsLoading, setCardsLoading] = useState(false);
   const [tableLoading, setTableLoading] = useState(false);
 
+  const { data: trainersData } = useQuery({
+    queryKey: ['trainers-list'],
+    queryFn: async () => {
+      const response = await fetch('/api/trainers-events/trainers');
+      if (!response.ok) throw new Error('Failed to fetch trainers');
+      const data = await response.json();
+      return data.trainers.map((t: { trainer: string }) => ({
+        value: t.trainer,
+        label: t.trainer,
+      }));
+    },
+  });
+
   const {
     data: response,
     isFetching,
     refetch,
   } = useQuery({
-    queryKey: ['trainers-events', filters.year, filters.month, pagination.pageIndex, pagination.pageSize, searchQuery],
+    queryKey: ['trainers-events', filters.year, filters.month, pagination.pageIndex, pagination.pageSize, searchQuery, selectedTrainers],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (filters.year && filters.year !== 'all') params.set('year', filters.year);
@@ -69,6 +84,7 @@ export default function TrainersEventsPage() {
       params.set('page', String(pagination.pageIndex + 1)); // API uses 1-based indexing
       params.set('pageSize', String(pagination.pageSize));
       if (searchQuery) params.set('search', searchQuery);
+      if (selectedTrainers.length > 0) params.set('trainers', selectedTrainers.join(','));
 
       const response = await fetch(`/api/trainers-events?${params.toString()}`);
       if (!response.ok) throw new Error('Failed to fetch trainers events');
@@ -102,6 +118,7 @@ export default function TrainersEventsPage() {
 
   const clearFilters = () => {
     setFilters({ year: 'all', month: 'all' });
+    setSelectedTrainers([]);
     setSearchQuery('');
     setPagination({ pageIndex: 0, pageSize: 10 }); // Reset to first page
   };
@@ -185,7 +202,7 @@ export default function TrainersEventsPage() {
             <CardTitle>Filters</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
                 <Label htmlFor="year">Year</Label>
                 <Select
@@ -221,6 +238,19 @@ export default function TrainersEventsPage() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              <div>
+                <Label htmlFor="trainers">Main Trainer</Label>
+                <MultiSelect
+                  options={trainersData || []}
+                  selected={selectedTrainers}
+                  onChange={(values) => {
+                    setSelectedTrainers(values);
+                    setPagination({ pageIndex: 0, pageSize: 10 });
+                  }}
+                  placeholder="Select trainers..."
+                  disabled={!trainersData}
+                />
               </div>
               <div className="flex items-end">
                 <Button onClick={clearFilters} variant="outline" className="w-full">
