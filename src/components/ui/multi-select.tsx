@@ -5,14 +5,6 @@ import { Check, ChevronsUpDown, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command';
-import {
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -42,6 +34,7 @@ export function MultiSelect({
   disabled = false,
 }: MultiSelectProps) {
   const [open, setOpen] = React.useState(false);
+  const [searchQuery, setSearchQuery] = React.useState('');
 
   const handleSelect = (value: string) => {
     const newSelected = selected.includes(value)
@@ -110,51 +103,48 @@ export function MultiSelect({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[400px] p-0" align="start">
-        <Command shouldFilter={true}>
-          <CommandInput placeholder="Search trainers..." />
-          <CommandList>
-            <CommandEmpty>No trainers found.</CommandEmpty>
-            <CommandGroup>
-              {options.map((option) => {
-                const isSelected = selected.includes(option.value);
-                return (
-                  <CommandItem
-                    key={option.value}
-                    value={option.label}
-                    onSelect={(currentValue) => {
-                      // Find the option by label (case-insensitive)
-                      const matchedOption = options.find(
-                        (opt) => opt.label.toLowerCase() === currentValue.toLowerCase()
-                      );
-                      if (matchedOption) {
-                        handleSelect(matchedOption.value);
-                      }
-                    }}
-                    className="cursor-pointer hover:bg-accent hover:text-accent-foreground text-foreground"
-                  >
-                    <div 
-                      className="flex items-center w-full"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleSelect(option.value);
-                      }}
-                    >
-                      <Check
-                        className={cn(
-                          'mr-2 h-4 w-4',
-                          isSelected ? 'opacity-100' : 'opacity-0'
-                        )}
-                      />
-                      <span className={cn(isSelected && 'font-semibold')}>
-                        {option.label}
-                      </span>
-                    </div>
-                  </CommandItem>
-                );
-              })}
-            </CommandGroup>
-          </CommandList>
-        </Command>
+        <div className="flex items-center border-b px-3">
+          <input
+            type="text"
+            placeholder="Search trainers..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground"
+          />
+        </div>
+        <div className="max-h-[300px] overflow-y-auto overflow-x-hidden p-1">
+          {options
+            .filter((option) =>
+              option.label.toLowerCase().includes(searchQuery.toLowerCase())
+            )
+            .map((option) => {
+              const isSelected = selected.includes(option.value);
+              return (
+                <div
+                  key={option.value}
+                  className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground text-foreground"
+                  onClick={() => {
+                    handleSelect(option.value);
+                  }}
+                >
+                  <Check
+                    className={cn(
+                      'mr-2 h-4 w-4',
+                      isSelected ? 'opacity-100' : 'opacity-0'
+                    )}
+                  />
+                  <span className={cn(isSelected && 'font-semibold')}>
+                    {option.label}
+                  </span>
+                </div>
+              );
+            })}
+          {options.filter((option) =>
+            option.label.toLowerCase().includes(searchQuery.toLowerCase())
+          ).length === 0 && (
+            <div className="py-6 text-center text-sm">No trainers found.</div>
+          )}
+        </div>
       </PopoverContent>
     </Popover>
   );
