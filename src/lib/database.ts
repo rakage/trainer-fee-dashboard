@@ -42,40 +42,52 @@ const config: DatabaseConfig = {
 let pool: ConnectionPool | null = null;
 
 export async function getConnection(): Promise<ConnectionPool> {
-  if (!pool || !pool.connected) {
-    if (pool && !pool.connected) {
-      console.log('Pool exists but not connected, recreating...');
-      try {
-        await pool.close();
-      } catch (e) {
-        // Ignore close errors
-      }
-      pool = null;
-    }
-    
-    pool = new sql.ConnectionPool(config);
-    
-    // Set up event listeners to track connection state
-    pool.on('error', (err) => {
-      console.error('Database pool error:', err);
-      pool = null;
-    });
-    
+  // If pool exists and is in a good state, return it
+  if (pool) {
     try {
-      await pool.connect();
-      console.log('Connected to MSSQL database');
-    } catch (err) {
-      console.error('Failed to connect to database:', err);
+      // Check if pool is connected and not currently connecting
+      if (pool.connected && !pool.connecting) {
+        return pool;
+      }
+      // If pool is connecting, wait for it
+      if (pool.connecting) {
+        console.log('Pool is connecting, waiting...');
+        return pool;
+      }
+    } catch (e) {
+      // If checking the state fails, reset the pool
+      console.log('Pool state check failed, recreating...');
       pool = null;
-      throw err;
     }
   }
   
-  // Double check connection is still valid
-  if (!pool.connected) {
-    console.log('Pool connected state check failed, retrying...');
+  // Need to create a new connection
+  if (pool && !pool.connected && !pool.connecting) {
+    console.log('Pool exists but not connected, closing and recreating...');
+    try {
+      await pool.close();
+    } catch (e) {
+      // Ignore close errors
+    }
     pool = null;
-    return getConnection(); // Recursive retry
+  }
+  
+  // Create new pool
+  pool = new sql.ConnectionPool(config);
+  
+  // Set up event listeners to track connection state
+  pool.on('error', (err) => {
+    console.error('Database pool error:', err);
+    pool = null;
+  });
+  
+  try {
+    await pool.connect();
+    console.log('Connected to MSSQL database');
+  } catch (err) {
+    console.error('Failed to connect to database:', err);
+    pool = null;
+    throw err;
   }
   
   return pool;
