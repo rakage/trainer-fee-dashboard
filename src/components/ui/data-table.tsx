@@ -88,7 +88,18 @@ export function DataTable<TData, TValue>({
   const [inputValue, setInputValue] = React.useState(searchValueToUse || '');
 
   const paginationState = controlledPagination || internalPagination;
-  const handlePaginationChange = onPaginationChange || setInternalPagination;
+  
+  // Handle pagination changes - support both direct values and updater functions
+  const handlePaginationChange = React.useCallback(
+    (updaterOrValue: any) => {
+      if (onPaginationChange) {
+        onPaginationChange(updaterOrValue);
+      } else {
+        setInternalPagination(updaterOrValue);
+      }
+    },
+    [onPaginationChange]
+  );
 
   // Sync inputValue with external searchValue for server-side search
   React.useEffect(() => {
