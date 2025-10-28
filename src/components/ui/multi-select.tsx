@@ -117,8 +117,11 @@ export function MultiSelect({
               {options.map((option) => (
                 <CommandItem
                   key={option.value}
-                  value={option.value}
-                  onSelect={() => handleSelect(option.value)}
+                  value={option.label}
+                  onSelect={() => {
+                    handleSelect(option.value);
+                  }}
+                  className="cursor-pointer"
                 >
                   <Check
                     className={cn(

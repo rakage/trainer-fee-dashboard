@@ -58,18 +58,31 @@ export default function TrainersEventsPage() {
   const [cardsLoading, setCardsLoading] = useState(false);
   const [tableLoading, setTableLoading] = useState(false);
 
-  const { data: trainersData } = useQuery({
+  const { data: trainersData, isLoading: isLoadingTrainers, error: trainersError } = useQuery({
     queryKey: ['trainers-list'],
     queryFn: async () => {
       const response = await fetch('/api/trainers-events/trainers');
-      if (!response.ok) throw new Error('Failed to fetch trainers');
+      if (!response.ok) {
+        console.error('Failed to fetch trainers:', response.status, response.statusText);
+        throw new Error('Failed to fetch trainers');
+      }
       const data = await response.json();
+      console.log('Trainers data:', data);
       return data.trainers.map((t: { trainer: string }) => ({
         value: t.trainer,
         label: t.trainer,
       }));
     },
   });
+
+  React.useEffect(() => {
+    if (trainersError) {
+      console.error('Trainers query error:', trainersError);
+    }
+    if (trainersData) {
+      console.log('Trainers loaded:', trainersData.length, 'trainers');
+    }
+  }, [trainersError, trainersData]);
 
   const {
     data: response,
@@ -248,8 +261,8 @@ export default function TrainersEventsPage() {
                     setSelectedTrainers(values);
                     setPagination({ pageIndex: 0, pageSize: 10 });
                   }}
-                  placeholder="Select trainers..."
-                  disabled={!trainersData}
+                  placeholder={isLoadingTrainers ? "Loading trainers..." : "Select trainers..."}
+                  disabled={isLoadingTrainers}
                 />
               </div>
               <div className="flex items-end">
