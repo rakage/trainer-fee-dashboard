@@ -50,6 +50,7 @@ export default function TrainersEventsPage() {
     month: 'all',
   });
   const [selectedTrainers, setSelectedTrainers] = useState<string[]>([]);
+  const [debouncedTrainers, setDebouncedTrainers] = useState<string[]>([]);
   const [pagination, setPagination] = useState({
     pageIndex: 0,
     pageSize: 10,
@@ -57,6 +58,15 @@ export default function TrainersEventsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [cardsLoading, setCardsLoading] = useState(false);
   const [tableLoading, setTableLoading] = useState(false);
+
+  // Debounce trainer selection
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedTrainers(selectedTrainers);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [selectedTrainers]);
 
   const { data: trainersData, isLoading: isLoadingTrainers, error: trainersError } = useQuery({
     queryKey: ['trainers-list'],
@@ -89,7 +99,7 @@ export default function TrainersEventsPage() {
     isFetching,
     refetch,
   } = useQuery({
-    queryKey: ['trainers-events', filters.year, filters.month, pagination.pageIndex, pagination.pageSize, searchQuery, selectedTrainers],
+    queryKey: ['trainers-events', filters.year, filters.month, pagination.pageIndex, pagination.pageSize, searchQuery, debouncedTrainers],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (filters.year && filters.year !== 'all') params.set('year', filters.year);
@@ -97,7 +107,7 @@ export default function TrainersEventsPage() {
       params.set('page', String(pagination.pageIndex + 1)); // API uses 1-based indexing
       params.set('pageSize', String(pagination.pageSize));
       if (searchQuery) params.set('search', searchQuery);
-      if (selectedTrainers.length > 0) params.set('trainers', selectedTrainers.join(','));
+      if (debouncedTrainers.length > 0) params.set('trainers', debouncedTrainers.join(','));
 
       const response = await fetch(`/api/trainers-events?${params.toString()}`);
       if (!response.ok) throw new Error('Failed to fetch trainers events');
@@ -259,7 +269,10 @@ export default function TrainersEventsPage() {
                   selected={selectedTrainers}
                   onChange={(values) => {
                     setSelectedTrainers(values);
-                    setPagination({ pageIndex: 0, pageSize: 10 });
+                    // Reset pagination when trainers change (debounced API call will happen automatically)
+                    if (values.length !== selectedTrainers.length || !values.every((v, i) => v === selectedTrainers[i])) {
+                      setPagination({ pageIndex: 0, pageSize: 10 });
+                    }
                   }}
                   placeholder={isLoadingTrainers ? "Loading trainers..." : "Select trainers..."}
                   disabled={isLoadingTrainers}
