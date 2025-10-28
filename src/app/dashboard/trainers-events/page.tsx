@@ -115,8 +115,6 @@ export default function TrainersEventsPage() {
       if (!response.ok) throw new Error('Failed to fetch trainers events');
       return await response.json();
     },
-    // Keep previous data while loading new data
-    keepPreviousData: true,
   });
 
   const eventsData = response?.data || [];
