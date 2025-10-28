@@ -79,14 +79,32 @@ export function DataTable<TData, TValue>({
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
   const [globalFilter, setGlobalFilter] = React.useState('');
   const [internalPagination, setInternalPagination] = React.useState({ pageIndex: 0, pageSize: 10 });
-
-  const paginationState = controlledPagination || internalPagination;
-  const handlePaginationChange = onPaginationChange || setInternalPagination;
   
   // Use server-side search if searchValue and onSearchChange are provided
   const isServerSideSearch = searchValue !== undefined && onSearchChange !== undefined;
   const searchValueToUse = isServerSideSearch ? searchValue : globalFilter;
   const handleSearchChangeInternal = isServerSideSearch ? onSearchChange : setGlobalFilter;
+  
+  const [inputValue, setInputValue] = React.useState(searchValueToUse || '');
+
+  const paginationState = controlledPagination || internalPagination;
+  const handlePaginationChange = onPaginationChange || setInternalPagination;
+
+  // Sync inputValue with external searchValue for server-side search
+  React.useEffect(() => {
+    if (isServerSideSearch) {
+      setInputValue(searchValue);
+    }
+  }, [searchValue, isServerSideSearch]);
+
+  // Debounce search input
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      handleSearchChangeInternal(inputValue);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [inputValue]);
 
   const table = useReactTable({
     data,
@@ -146,8 +164,8 @@ export function DataTable<TData, TValue>({
             <div className="relative max-w-sm">
               <Input
                 placeholder={searchPlaceholder}
-                value={searchValueToUse ?? ''}
-                onChange={(event) => handleSearchChangeInternal(event.target.value)}
+                value={inputValue ?? ''}
+                onChange={(event) => setInputValue(event.target.value)}
                 disabled={isLoading}
                 className="pr-10"
               />
