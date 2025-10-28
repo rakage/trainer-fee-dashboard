@@ -2365,7 +2365,7 @@ export class DatabaseService {
         const request = pool.request();
         
         // Set a longer timeout for this complex query (120 seconds)
-        request.timeout = 120000;
+        (request as any).timeout = 120000;
 
       if (year) {
         request.input('year', sql.Int, year);
