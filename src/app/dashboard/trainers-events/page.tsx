@@ -100,7 +100,7 @@ export default function TrainersEventsPage() {
     refetch,
   } = useQuery({
     queryKey: ['trainers-events', filters.year, filters.month, pagination.pageIndex, pagination.pageSize, searchQuery, debouncedTrainers],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const params = new URLSearchParams();
       if (filters.year && filters.year !== 'all') params.set('year', filters.year);
       if (filters.month && filters.month !== 'all') params.set('month', filters.month);
@@ -109,10 +109,14 @@ export default function TrainersEventsPage() {
       if (searchQuery) params.set('search', searchQuery);
       if (debouncedTrainers.length > 0) params.set('trainers', debouncedTrainers.join(','));
 
-      const response = await fetch(`/api/trainers-events?${params.toString()}`);
+      const response = await fetch(`/api/trainers-events?${params.toString()}`, {
+        signal, // Pass abort signal to cancel previous requests
+      });
       if (!response.ok) throw new Error('Failed to fetch trainers events');
       return await response.json();
     },
+    // Keep previous data while loading new data
+    keepPreviousData: true,
   });
 
   const eventsData = response?.data || [];

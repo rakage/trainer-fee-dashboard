@@ -16,6 +16,8 @@ interface DatabaseConfig {
     min: number;
     idleTimeoutMillis: number;
   };
+  requestTimeout?: number;
+  connectionTimeout?: number;
 }
 
 const config: DatabaseConfig = {
@@ -33,6 +35,8 @@ const config: DatabaseConfig = {
     min: 1,
     idleTimeoutMillis: 30000,
   },
+  requestTimeout: 120000, // 120 seconds for complex queries
+  connectionTimeout: 30000, // 30 seconds to establish connection
 };
 
 let pool: ConnectionPool | null = null;
@@ -2340,12 +2344,16 @@ export class DatabaseService {
   }
 
   static async getTrainersEvents(year?: number, month?: number, page: number = 1, pageSize: number = 50, search?: string, trainers?: string[]) {
-    try {
-      const pool = await getConnection();
-      const request = pool.request();
-      
-      // Set a longer timeout for this complex query (120 seconds)
-      (request as any).timeout = 120000;
+    let retries = 0;
+    const maxRetries = 1;
+    
+    while (retries <= maxRetries) {
+      try {
+        const pool = await getConnection();
+        const request = pool.request();
+        
+        // Set a longer timeout for this complex query (120 seconds)
+        request.timeout = 120000;
 
       if (year) {
         request.input('year', sql.Int, year);
@@ -3300,11 +3308,24 @@ export class DatabaseService {
             OPTION (MAXDOP 4, OPTIMIZE FOR UNKNOWN)
       `;
 
-      const result = await request.query(query);
-      return result.recordset;
-    } catch (error) {
-      console.error('Error fetching trainers events:', error);
-      throw error;
+        const result = await request.query(query);
+        return result.recordset;
+      } catch (error: any) {
+        console.error(`Error fetching trainers events (attempt ${retries + 1}/${maxRetries + 1}):`, error);
+        
+        if ((error.code === 'ECONNCLOSED' || error.code === 'ETIMEOUT') && retries < maxRetries) {
+          retries++;
+          console.log(`Retrying getTrainersEvents... (attempt ${retries + 1})`);
+          // Reset the pool to force reconnection
+          pool = null;
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+          continue;
+        }
+        
+        throw error;
+      }
     }
+    
+    throw new Error('Failed to fetch trainers events after retries');
   }
 }
