@@ -38,7 +38,11 @@ const config: DatabaseConfig = {
 let pool: ConnectionPool | null = null;
 
 export async function getConnection(): Promise<ConnectionPool> {
-  if (!pool) {
+  if (!pool || !pool.connected) {
+    if (pool && !pool.connected) {
+      console.log('Pool exists but not connected, recreating...');
+      pool = null;
+    }
     pool = new sql.ConnectionPool(config);
     await pool.connect();
     console.log('Connected to MSSQL database');
