@@ -48,6 +48,7 @@ export function MultiSelect({
       ? selected.filter((item) => item !== value)
       : [...selected, value];
     onChange(newSelected);
+    // Don't close the popover to allow multiple selections
   };
 
   const handleRemove = (value: string, e: React.MouseEvent) => {
@@ -109,29 +110,48 @@ export function MultiSelect({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[400px] p-0" align="start">
-        <Command>
-          <CommandInput placeholder="Search..." />
+        <Command shouldFilter={true}>
+          <CommandInput placeholder="Search trainers..." />
           <CommandList>
-            <CommandEmpty>No results found.</CommandEmpty>
+            <CommandEmpty>No trainers found.</CommandEmpty>
             <CommandGroup>
-              {options.map((option) => (
-                <CommandItem
-                  key={option.value}
-                  value={option.label}
-                  onSelect={() => {
-                    handleSelect(option.value);
-                  }}
-                  className="cursor-pointer"
-                >
-                  <Check
-                    className={cn(
-                      'mr-2 h-4 w-4',
-                      selected.includes(option.value) ? 'opacity-100' : 'opacity-0'
-                    )}
-                  />
-                  {option.label}
-                </CommandItem>
-              ))}
+              {options.map((option) => {
+                const isSelected = selected.includes(option.value);
+                return (
+                  <CommandItem
+                    key={option.value}
+                    value={option.label}
+                    onSelect={(currentValue) => {
+                      // Find the option by label (case-insensitive)
+                      const matchedOption = options.find(
+                        (opt) => opt.label.toLowerCase() === currentValue.toLowerCase()
+                      );
+                      if (matchedOption) {
+                        handleSelect(matchedOption.value);
+                      }
+                    }}
+                    className="cursor-pointer hover:bg-accent hover:text-accent-foreground text-foreground"
+                  >
+                    <div 
+                      className="flex items-center w-full"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSelect(option.value);
+                      }}
+                    >
+                      <Check
+                        className={cn(
+                          'mr-2 h-4 w-4',
+                          isSelected ? 'opacity-100' : 'opacity-0'
+                        )}
+                      />
+                      <span className={cn(isSelected && 'font-semibold')}>
+                        {option.label}
+                      </span>
+                    </div>
+                  </CommandItem>
+                );
+              })}
             </CommandGroup>
           </CommandList>
         </Command>
