@@ -24,8 +24,59 @@ function getDatabase(): Database.Database {
   return db;
 }
 
+function migrateGracePriceTable() {
+  if (!db) return;
+  
+  try {
+    // Check if the old table exists with UNIQUE constraint
+    const tableInfo = db.prepare("PRAGMA table_info(grace_price_conversion)").all() as any[];
+    if (tableInfo.length === 0) return; // Table doesn't exist yet
+    
+    // Drop the unique index if it exists
+    db.prepare('DROP INDEX IF EXISTS idx_grace_price_event_type_key').run();
+    
+    // Create temporary table without UNIQUE constraint
+    db.prepare(
+      `
+      CREATE TABLE IF NOT EXISTS grace_price_conversion_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_type TEXT NOT NULL,
+        event_type_key TEXT NOT NULL,
+        venue TEXT,
+        jpy_price REAL NOT NULL,
+        eur_price REAL NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `
+    ).run();
+    
+    // Copy data from old table to new table
+    db.prepare(
+      `
+      INSERT INTO grace_price_conversion_new (id, event_type, event_type_key, venue, jpy_price, eur_price, created_at, updated_at)
+      SELECT id, event_type, event_type_key, venue, jpy_price, eur_price, created_at, updated_at
+      FROM grace_price_conversion
+    `
+    ).run();
+    
+    // Drop old table
+    db.prepare('DROP TABLE grace_price_conversion').run();
+    
+    // Rename new table to original name
+    db.prepare('ALTER TABLE grace_price_conversion_new RENAME TO grace_price_conversion').run();
+    
+    console.log('Grace price conversion table migrated successfully to allow duplicate keys');
+  } catch (error) {
+    console.error('Grace price migration error (non-fatal):', error);
+  }
+}
+
 function initializeTables() {
   if (!db) return;
+  
+  // Run migration for grace_price_conversion table first
+  migrateGracePriceTable();
 
   // Create users table
   db.prepare(
@@ -129,7 +180,7 @@ function initializeTables() {
     CREATE TABLE IF NOT EXISTS grace_price_conversion (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       event_type TEXT NOT NULL,
-      event_type_key TEXT NOT NULL UNIQUE,
+      event_type_key TEXT NOT NULL,
       venue TEXT,
       jpy_price REAL NOT NULL,
       eur_price REAL NOT NULL,
@@ -173,7 +224,7 @@ function initializeTables() {
   db.prepare('CREATE INDEX IF NOT EXISTS idx_expenses_prod_id ON expenses(prod_id)').run();
   db.prepare('CREATE INDEX IF NOT EXISTS idx_audit_log_prod_id ON audit_log(prod_id)').run();
   db.prepare(
-    'CREATE UNIQUE INDEX IF NOT EXISTS idx_grace_price_event_type_key ON grace_price_conversion(event_type_key)'
+    'CREATE INDEX IF NOT EXISTS idx_grace_price_event_type_key ON grace_price_conversion(event_type_key)'
   ).run();
   db.prepare(
     'CREATE UNIQUE INDEX IF NOT EXISTS idx_param_reporting_grp_name ON param_reporting_grp(reporting_group)'
@@ -372,29 +423,33 @@ export class GracePriceService {
     eurPrice: number;
   }): void {
     const database = getDatabase();
-    const existing = database
-      .prepare('SELECT id FROM grace_price_conversion WHERE event_type_key = ?')
-      .get(data.eventTypeKey) as any;
-    if (existing?.id) {
-      database
-        .prepare(
-          `
-        UPDATE grace_price_conversion 
-        SET event_type = ?, venue = ?, jpy_price = ?, eur_price = ?, updated_at = CURRENT_TIMESTAMP 
-        WHERE event_type_key = ?
-      `
-        )
-        .run(data.eventType, data.venue || null, data.jpyPrice, data.eurPrice, data.eventTypeKey);
-    } else {
-      database
-        .prepare(
-          `
+    database
+      .prepare(
+        `
         INSERT INTO grace_price_conversion (event_type, event_type_key, venue, jpy_price, eur_price) 
         VALUES (?, ?, ?, ?, ?)
       `
-        )
-        .run(data.eventType, data.eventTypeKey, data.venue || null, data.jpyPrice, data.eurPrice);
-    }
+      )
+      .run(data.eventType, data.eventTypeKey, data.venue || null, data.jpyPrice, data.eurPrice);
+  }
+
+  static update(id: number, data: {
+    eventType: string;
+    eventTypeKey: string;
+    venue?: string | null;
+    jpyPrice: number;
+    eurPrice: number;
+  }): void {
+    const database = getDatabase();
+    database
+      .prepare(
+        `
+        UPDATE grace_price_conversion 
+        SET event_type = ?, event_type_key = ?, venue = ?, jpy_price = ?, eur_price = ?, updated_at = CURRENT_TIMESTAMP 
+        WHERE id = ?
+      `
+      )
+      .run(data.eventType, data.eventTypeKey, data.venue || null, data.jpyPrice, data.eurPrice, id);
   }
 
   static delete(id: number): void {

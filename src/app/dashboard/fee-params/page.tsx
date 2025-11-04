@@ -193,7 +193,7 @@ export default function FeeParamsPage() {
   const attendanceOptions = ['Attended', 'Unattended'];
 
   // Grace Price specific options
-  const tierLevelOptions = ['Repeater', 'Troupe', 'Early Bird', 'Regular', 'Rush', 'Free'];
+  const tierLevelOptions = ['Repeater', 'Troupe', 'Trouper', 'Early Bird', 'Regular', 'Rush', 'Free'];
 
   // React Query mutations for saving data
   const feeParamMutation = useMutation({
@@ -1261,6 +1261,7 @@ export default function FeeParamsPage() {
                                               }
 
                                               gracePriceMutation.mutate({
+                                                id: editingGracePriceId,
                                                 eventType: eventType,
                                                 eventTypeKey: eventTypeKey,
                                                 venue: editGracePriceForm.venue || null,

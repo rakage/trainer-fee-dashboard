@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { eventType, eventTypeKey, venue, jpyPrice, eurPrice } = body;
+    const { id, eventType, eventTypeKey, venue, jpyPrice, eurPrice } = body;
 
     // Validation
     if (!eventType || !eventTypeKey || typeof jpyPrice !== 'number' || typeof eurPrice !== 'number') {
@@ -50,14 +50,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Save to database
-    GracePriceService.upsert({
-      eventType,
-      eventTypeKey,
-      venue: venue || null,
-      jpyPrice,
-      eurPrice,
-    });
+    // If ID is provided, update existing record; otherwise insert new record
+    if (id && typeof id === 'number') {
+      GracePriceService.update(id, {
+        eventType,
+        eventTypeKey,
+        venue: venue || null,
+        jpyPrice,
+        eurPrice,
+      });
+    } else {
+      GracePriceService.upsert({
+        eventType,
+        eventTypeKey,
+        venue: venue || null,
+        jpyPrice,
+        eurPrice,
+      });
+    }
 
     return NextResponse.json({
       success: true,
