@@ -52,6 +52,10 @@ interface DataTableProps<TData, TValue> {
   pageCount?: number;
   pagination?: { pageIndex: number; pageSize: number };
   onPaginationChange?: (pagination: { pageIndex: number; pageSize: number }) => void;
+  // Server-side sorting props
+  manualSorting?: boolean;
+  sorting?: SortingState;
+  onSortingChange?: (sorting: SortingState) => void;
   isLoading?: boolean;
 }
 
@@ -71,9 +75,12 @@ export function DataTable<TData, TValue>({
   pageCount,
   pagination: controlledPagination,
   onPaginationChange,
+  manualSorting = false,
+  sorting: controlledSorting,
+  onSortingChange,
   isLoading = false,
 }: Readonly<DataTableProps<TData, TValue>>) {
-  const [sorting, setSorting] = React.useState<SortingState>([]);
+  const [internalSorting, setInternalSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
@@ -88,6 +95,7 @@ export function DataTable<TData, TValue>({
   const [inputValue, setInputValue] = React.useState(searchValueToUse || '');
 
   const paginationState = controlledPagination || internalPagination;
+  const sortingState = controlledSorting || internalSorting;
   
   // Handle pagination changes - support both direct values and updater functions
   const handlePaginationChange = React.useCallback(
@@ -99,6 +107,18 @@ export function DataTable<TData, TValue>({
       }
     },
     [onPaginationChange]
+  );
+
+  // Handle sorting changes - support both direct values and updater functions
+  const handleSortingChange = React.useCallback(
+    (updaterOrValue: any) => {
+      if (onSortingChange) {
+        onSortingChange(updaterOrValue);
+      } else {
+        setInternalSorting(updaterOrValue);
+      }
+    },
+    [onSortingChange]
   );
 
   // Sync inputValue with external searchValue for server-side search
@@ -120,19 +140,20 @@ export function DataTable<TData, TValue>({
   const table = useReactTable({
     data,
     columns,
-    onSortingChange: setSorting,
+    onSortingChange: handleSortingChange,
     onColumnFiltersChange: setColumnFilters,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: manualPagination ? undefined : getPaginationRowModel(),
-    getSortedRowModel: getSortedRowModel(),
+    getSortedRowModel: manualSorting ? undefined : getSortedRowModel(),
     getFilteredRowModel: isServerSideSearch ? undefined : getFilteredRowModel(),
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
     onGlobalFilterChange: isServerSideSearch ? undefined : setGlobalFilter,
     manualPagination,
+    manualSorting,
     pageCount: pageCount || -1,
     state: {
-      sorting,
+      sorting: sortingState,
       columnFilters,
       columnVisibility,
       rowSelection,

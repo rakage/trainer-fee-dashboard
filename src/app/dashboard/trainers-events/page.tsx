@@ -51,13 +51,23 @@ export default function TrainersEventsPage() {
   });
   const [selectedTrainers, setSelectedTrainers] = useState<string[]>([]);
   const [debouncedTrainers, setDebouncedTrainers] = useState<string[]>([]);
+  const [selectedPrograms, setSelectedPrograms] = useState<string[]>([]);
+  const [debouncedPrograms, setDebouncedPrograms] = useState<string[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [debouncedCategories, setDebouncedCategories] = useState<string[]>([]);
   const [pagination, setPagination] = useState({
     pageIndex: 0,
     pageSize: 10,
   });
+  const [sorting, setSorting] = useState<{ id: string; desc: boolean }[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [cardsLoading, setCardsLoading] = useState(false);
   const [tableLoading, setTableLoading] = useState(false);
+
+  // Reset pagination when sorting changes
+  React.useEffect(() => {
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+  }, [sorting]);
 
   // Debounce trainer selection
   React.useEffect(() => {
@@ -67,6 +77,24 @@ export default function TrainersEventsPage() {
 
     return () => clearTimeout(timer);
   }, [selectedTrainers]);
+
+  // Debounce program selection
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedPrograms(selectedPrograms);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [selectedPrograms]);
+
+  // Debounce category selection
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedCategories(selectedCategories);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [selectedCategories]);
 
   const { data: trainersData, isLoading: isLoadingTrainers, error: trainersError } = useQuery({
     queryKey: ['trainers-list'],
@@ -94,12 +122,42 @@ export default function TrainersEventsPage() {
     }
   }, [trainersError, trainersData]);
 
+  const { data: programsData, isLoading: isLoadingPrograms } = useQuery({
+    queryKey: ['programs-list'],
+    queryFn: async () => {
+      const response = await fetch('/api/trainers-events/programs');
+      if (!response.ok) {
+        throw new Error('Failed to fetch programs');
+      }
+      const data = await response.json();
+      return data.programs.map((p: { program: string }) => ({
+        value: p.program,
+        label: p.program,
+      }));
+    },
+  });
+
+  const { data: categoriesData, isLoading: isLoadingCategories } = useQuery({
+    queryKey: ['categories-list'],
+    queryFn: async () => {
+      const response = await fetch('/api/trainers-events/categories');
+      if (!response.ok) {
+        throw new Error('Failed to fetch categories');
+      }
+      const data = await response.json();
+      return data.categories.map((c: { category: string }) => ({
+        value: c.category,
+        label: c.category,
+      }));
+    },
+  });
+
   const {
     data: response,
     isFetching,
     refetch,
   } = useQuery({
-    queryKey: ['trainers-events', filters.year, filters.month, pagination.pageIndex, pagination.pageSize, searchQuery, debouncedTrainers],
+    queryKey: ['trainers-events', filters.year, filters.month, pagination.pageIndex, pagination.pageSize, searchQuery, debouncedTrainers, debouncedPrograms, debouncedCategories, sorting],
     queryFn: async ({ signal }) => {
       const params = new URLSearchParams();
       if (filters.year && filters.year !== 'all') params.set('year', filters.year);
@@ -108,6 +166,12 @@ export default function TrainersEventsPage() {
       params.set('pageSize', String(pagination.pageSize));
       if (searchQuery) params.set('search', searchQuery);
       if (debouncedTrainers.length > 0) params.set('trainers', debouncedTrainers.join(','));
+      if (debouncedPrograms.length > 0) params.set('programs', debouncedPrograms.join(','));
+      if (debouncedCategories.length > 0) params.set('categories', debouncedCategories.join(','));
+      if (sorting.length > 0) {
+        params.set('sortBy', sorting[0].id);
+        params.set('sortOrder', sorting[0].desc ? 'desc' : 'asc');
+      }
 
       const response = await fetch(`/api/trainers-events?${params.toString()}`, {
         signal, // Pass abort signal to cancel previous requests
@@ -118,7 +182,7 @@ export default function TrainersEventsPage() {
   });
 
   const eventsData = response?.data || [];
-  const summary = response?.summary || { totalEvents: 0, uniqueTrainers: 0, totalTickets: 0, totalRevenue: 0 };
+  const summary = response?.summary || { totalEvents: 0, uniqueTrainers: 0, totalTickets: 0, totalRevenue: 0, totalProfit: 0 };
   const paginationInfo = response?.pagination || { totalCount: 0, totalPages: 0 };
 
   React.useEffect(() => {
@@ -144,6 +208,8 @@ export default function TrainersEventsPage() {
   const clearFilters = () => {
     setFilters({ year: 'all', month: 'all' });
     setSelectedTrainers([]);
+    setSelectedPrograms([]);
+    setSelectedCategories([]);
     setSearchQuery('');
     setPagination({ pageIndex: 0, pageSize: 10 }); // Reset to first page
   };
@@ -203,6 +269,7 @@ export default function TrainersEventsPage() {
   const totalEvents = summary.totalEvents;
   const totalTickets = summary.totalTickets;
   const totalRevenue = summary.totalRevenue;
+  const totalProfit = summary.totalProfit;
   const uniqueTrainers = summary.uniqueTrainers;
 
   return (
@@ -227,7 +294,7 @@ export default function TrainersEventsPage() {
             <CardTitle>Filters</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
               <div>
                 <Label htmlFor="year">Year</Label>
                 <Select
@@ -280,6 +347,36 @@ export default function TrainersEventsPage() {
                   disabled={isLoadingTrainers}
                 />
               </div>
+              <div>
+                <Label htmlFor="programs">Program</Label>
+                <MultiSelect
+                  options={programsData || []}
+                  selected={selectedPrograms}
+                  onChange={(values) => {
+                    setSelectedPrograms(values);
+                    if (values.length !== selectedPrograms.length || !values.every((v, i) => v === selectedPrograms[i])) {
+                      setPagination({ pageIndex: 0, pageSize: 10 });
+                    }
+                  }}
+                  placeholder={isLoadingPrograms ? "Loading programs..." : "Select programs..."}
+                  disabled={isLoadingPrograms}
+                />
+              </div>
+              <div>
+                <Label htmlFor="categories">Category</Label>
+                <MultiSelect
+                  options={categoriesData || []}
+                  selected={selectedCategories}
+                  onChange={(values) => {
+                    setSelectedCategories(values);
+                    if (values.length !== selectedCategories.length || !values.every((v, i) => v === selectedCategories[i])) {
+                      setPagination({ pageIndex: 0, pageSize: 10 });
+                    }
+                  }}
+                  placeholder={isLoadingCategories ? "Loading categories..." : "Select categories..."}
+                  disabled={isLoadingCategories}
+                />
+              </div>
               <div className="flex items-end">
                 <Button onClick={clearFilters} variant="outline" className="w-full">
                   Clear Filters
@@ -289,7 +386,7 @@ export default function TrainersEventsPage() {
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
           {cardsLoading ? (
             <>
               <Card>
@@ -311,6 +408,14 @@ export default function TrainersEventsPage() {
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Skeleton className="h-8 w-24" />
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Profit</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <Skeleton className="h-8 w-24" />
@@ -349,7 +454,17 @@ export default function TrainersEventsPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">
-                    €{totalRevenue.toLocaleString('de-DE', { minimumFractionDigits: 2 })}
+                    €{Number(totalRevenue).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Profit</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    €{Number(totalProfit).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </div>
                 </CardContent>
               </Card>
@@ -379,9 +494,12 @@ export default function TrainersEventsPage() {
               enableColumnVisibility={true}
               enableRowSelection={false}
               manualPagination={true}
+              manualSorting={true}
               pageCount={paginationInfo.totalPages}
               pagination={pagination}
               onPaginationChange={setPagination}
+              sorting={sorting}
+              onSortingChange={setSorting}
               isLoading={isFetching}
             />
           </CardContent>

@@ -17,11 +17,17 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search') || undefined;
     const trainersParam = searchParams.get('trainers');
     const trainers = trainersParam ? trainersParam.split(',').filter(t => t.trim()) : undefined;
+    const programsParam = searchParams.get('programs');
+    const programs = programsParam ? programsParam.split(',').filter(p => p.trim()) : undefined;
+    const categoriesParam = searchParams.get('categories');
+    const categories = categoriesParam ? categoriesParam.split(',').filter(c => c.trim()) : undefined;
+    const sortBy = searchParams.get('sortBy') || 'eventdate';
+    const sortOrder = searchParams.get('sortOrder') || 'desc';
 
     // Get paginated data for current page (sequential to avoid pool contention)
-    const trainersEvents = await DatabaseService.getTrainersEvents(year, month, page, pageSize, search, trainers);
-    // Get global summary using ONLY year/month/search/trainers filters (not affected by pagination)
-    const summary = await DatabaseService.getTrainersEventsSummary(year, month, search, trainers);
+    const trainersEvents = await DatabaseService.getTrainersEvents(year, month, page, pageSize, search, trainers, programs, categories, sortBy, sortOrder);
+    // Get global summary using ONLY year/month/search/trainers/programs/categories filters (not affected by pagination)
+    const summary = await DatabaseService.getTrainersEventsSummary(year, month, search, trainers, programs, categories);
     const totalCount = summary.totalEvents || 0;
     const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 

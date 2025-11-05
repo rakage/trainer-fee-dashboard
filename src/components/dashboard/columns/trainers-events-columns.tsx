@@ -35,7 +35,7 @@ export const trainersEventsColumns: ColumnDef<TrainersEventsData>[] = [
     accessorKey: 'prodname',
     header: ({ column }) => <DataTableColumnHeader column={column} title="Event Name" />,
     cell: ({ row }) => {
-      return <div className="max-w-[300px] truncate">{row.getValue('prodname')}</div>;
+      return <div className="min-w-[400px] whitespace-normal">{row.getValue('prodname')}</div>;
     },
   },
   {

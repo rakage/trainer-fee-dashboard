@@ -1,4 +1,5 @@
 ﻿import sql, { ConnectionPool, Request } from 'mssql';
+import { Pool as PgPool, PoolClient } from 'pg';
 import { EventListResponse, EventDetail, EventTicket, TrainerSplit } from '@/types';
 
 interface DatabaseConfig {
@@ -40,6 +41,54 @@ const config: DatabaseConfig = {
 };
 
 let pool: ConnectionPool | null = null;
+
+// PostgreSQL Configuration
+interface PostgresConfig {
+  host: string;
+  port: number;
+  database: string;
+  user: string;
+  password: string;
+  max: number;
+  idleTimeoutMillis: number;
+  connectionTimeoutMillis: number;
+}
+
+const pgConfig: PostgresConfig = {
+  host: process.env.POSTGRES_HOST || 'localhost',
+  port: parseInt(process.env.POSTGRES_PORT || '5432'),
+  database: process.env.POSTGRES_DATABASE || 'postgres',
+  user: process.env.POSTGRES_USER || 'postgres',
+  password: process.env.POSTGRES_PASSWORD || '',
+  max: 10,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 30000,
+};
+
+let pgPool: PgPool | null = null;
+
+export async function getPostgresConnection(): Promise<PgPool> {
+  if (!pgPool) {
+    pgPool = new PgPool(pgConfig);
+    
+    pgPool.on('error', (err) => {
+      console.error('PostgreSQL pool error:', err);
+      pgPool = null;
+    });
+    
+    console.log('Connected to PostgreSQL database');
+  }
+  
+  return pgPool;
+}
+
+export async function closePostgresConnection(): Promise<void> {
+  if (pgPool) {
+    await pgPool.end();
+    pgPool = null;
+    console.log('PostgreSQL connection closed');
+  }
+}
 
 export async function getConnection(): Promise<ConnectionPool> {
   // If pool exists and is in a good state, return it
@@ -1784,231 +1833,78 @@ export class DatabaseService {
   }
   */
 
-  static async getTrainersEventsSummary(year?: number, month?: number, search?: string, trainers?: string[]) {
+  static async getTrainersEventsSummary(year?: number, month?: number, search?: string, trainers?: string[], programs?: string[], categories?: string[]) {
     try {
-      const pool = await getConnection();
-      const request = pool.request();
-      (request as any).timeout = 120000;
-
-      if (year) request.input('year', sql.Int, year);
-      if (month) request.input('month', sql.Int, month);
-      if (search) request.input('search', sql.NVarChar, `%${search}%`);
+      const pool = await getPostgresConnection();
       
-      // Trainer filter parameters - normalize trainer names
-      let trainerFilterClause = '';
+      const params: any[] = [];
+      let paramIndex = 1;
+      
+      // Build WHERE conditions
+      const conditions: string[] = [];
+      
+      if (year) {
+        conditions.push(`year = $${paramIndex}`);
+        params.push(year);
+        paramIndex++;
+      }
+      
+      if (month) {
+        conditions.push(`month = $${paramIndex}`);
+        params.push(month);
+        paramIndex++;
+      }
+      
+      if (search) {
+        conditions.push(`(
+          CAST(prodid AS TEXT) ILIKE $${paramIndex}
+          OR prodname ILIKE $${paramIndex}
+          OR country ILIKE $${paramIndex}
+          OR trainer ILIKE $${paramIndex}
+          OR program ILIKE $${paramIndex}
+          OR category ILIKE $${paramIndex}
+          OR location ILIKE $${paramIndex}
+        )`);
+        params.push(`%${search}%`);
+        paramIndex++;
+      }
+      
       if (trainers && trainers.length > 0) {
-        const normalizedTrainers = trainers.flatMap(trainer => {
-          if (trainer === 'Kami/Yoyo') {
-            return ['Kamila Wierzynska', 'Yoandro', 'Kami/Yoyo'];
-          } else if (trainer === 'Kukizz/Javier') {
-            return ['Diana Kukizz Kurucová', 'Javier', 'Kukizz/Javier'];
-          } else {
-            return [trainer];
-          }
-        });
-        
-        const trainerParams = normalizedTrainers.map((trainer, index) => {
-          const paramName = `trainer${index}`;
-          request.input(paramName, sql.NVarChar, trainer);
-          return `@${paramName}`;
-        });
-        
-        trainerFilterClause = `AND v.Name IN (${trainerParams.join(', ')})`;
+        const trainerPlaceholders = trainers.map((_, i) => `$${paramIndex + i}`).join(', ');
+        conditions.push(`trainer IN (${trainerPlaceholders})`);
+        params.push(...trainers);
+        paramIndex += trainers.length;
+      }
+      
+      if (programs && programs.length > 0) {
+        const programPlaceholders = programs.map((_, i) => `$${paramIndex + i}`).join(', ');
+        conditions.push(`program IN (${programPlaceholders})`);
+        params.push(...programs);
+        paramIndex += programs.length;
+      }
+      
+      if (categories && categories.length > 0) {
+        const categoryPlaceholders = categories.map((_, i) => `$${paramIndex + i}`).join(', ');
+        conditions.push(`category IN (${categoryPlaceholders})`);
+        params.push(...categories);
+        paramIndex += categories.length;
       }
 
+      const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+      
       const query = `
-        WITH AllEvents AS (
-          SELECT DISTINCT
-            p.id AS ProdID,
-            p.name AS ProdName,
-            v.Name AS Vendor,
-            CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE) AS EventDate
-          FROM product p WITH (NOLOCK)
-          INNER JOIN Product_ProductAttribute_Mapping pam WITH (NOLOCK) ON p.id = pam.ProductId
-          INNER JOIN ProductAttributeValue pav WITH (NOLOCK) ON pam.id = pav.ProductAttributeMappingId
-          INNER JOIN Product_SpecificationAttribute_Mapping psm WITH (NOLOCK) ON p.Id = psm.productid
-          INNER JOIN SpecificationAttributeOption sao WITH (NOLOCK) ON psm.SpecificationAttributeOptionId = sao.Id 
-          INNER JOIN SpecificationAttribute sa WITH (NOLOCK) ON sao.SpecificationAttributeId = sa.Id
-          INNER JOIN Product_SpecificationAttribute_Mapping psm2 WITH (NOLOCK) ON p.Id = psm2.productid
-          INNER JOIN SpecificationAttributeOption sao2 WITH (NOLOCK) ON psm2.SpecificationAttributeOptionId = sao2.Id 
-          INNER JOIN SpecificationAttribute sa2 WITH (NOLOCK) ON sao2.SpecificationAttributeId = sa2.Id
-          LEFT JOIN Vendor v WITH (NOLOCK) ON p.VendorId = v.Id
-          LEFT JOIN Product_Category_Mapping pcm WITH (NOLOCK) ON p.id = pcm.ProductId
-          LEFT JOIN Category c WITH (NOLOCK) ON pcm.CategoryId = c.id
-          LEFT JOIN SalsationEvent_Country_Mapping scm WITH (NOLOCK) ON p.id = scm.ProductId
-          LEFT JOIN country cn WITH (NOLOCK) ON scm.CountryId = cn.Id
-          WHERE sa.id = 10
-            AND sa2.id = 6
-            AND p.id NOT IN ('53000', '55053')
-            ${year ? "AND pav.name like '%' + CAST(@year AS VARCHAR(4)) + '%'" : "AND (pav.name like '%2024%' or pav.name like '%2025%')"}
-            ${month ? "AND MONTH(CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE)) = @month" : ''}
-            ${trainerFilterClause}
-            ${search ? `AND (
-                CAST(p.id AS NVARCHAR(50)) LIKE @search
-                OR p.name LIKE @search
-                OR ISNULL(sao.Name, '') LIKE @search
-                OR ISNULL(sao2.Name, '') LIKE @search
-                OR ISNULL(c.name, '') LIKE @search
-                OR ISNULL(v.Name, '') LIKE @search
-            )` : ''}
-        )
-        , ProductsWithTrainer AS (
-          SELECT 
-            ProdID,
-            ProdName,
-            CASE 
-              WHEN ProdName LIKE '% with %' THEN 
-                LTRIM(RTRIM(
-                  CASE 
-                    WHEN CHARINDEX(' & ', SUBSTRING(ProdName, CHARINDEX(' with ', ProdName) + 6, LEN(ProdName))) > 0 THEN
-                      SUBSTRING(ProdName,
-                        CHARINDEX(' with ', ProdName) + 6,
-                        CHARINDEX(' & ', SUBSTRING(ProdName, CHARINDEX(' with ', ProdName) + 6, LEN(ProdName))) - 1
-                      )
-                    ELSE
-                      SUBSTRING(
-                        ProdName,
-                        CHARINDEX(' with ', ProdName) + 6,
-                        CASE 
-                          WHEN CHARINDEX(',', ProdName, CHARINDEX(' with ', ProdName)) > 0 THEN CHARINDEX(',', ProdName, CHARINDEX(' with ', ProdName)) - CHARINDEX(' with ', ProdName) - 6
-                          ELSE LEN(ProdName) - CHARINDEX(' with ', ProdName) - 5
-                        END
-                      )
-                  END
-                ))
-              ELSE COALESCE(Vendor, 'Unknown')
-            END AS TrainerInitial
-          FROM AllEvents
-          LEFT JOIN Vendor v WITH (NOLOCK) ON 1 = 0 -- vendor already joined in AllEvents, placeholder to keep structure
-        )
-        , TrainersNorm AS (
-          SELECT 
-            ProdID,
-            CASE 
-              WHEN TrainerInitial IN ('Kami & Yoyo', 'Kamila Wierzyńska', 'Kamila Wierzynska', 'Yoandro') THEN 'Kami/Yoyo'
-              WHEN TrainerInitial IN ('Kukizz & Javier', 'Diana Kukizz Kurucová', 'Diana Kukizz KurucovÃ¡', 'Javier') THEN 'Kukizz/Javier'
-              ELSE TrainerInitial
-            END AS Trainer
-          FROM ProductsWithTrainer
-        )
-        , OrdersBase AS (
-          SELECT DISTINCT
-            o.id AS OrderID,
-            o.PaidDateUtc AS DatePaid,
-            CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE) AS EventDate,
-            p.id AS ProdID,
-            oi.quantity,
-            p.price AS ProductPrice,
-            oi.UnitPriceInclTax AS UnitPrice,
-            oi.PriceInclTax - o.RefundedAmount AS PriceTotal,
-            tp.Designation AS TierLevel,
-            CASE  WHEN (o.CaptureTransactionId IS NOT NULL and oi.UnitPriceInclTax = 0) THEN 'Free Ticket'
-                  WHEN o.CaptureTransactionId IS NOT NULL THEN 'Paypal'
-                  WHEN (o.CaptureTransactionId IS NULL and oi.UnitPriceInclTax = 0) THEN 'Free Ticket'
-                  ELSE 'Cash' END AS PaymentMethod,
-            CASE WHEN ss.attendedsetdateUTC IS NOT NULL THEN 'Attended' ELSE 'Unattended' END AS Attendance,
-            o.paymentstatusid AS PaymentStatus,
-            cu.id AS CustomerID
-          FROM product p WITH (NOLOCK)
-          INNER JOIN AllEvents ae ON p.id = ae.ProdID
-          LEFT JOIN OrderItem oi WITH (NOLOCK) ON p.id = oi.ProductId
-          LEFT JOIN [Order] o WITH (NOLOCK) ON oi.OrderId = o.id
-          LEFT JOIN Customer cu WITH (NOLOCK) ON o.CustomerId = cu.id
-          LEFT JOIN Product_ProductAttribute_Mapping pam WITH (NOLOCK) ON p.id = pam.ProductId
-          LEFT JOIN ProductAttributeValue pav WITH (NOLOCK) ON pam.id = pav.ProductAttributeMappingId
-          LEFT JOIN Product_SpecificationAttribute_Mapping psm WITH (NOLOCK) ON p.Id = psm.productid
-          LEFT JOIN SpecificationAttributeOption sao WITH (NOLOCK) ON psm.SpecificationAttributeOptionId = sao.Id 
-          LEFT JOIN SpecificationAttribute sa WITH (NOLOCK) ON sao.SpecificationAttributeId = sa.Id
-          LEFT JOIN Product_SpecificationAttribute_Mapping psm2 WITH (NOLOCK) ON p.Id = psm2.productid
-          LEFT JOIN SpecificationAttributeOption sao2 WITH (NOLOCK) ON psm2.SpecificationAttributeOptionId = sao2.Id 
-          LEFT JOIN SpecificationAttribute sa2 WITH (NOLOCK) ON sao2.SpecificationAttributeId = sa2.Id
-          LEFT JOIN SalsationSubscriber ss WITH (NOLOCK) ON (oi.Id = ss.OrderItemId AND p.id = ss.parentid AND o.id = ss.orderid)
-          LEFT JOIN TierPrice tp WITH (NOLOCK) ON (p.id = tp.productId AND oi.PriceInclTax = tp.price AND oi.Quantity = tp.Quantity)
-          WHERE sa.id = 10 AND sa2.id = 6
-            AND o.orderstatusid = '30'
-            AND o.paymentstatusid IN ('30','35')
-            AND p.id NOT IN ('54958', '53000', '55053')
-            ${year ? "AND pav.name like '%' + CAST(@year AS VARCHAR(4)) + '%'" : "AND (pav.name like '%2024%' or pav.name like '%2025%')"}
-            ${month ? "AND MONTH(CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE)) = @month" : ''}
-          UNION ALL
-          SELECT DISTINCT
-            o.id AS OrderID,
-            o.PaidDateUtc AS DatePaid,
-            CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE) AS EventDate,
-            p.id AS ProdID,
-            oi.quantity,
-            p.price AS ProductPrice,
-            oi.UnitPriceInclTax AS UnitPrice,
-            oi.PriceInclTax - o.RefundedAmount AS PriceTotal,
-            tp.Designation AS TierLevel,
-            CASE  WHEN (o.CaptureTransactionId IS NOT NULL and oi.UnitPriceInclTax = 0) THEN 'Free Ticket'
-                  WHEN o.CaptureTransactionId IS NOT NULL THEN 'Paypal'
-                  WHEN (o.CaptureTransactionId IS NULL and oi.UnitPriceInclTax = 0) THEN 'Free Ticket'
-                  ELSE 'Cash' END AS PaymentMethod,
-            CASE WHEN ss.attendedsetdateUTC IS NOT NULL THEN 'Attended' ELSE 'Unattended' END AS Attendance,
-            o.paymentstatusid AS PaymentStatus,
-            cu.id AS CustomerID
-          FROM product p WITH (NOLOCK)
-          INNER JOIN AllEvents ae ON p.id = ae.ProdID
-          LEFT JOIN OrderItem oi WITH (NOLOCK) ON p.id = oi.ProductId
-          LEFT JOIN [Order] o WITH (NOLOCK) ON oi.OrderId = o.id
-          LEFT JOIN Customer cu WITH (NOLOCK) ON o.CustomerId = cu.id
-          LEFT JOIN Product_ProductAttribute_Mapping pam WITH (NOLOCK) ON p.id = pam.ProductId
-          LEFT JOIN ProductAttributeValue pav WITH (NOLOCK) ON pam.id = pav.ProductAttributeMappingId
-          LEFT JOIN Product_SpecificationAttribute_Mapping psm WITH (NOLOCK) ON p.Id = psm.productid
-          LEFT JOIN SpecificationAttributeOption sao WITH (NOLOCK) ON psm.SpecificationAttributeOptionId = sao.Id 
-          LEFT JOIN SpecificationAttribute sa WITH (NOLOCK) ON sao.SpecificationAttributeId = sa.Id
-          LEFT JOIN Product_SpecificationAttribute_Mapping psm2 WITH (NOLOCK) ON p.Id = psm2.productid
-          LEFT JOIN SpecificationAttributeOption sao2 WITH (NOLOCK) ON psm2.SpecificationAttributeOptionId = sao2.Id 
-          LEFT JOIN SpecificationAttribute sa2 WITH (NOLOCK) ON sao2.SpecificationAttributeId = sa2.Id
-          LEFT JOIN SalsationSubscriber ss WITH (NOLOCK) ON (oi.Id = ss.OrderItemId AND p.id = ss.parentid AND o.id = ss.orderid)
-          LEFT JOIN TierPrice tp WITH (NOLOCK) ON (p.id = tp.productId AND oi.PriceInclTax = tp.price AND oi.Quantity = tp.Quantity)
-          WHERE sa.id = 10 AND sa2.id = 6
-            AND o.orderstatusid = '30'
-            AND o.paymentstatusid IN ('30','35')
-            AND p.id IN ('54958')
-            AND p.id NOT IN ('53000', '55053')
-            ${year ? "AND YEAR(o.PaidDateUtc) = @year" : "AND (o.PaidDateUtc like '%2024%' or o.PaidDateUtc like '%2025%')"}
-            ${month ? "AND MONTH(o.PaidDateUtc) = @month" : ''}
-        )
-        , FinalsOrder AS (
-          SELECT *, ROW_NUMBER() OVER (PARTITION BY OrderID, CustomerID, ProdID ORDER BY EventDate ASC) AS rn
-          FROM OrdersBase
-        )
-        , OrderData AS (
-          SELECT 
-            *,
-            CASE 
-              WHEN ProdID = 68513 THEN 'Cruise'
-              WHEN TierLevel = 'Repeater' THEN 'Repeater'
-              WHEN PaymentMethod = 'Free Ticket' THEN 'FreeTicket'
-              ELSE 'Regular'
-            END AS repeater,
-            CASE WHEN Attendance = 'Unattended' AND PaymentStatus = 35 THEN 1 ELSE 0 END AS deleted
-          FROM FinalsOrder
-          WHERE rn = 1
-        )
         SELECT 
-          (SELECT COUNT(DISTINCT ProdID) FROM AllEvents) AS totalEvents,
-          (SELECT COUNT(DISTINCT Trainer) FROM TrainersNorm) AS uniqueTrainers,
-          (
-            SELECT 
-              COALESCE(SUM(CASE WHEN repeater IN ('Regular','Cruise') AND deleted = 0 THEN 1 ELSE 0 END),0)
-              + COALESCE(SUM(CASE WHEN repeater = 'Repeater' AND deleted = 0 THEN 1 ELSE 0 END),0)
-              + COALESCE(SUM(CASE WHEN repeater = 'FreeTicket' AND deleted = 0 THEN 1 ELSE 0 END),0)
-            FROM OrderData
-          ) AS totalTickets,
-          (
-            SELECT 
-              COALESCE(SUM(CASE WHEN PaymentMethod = 'Cash' AND deleted = 0 THEN PriceTotal ELSE 0 END),0)
-              + COALESCE(SUM(CASE WHEN PaymentMethod = 'Paypal' AND deleted = 0 THEN PriceTotal ELSE 0 END),0)
-            FROM OrderData
-          ) AS totalRevenue
-        OPTION (MAXDOP 4, OPTIMIZE FOR UNKNOWN);
+          COUNT(DISTINCT prodid) AS "totalEvents",
+          COUNT(DISTINCT trainer) AS "uniqueTrainers",
+          COALESCE(SUM(tickets), 0) AS "totalTickets",
+          COALESCE(SUM(totalrevenue), 0) AS "totalRevenue",
+          COALESCE(SUM(revenueaftercommission), 0) AS "totalProfit"
+        FROM public.trainer_productivity
+        ${whereClause}
       `;
 
-      const result = await request.query(query);
-      return result.recordset[0] || { totalEvents: 0, uniqueTrainers: 0, totalTickets: 0, totalRevenue: 0 };
+      const result = await pool.query(query, params);
+      return result.rows[0] || { totalEvents: 0, uniqueTrainers: 0, totalTickets: 0, totalRevenue: 0, totalProfit: 0 };
     } catch (error) {
       console.error('Error fetching trainers events summary:', error);
       throw error;
@@ -2303,39 +2199,18 @@ export class DatabaseService {
     
     while (retries <= maxRetries) {
       try {
-        const pool = await getConnection();
-        const request = pool.request();
-        (request as any).timeout = 60000;
+        const pool = await getPostgresConnection();
 
         const query = `
-          SELECT DISTINCT
-            CASE 
-              WHEN v.Name = 'Kamila Wierzynska' OR v.Name = 'Yoandro' THEN 'Kami/Yoyo'
-              WHEN v.Name = 'Diana Kukizz Kurucová' OR v.Name = 'Javier' THEN 'Kukizz/Javier'
-              ELSE v.Name
-            END AS trainer
-          FROM product p WITH (NOLOCK)
-          INNER JOIN Vendor v WITH (NOLOCK) ON p.VendorId = v.Id
-          INNER JOIN Product_ProductAttribute_Mapping pam WITH (NOLOCK) ON p.id = pam.ProductId
-          INNER JOIN ProductAttributeValue pav WITH (NOLOCK) ON pam.id = pav.ProductAttributeMappingId
-          INNER JOIN Product_SpecificationAttribute_Mapping psm WITH (NOLOCK) ON p.Id = psm.productid
-          INNER JOIN SpecificationAttributeOption sao WITH (NOLOCK) ON psm.SpecificationAttributeOptionId = sao.Id 
-          INNER JOIN SpecificationAttribute sa WITH (NOLOCK) ON sao.SpecificationAttributeId = sa.Id
-          INNER JOIN Product_SpecificationAttribute_Mapping psm2 WITH (NOLOCK) ON p.Id = psm2.productid
-          INNER JOIN SpecificationAttributeOption sao2 WITH (NOLOCK) ON psm2.SpecificationAttributeOptionId = sao2.Id 
-          INNER JOIN SpecificationAttribute sa2 WITH (NOLOCK) ON sao2.SpecificationAttributeId = sa2.Id
-          WHERE sa.id = 10
-            AND sa2.id = 6
-            AND (p.Published = 1 OR (p.id = '40963' AND p.Published = 0))
-            AND (pav.name LIKE '%2024%' OR pav.name LIKE '%2025%')
-            AND p.id NOT IN ('53000', '55053')
-            AND v.Name IS NOT NULL
-            AND v.Name <> ''
+          SELECT DISTINCT trainer
+          FROM public.trainer_productivity
+          WHERE trainer IS NOT NULL
+            AND trainer <> ''
           ORDER BY trainer
         `;
 
-        const result = await request.query(query);
-        return result.recordset;
+        const result = await pool.query(query);
+        return result.rows;
       } catch (error: any) {
         console.error(`Error fetching unique trainers (attempt ${retries + 1}/${maxRetries + 1}):`, error);
         
@@ -2343,7 +2218,7 @@ export class DatabaseService {
           retries++;
           console.log(`Retrying getUniqueTrainers... (attempt ${retries + 1})`);
           // Reset the pool to force reconnection
-          pool = null;
+          pgPool = null;
           await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
           continue;
         }
@@ -2355,203 +2230,231 @@ export class DatabaseService {
     throw new Error('Failed to fetch unique trainers after retries');
   }
 
-  static async getTrainersEvents(year?: number, month?: number, page: number = 1, pageSize: number = 50, search?: string, trainers?: string[]) {
+  static async getUniquePrograms(): Promise<{ program: string }[]> {
+    let retries = 0;
+    const maxRetries = 2;
+    
+    while (retries <= maxRetries) {
+      try {
+        const pool = await getPostgresConnection();
+
+        const query = `
+          SELECT DISTINCT program
+          FROM public.trainer_productivity
+          WHERE program IS NOT NULL
+            AND program <> ''
+          ORDER BY program
+        `;
+
+        const result = await pool.query(query);
+        return result.rows;
+      } catch (error: any) {
+        console.error(`Error fetching unique programs (attempt ${retries + 1}/${maxRetries + 1}):`, error);
+        
+        if (error.code === 'ECONNCLOSED' && retries < maxRetries) {
+          retries++;
+          console.log(`Retrying getUniquePrograms... (attempt ${retries + 1})`);
+          pgPool = null;
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          continue;
+        }
+        
+        throw error;
+      }
+    }
+    
+    throw new Error('Failed to fetch unique programs after retries');
+  }
+
+  static async getUniqueCategories(): Promise<{ category: string }[]> {
+    let retries = 0;
+    const maxRetries = 2;
+    
+    while (retries <= maxRetries) {
+      try {
+        const pool = await getPostgresConnection();
+
+        const query = `
+          SELECT DISTINCT category
+          FROM public.trainer_productivity
+          WHERE category IS NOT NULL
+            AND category <> ''
+          ORDER BY category
+        `;
+
+        const result = await pool.query(query);
+        return result.rows;
+      } catch (error: any) {
+        console.error(`Error fetching unique categories (attempt ${retries + 1}/${maxRetries + 1}):`, error);
+        
+        if (error.code === 'ECONNCLOSED' && retries < maxRetries) {
+          retries++;
+          console.log(`Retrying getUniqueCategories... (attempt ${retries + 1})`);
+          pgPool = null;
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          continue;
+        }
+        
+        throw error;
+      }
+    }
+    
+    throw new Error('Failed to fetch unique categories after retries');
+  }
+
+  static async getTrainersEvents(year?: number, month?: number, page: number = 1, pageSize: number = 50, search?: string, trainers?: string[], programs?: string[], categories?: string[], sortBy: string = 'eventdate', sortOrder: string = 'desc') {
     let retries = 0;
     const maxRetries = 1;
     
     while (retries <= maxRetries) {
       try {
-        const pool = await getConnection();
-        const request = pool.request();
+        const pool = await getPostgresConnection();
         
-        // Set a longer timeout for this complex query (120 seconds)
-        (request as any).timeout = 120000;
+        const params: any[] = [];
+        let paramIndex = 1;
+        
+        // Build WHERE conditions
+        const conditions: string[] = [];
+        
+        if (year) {
+          conditions.push(`year = $${paramIndex}`);
+          params.push(year);
+          paramIndex++;
+        }
+        
+        if (month) {
+          conditions.push(`month = $${paramIndex}`);
+          params.push(month);
+          paramIndex++;
+        }
+        
+        if (search) {
+          conditions.push(`(
+            CAST(prodid AS TEXT) ILIKE $${paramIndex}
+            OR prodname ILIKE $${paramIndex}
+            OR country ILIKE $${paramIndex}
+            OR trainer ILIKE $${paramIndex}
+            OR program ILIKE $${paramIndex}
+            OR category ILIKE $${paramIndex}
+            OR location ILIKE $${paramIndex}
+          )`);
+          params.push(`%${search}%`);
+          paramIndex++;
+        }
+        
+        if (trainers && trainers.length > 0) {
+          const trainerPlaceholders = trainers.map((_, i) => `$${paramIndex + i}`).join(', ');
+          conditions.push(`trainer IN (${trainerPlaceholders})`);
+          params.push(...trainers);
+          paramIndex += trainers.length;
+        }
+        
+        if (programs && programs.length > 0) {
+          const programPlaceholders = programs.map((_, i) => `$${paramIndex + i}`).join(', ');
+          conditions.push(`program IN (${programPlaceholders})`);
+          params.push(...programs);
+          paramIndex += programs.length;
+        }
+        
+        if (categories && categories.length > 0) {
+          const categoryPlaceholders = categories.map((_, i) => `$${paramIndex + i}`).join(', ');
+          conditions.push(`category IN (${categoryPlaceholders})`);
+          params.push(...categories);
+          paramIndex += categories.length;
+        }
+        
+        const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+        
+        // Sorting - validate column name to prevent SQL injection
+        const validSortColumns = [
+          'prodid', 'prodname', 'category', 'program', 'eventdate', 'productprice',
+          'vendor', 'country', 'stockquantity', 'status_event', 'month', 'year',
+          'trainer', 'cotrainer1', 'cotrainer2', 'cotrainer3', 'location',
+          'totalrevenue', 'totaltickets'
+        ];
+        // Map frontend column names to actual database columns
+        const columnMapping: Record<string, string> = {
+          'totaltickets': 'tickets',
+        };
+        const mappedSortBy = columnMapping[sortBy] || sortBy;
+        const sortColumn = validSortColumns.includes(sortBy) ? mappedSortBy : 'eventdate';
+        const sortDirection = sortOrder.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+        
+        // Pagination
+        const offset = (page - 1) * pageSize;
+        const limitClause = `LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+        params.push(pageSize, offset);
 
-      if (year) {
-        request.input('year', sql.Int, year);
-      }
-      if (month) {
-        request.input('month', sql.Int, month);
-      }
-      if (search) {
-        request.input('search', sql.NVarChar, `%${search}%`);
-      }
-      
-      // Trainer filter parameters - normalize trainer names
-      let trainerFilterClause = '';
-      if (trainers && trainers.length > 0) {
-        const normalizedTrainers = trainers.flatMap(trainer => {
-          if (trainer === 'Kami/Yoyo') {
-            return ['Kamila Wierzynska', 'Yoandro', 'Kami/Yoyo'];
-          } else if (trainer === 'Kukizz/Javier') {
-            return ['Diana Kukizz Kurucová', 'Javier', 'Kukizz/Javier'];
-          } else {
-            return [trainer];
-          }
-        });
-        
-        const trainerParams = normalizedTrainers.map((trainer, index) => {
-          const paramName = `trainer${index}`;
-          request.input(paramName, sql.NVarChar, trainer);
-          return `@${paramName}`;
-        });
-        
-        trainerFilterClause = `AND v.Name IN (${trainerParams.join(', ')})`;
-      }
-      
-      // Pagination parameters
-      const offset = (page - 1) * pageSize;
-      request.input('offset', sql.Int, offset);
-      request.input('pageSize', sql.Int, pageSize);
-
-      // Your original query with pagination optimization at the start
       const query = `
-        -- Pagination CTEs: Filter events BEFORE processing through your complex logic
-        WITH PaginatedEvents as (
-            select 
-                p.id as prodid,
-                ROW_NUMBER() OVER (ORDER BY CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE) DESC, p.id DESC) as RowNum
-            from product p WITH (NOLOCK)
-            inner join Product_Category_Mapping pcm WITH (NOLOCK) on p.id = pcm.ProductId
-            inner join Product_ProductAttribute_Mapping pam WITH (NOLOCK) on p.id = pam.ProductId
-            inner join ProductAttributeValue pav WITH (NOLOCK) on pam.id = pav.ProductAttributeMappingId
-            inner join Product_SpecificationAttribute_Mapping psm WITH (NOLOCK) on p.Id = psm.productid
-            inner join SpecificationAttributeOption sao WITH (NOLOCK) on psm.SpecificationAttributeOptionId = sao.Id 
-            inner join SpecificationAttribute sa WITH (NOLOCK) on sao.SpecificationAttributeId = sa.Id
-            inner join Product_SpecificationAttribute_Mapping psm2 WITH (NOLOCK) on p.Id = psm2.productid
-            inner join SpecificationAttributeOption sao2 WITH (NOLOCK) on psm2.SpecificationAttributeOptionId = sao2.Id 
-            inner join SpecificationAttribute sa2 WITH (NOLOCK) on sao2.SpecificationAttributeId = sa2.Id
-            left join Vendor v WITH (NOLOCK) on p.VendorId = v.Id
-            left join SalsationEvent_Country_Mapping scm WITH (NOLOCK) on p.id = scm.ProductId
-            left join country cn WITH (NOLOCK) on scm.CountryId = cn.Id
-            left join Category c WITH (NOLOCK) on pcm.CategoryId = c.id
-            where sa.id = 10
-            and sa2.id = 6
-            and p.id not in ('53000', '55053')
-            ${year ? "AND pav.name like '%' + CAST(@year AS VARCHAR(4)) + '%'" : "AND (pav.name like '%2024%' or pav.name like '%2025%')"}
-            ${month ? "AND MONTH(CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE)) = @month" : ''}
-            ${trainerFilterClause}
-            ${search ? `AND (
-                CAST(p.id AS NVARCHAR(50)) LIKE @search
-                OR p.name LIKE @search
-                OR ISNULL(sao.Name, '') LIKE @search
-                OR ISNULL(sao2.Name, '') LIKE @search
-                OR ISNULL(c.name, '') LIKE @search
-                OR ISNULL(v.Name, '') LIKE @search
-            )` : ''}
-        )
-        , PagedProductIds as (
-            select prodid
-            from PaginatedEvents
-            where RowNum > @offset AND RowNum <= (@offset + @pageSize)
-        )
-        -- YOUR ORIGINAL QUERY STARTS HERE (with INNER JOIN to PagedProductIds for early filtering)
-        , base as (
-            select distinct
-            p.id as ProdID, 
-            p.name as ProdName,  
-            c.name as Category, 
-            sao2.name as Program,
-            null as ReportingGroup,
-            CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE) as EventDate, 
-            p.price as ProductPrice, 
-            v.Name as Vendor,
-            sao.Name as Country,
-            p.StockQuantity,
-            p.DisableBuyButton as Cancelled,
-            case
-                when p.Published = 1 then 'Active'
-                else 'Cancelled'
-            end as Status_Event
-            from product p WITH (NOLOCK)
-            INNER JOIN PagedProductIds pp ON p.id = pp.prodid
-            left join Product_Category_Mapping pcm WITH (NOLOCK)
-            on p.id = pcm.ProductId
-            left join Product_ProductAttribute_Mapping pam WITH (NOLOCK)
-            on p.id = pam.ProductId
-            left join SalsationEvent_Country_Mapping scm WITH (NOLOCK)
-            on p.id = scm.ProductId
-            left join country cn WITH (NOLOCK)
-            on scm.CountryId = cn.Id
-            left join ProductAttributeValue pav WITH (NOLOCK)
-            on pam.id = pav.ProductAttributeMappingId
-            left join Category c WITH (NOLOCK)
-            on pcm.CategoryId = c.id
-            left join Vendor v WITH (NOLOCK)
-            on p.VendorId = v.Id
-            left join Product_SpecificationAttribute_Mapping psm WITH (NOLOCK)
-            on p.Id = psm.productid
-            left join SpecificationAttributeOption sao WITH (NOLOCK)
-            on psm.SpecificationAttributeOptionId = sao.Id 
-            left join SpecificationAttribute sa WITH (NOLOCK)
-            on sao.SpecificationAttributeId = sa.Id
-            left join Product_SpecificationAttribute_Mapping psm2 WITH (NOLOCK)
-            on p.Id = psm2.productid
-            left join SpecificationAttributeOption sao2 WITH (NOLOCK)
-            on psm2.SpecificationAttributeOptionId = sao2.Id 
-            left join SpecificationAttribute sa2 WITH (NOLOCK)
-            on sao2.SpecificationAttributeId = sa2.Id
-            where sa.id = 10
-            and sa2.id = 6
-        )
-            , finals as (
-            select 
-                *
-                , row_number() over(partition by ProdID order by eventdate asc) as rn
-            from base
-            )
-            , EventDataRaw as (
-            select 
-                ProdID,
-            ProdName,
-            Category,
-            Program,
-            ReportingGroup,
-            EventDate,
-            ProductPrice,
-            Vendor,
-            Country,
-            StockQuantity,
-            Cancelled,
-            Status_Event
-            from finals
-            where 1=1
-            and rn = 1
-            )
-            , base_order as (
-            select distinct
-            o.id as OrderID, 
-            o.PaidDateUtc as DatePaid, 
-            CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE) as EventDate, 
-            p.id as ProdID, 
-            p.name as ProdName,  
-            c.name as Category, 
-            sao2.name as Program,
-            oi.quantity, 
-            p.price as ProductPrice, 
-            oi.UnitPriceInclTax as UnitPrice, 
-            oi.PriceInclTax - o.RefundedAmount as PriceTotal,
-            tp.Designation as TierLevel,
-            v.Name as Vendor,
-            sao.Name as Country,
-            cu.id as CustomerID,
-            cu.username as Customer,
-            CASE  WHEN (o.CaptureTransactionId IS NOT NULL and oi.UnitPriceInclTax = 0)
-                THEN 'Free Ticket'
-                WHEN o.CaptureTransactionId IS NOT NULL 
-                THEN 'Paypal'
-                WHEN (o.CaptureTransactionId IS NULL and oi.UnitPriceInclTax = 0)
-                THEN 'Free Ticket'
-                ELSE 'Cash'
-            END AS PaymentMethod,
-            CASE WHEN ss.attendedsetdateUTC IS NOT NULL
-                THEN 'Attended'
-                ELSE 'Unattended'
-            END AS Attendance,
-            o.paymentstatusid as PaymentStatus,
-            p.StockQuantity
-            from product p WITH (NOLOCK)
-            left join OrderItem oi WITH (NOLOCK)
+        SELECT 
+          prodid,
+          prodname,
+          category,
+          program,
+          eventdate,
+          productprice,
+          vendor,
+          country,
+          stockquantity,
+          status_event,
+          month,
+          year,
+          repeaterprice,
+          trainerlist,
+          trainer,
+          cotrainer1,
+          cotrainer2,
+          cotrainer3,
+          cotrainer4,
+          cotrainer5,
+          trainercount,
+          location,
+          reportinggroup,
+          split,
+          trainerpercent,
+          revenueaftercommission,
+          tickets as totaltickets,
+          ticketsrepeater,
+          ticketsfree,
+          revenue,
+          revenuerepeater,
+          revenuecash,
+          revenuepaypal,
+          totalrevenue,
+          paidtickets,
+          ticketspaypal,
+          ticketscash,
+          hasrevenue,
+          eventhasrev,
+          isshared,
+          trainernormalized,
+          cotrainer1normalized,
+          cotrainer2normalized,
+          cotrainer3normalized,
+          cotrainer4normalized,
+          deletedticket,
+          alejandropercent,
+          trainercountry,
+          cotrainer1country,
+          cotrainer2country,
+          cotrainer3country,
+          cotrainer4country,
+          feeale,
+          eventtype,
+          trainerhomecountry,
+          cotrainer1homecountry,
+          cotrainer2homecountry,
+          cotrainer3homecountry,
+          cotrainer4homecountry
+        FROM public.trainer_productivity
+        ${whereClause}
+        ORDER BY ${sortColumn} ${sortDirection}, prodid DESC
+        ${limitClause}
+      `;
+
+        const result = await pool.query(query, params);
+        return result.rows;
+        /* COMMENTED OUT - OLD MS SQL QUERY - TO BE REMOVED
             on p.id = oi.ProductId
             left join [Order] o WITH (NOLOCK)
             on oi.OrderId = o.id
@@ -3284,44 +3187,7 @@ export class DatabaseService {
                     when e.HomeCountry is not null then 1
                     else null
                 end as CoTrainer3HomeCountry
-                , case
-                    when f.HomeCountry is not null then 1
-                    else null
-                end as CoTrainer4HomeCountry
-            from finals_2 a
-            left join TrainerParameters b
-            on a.TrainerCountry = b.HomeCountry
-            left join TrainerParameters c
-            on a.CoTrainer1Country = c.HomeCountry
-            left join TrainerParameters d
-            on a.CoTrainer2Country = d.HomeCountry
-            left join TrainerParameters e
-            on a.CoTrainer3Country = e.HomeCountry
-            left join TrainerParameters f
-            on a.CoTrainer4Country = f.HomeCountry
-            )
-            select
-            	prodid
-            	, prodname
-            	, category
-            	, program
-            	, eventdate
-            	, productprice
-            	, country
-            	, location
-            	, status_event
-            	, trainer
-            	, cotrainer1
-            	, cotrainer2
-            	, cotrainer3
-            	, totalrevenue
-            	, ticketsfree + paidtickets + ticketsRepeater as totaltickets
-            from final_new_1
-            OPTION (MAXDOP 4, OPTIMIZE FOR UNKNOWN)
-      `;
-
-        const result = await request.query(query);
-        return result.recordset;
+        */ // END COMMENTED OUT OLD MS SQL QUERY
       } catch (error: any) {
         console.error(`Error fetching trainers events (attempt ${retries + 1}/${maxRetries + 1}):`, error);
         
@@ -3329,7 +3195,7 @@ export class DatabaseService {
           retries++;
           console.log(`Retrying getTrainersEvents... (attempt ${retries + 1})`);
           // Reset the pool to force reconnection
-          pool = null;
+          pgPool = null;
           await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
           continue;
         }
