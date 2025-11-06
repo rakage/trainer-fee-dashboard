@@ -1896,7 +1896,7 @@ export class DatabaseService {
         SELECT 
           COUNT(DISTINCT prodid) AS "totalEvents",
           COUNT(DISTINCT trainer) AS "uniqueTrainers",
-          COALESCE(SUM(tickets), 0) AS "totalTickets",
+          COALESCE(SUM(paidtickets + ticketsfree), 0) AS "totalTickets",
           COALESCE(SUM(totalrevenue), 0) AS "totalRevenue",
           COALESCE(SUM(revenueaftercommission), 0) AS "totalProfit"
         FROM public.trainer_productivity
@@ -2372,12 +2372,7 @@ export class DatabaseService {
           'trainer', 'cotrainer1', 'cotrainer2', 'cotrainer3', 'location',
           'totalrevenue', 'totaltickets'
         ];
-        // Map frontend column names to actual database columns
-        const columnMapping: Record<string, string> = {
-          'totaltickets': 'tickets',
-        };
-        const mappedSortBy = columnMapping[sortBy] || sortBy;
-        const sortColumn = validSortColumns.includes(sortBy) ? mappedSortBy : 'eventdate';
+        const sortColumn = validSortColumns.includes(sortBy) ? sortBy : 'eventdate';
         const sortDirection = sortOrder.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
         
         // Pagination
@@ -2413,7 +2408,7 @@ export class DatabaseService {
           split,
           trainerpercent,
           revenueaftercommission,
-          tickets as totaltickets,
+          (paidtickets + ticketsfree) as totaltickets,
           ticketsrepeater,
           ticketsfree,
           revenue,
