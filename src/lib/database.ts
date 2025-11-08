@@ -1854,8 +1854,12 @@ export class DatabaseService {
       }
       
       if (month) {
+        // Convert month number to month name (database stores full month names)
+        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                           'July', 'August', 'September', 'October', 'November', 'December'];
+        const monthName = monthNames[month - 1];
         conditions.push(`month = $${paramIndex}`);
-        params.push(month);
+        params.push(monthName);
         paramIndex++;
       }
       
@@ -2327,8 +2331,12 @@ export class DatabaseService {
         }
         
         if (month) {
+          // Convert month number to month name (database stores full month names)
+          const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                             'July', 'August', 'September', 'October', 'November', 'December'];
+          const monthName = monthNames[month - 1];
           conditions.push(`month = $${paramIndex}`);
-          params.push(month);
+          params.push(monthName);
           paramIndex++;
         }
         
