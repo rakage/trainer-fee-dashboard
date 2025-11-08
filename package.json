@@ -9,7 +9,9 @@
     "lint": "eslint",
     "seed": "node scripts/seed-database.js",
     "seed:dev": "NODE_ENV=development node scripts/seed-database.js",
-    "seed:sqlite": "node scripts/seed-sqlite.js"
+    "seed:sqlite": "node scripts/seed-sqlite.js",
+    "migrate:postgres": "node scripts/migrate-sqlite-to-postgres.js",
+    "verify:migration": "node scripts/verify-migration.js"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.12",
