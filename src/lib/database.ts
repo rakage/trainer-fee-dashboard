@@ -1902,13 +1902,18 @@ export class DatabaseService {
       
       const query = `
         SELECT 
-          COUNT(DISTINCT prodid) AS "totalEvents",
-          COUNT(DISTINCT trainer) AS "uniqueTrainers",
-          COALESCE(SUM(paidtickets + ticketsfree), 0) AS "totalTickets",
-          COALESCE(SUM(totalrevenue), 0) AS "totalRevenue",
-          COALESCE(SUM(revenueaftercommission), 0) AS "totalProfit"
-        FROM public.trainer_productivity
-        ${whereClause}
+          COUNT(DISTINCT tp.prodid) AS "totalEvents",
+          COUNT(DISTINCT tp.trainer) AS "uniqueTrainers",
+          COALESCE(SUM(tp.paidtickets + tp.ticketsfree), 0) AS "totalTickets",
+          COALESCE(SUM(tp.totalrevenue), 0) AS "totalRevenue",
+          COALESCE(SUM(tp.revenueaftercommission), 0) - COALESCE(SUM(e.total_expenses), 0) AS "totalProfit"
+        FROM public.trainer_productivity tp
+        LEFT JOIN (
+          SELECT prod_id, SUM(amount) as total_expenses
+          FROM expenses
+          GROUP BY prod_id
+        ) e ON tp.prodid = e.prod_id
+        ${whereClause.replace(/\b(prodid|year|month|trainer|program|category|location)\b/g, 'tp.$1')}
       `;
 
       const result = await pool.query(query, params);
@@ -2394,68 +2399,74 @@ export class DatabaseService {
 
       const query = `
         SELECT 
-          prodid,
-          prodname,
-          category,
-          program,
-          eventdate,
-          productprice,
-          vendor,
-          country,
-          stockquantity,
-          status_event,
-          month,
-          year,
-          repeaterprice,
-          trainerlist,
-          trainer,
-          cotrainer1,
-          cotrainer2,
-          cotrainer3,
-          cotrainer4,
-          cotrainer5,
-          trainercount,
-          location,
-          reportinggroup,
-          split,
-          trainerpercent,
-          revenueaftercommission,
-          (paidtickets + ticketsfree) as totaltickets,
-          ticketsrepeater,
-          ticketsfree,
-          revenue,
-          revenuerepeater,
-          revenuecash,
-          revenuepaypal,
-          totalrevenue,
-          paidtickets,
-          ticketspaypal,
-          ticketscash,
-          hasrevenue,
-          eventhasrev,
-          isshared,
-          trainernormalized,
-          cotrainer1normalized,
-          cotrainer2normalized,
-          cotrainer3normalized,
-          cotrainer4normalized,
-          deletedticket,
-          alejandropercent,
-          trainercountry,
-          cotrainer1country,
-          cotrainer2country,
-          cotrainer3country,
-          cotrainer4country,
-          feeale,
-          eventtype,
-          trainerhomecountry,
-          cotrainer1homecountry,
-          cotrainer2homecountry,
-          cotrainer3homecountry,
-          cotrainer4homecountry
-        FROM public.trainer_productivity
-        ${whereClause}
-        ORDER BY ${sortColumn} ${sortDirection}, prodid DESC
+          tp.prodid,
+          tp.prodname,
+          tp.category,
+          tp.program,
+          tp.eventdate,
+          tp.productprice,
+          tp.vendor,
+          tp.country,
+          tp.stockquantity,
+          tp.status_event,
+          tp.month,
+          tp.year,
+          tp.repeaterprice,
+          tp.trainerlist,
+          tp.trainer,
+          tp.cotrainer1,
+          tp.cotrainer2,
+          tp.cotrainer3,
+          tp.cotrainer4,
+          tp.cotrainer5,
+          tp.trainercount,
+          tp.location,
+          tp.reportinggroup,
+          tp.split,
+          tp.trainerpercent,
+          tp.revenueaftercommission - COALESCE(e.total_expenses, 0) as revenueaftercommission,
+          COALESCE(e.total_expenses, 0) as expenses,
+          (tp.paidtickets + tp.ticketsfree) as totaltickets,
+          tp.ticketsrepeater,
+          tp.ticketsfree,
+          tp.revenue,
+          tp.revenuerepeater,
+          tp.revenuecash,
+          tp.revenuepaypal,
+          tp.totalrevenue,
+          tp.paidtickets,
+          tp.ticketspaypal,
+          tp.ticketscash,
+          tp.hasrevenue,
+          tp.eventhasrev,
+          tp.isshared,
+          tp.trainernormalized,
+          tp.cotrainer1normalized,
+          tp.cotrainer2normalized,
+          tp.cotrainer3normalized,
+          tp.cotrainer4normalized,
+          tp.deletedticket,
+          tp.alejandropercent,
+          tp.trainercountry,
+          tp.cotrainer1country,
+          tp.cotrainer2country,
+          tp.cotrainer3country,
+          tp.cotrainer4country,
+          tp.feeale,
+          tp.eventtype,
+          tp.trainerhomecountry,
+          tp.cotrainer1homecountry,
+          tp.cotrainer2homecountry,
+          tp.cotrainer3homecountry,
+          tp.cotrainer4homecountry
+        FROM public.trainer_productivity tp
+        LEFT JOIN (
+          SELECT prod_id, SUM(amount) as total_expenses
+          FROM expenses
+          GROUP BY prod_id
+        ) e ON tp.prodid = e.prod_id
+        ${whereClause.replace(/\b(prodid|year|month|trainer|program|category|location)\b/g, 'tp.$1')}
+        ORDER BY ${sortColumn.startsWith('tp.') ? sortColumn : 'tp.' + sortColumn} ${sortDirection}, tp.prodid DESC
         ${limitClause}
       `;
 
