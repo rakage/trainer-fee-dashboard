@@ -116,16 +116,16 @@ async function initializeTables() {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS audit_logs (
         id SERIAL PRIMARY KEY,
-        userId TEXT NOT NULL,
+        userid TEXT NOT NULL,
         action TEXT NOT NULL,
-        prodId INTEGER,
+        prodid INTEGER,
         details TEXT NOT NULL,
-        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        createdat TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
     
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_audit_logs_user_action ON audit_logs(userId, action)`);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(createdAt)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_audit_logs_user_action ON audit_logs(userid, action)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(createdat)`);
 
     // Create grace_price_conversion table
     await pool.query(`

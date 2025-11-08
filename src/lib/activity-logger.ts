@@ -32,23 +32,23 @@ export class ActivityLogger {
       await pool.query(`
         CREATE TABLE IF NOT EXISTS audit_logs (
           id SERIAL PRIMARY KEY,
-          userId TEXT NOT NULL,
+          userid TEXT NOT NULL,
           action TEXT NOT NULL,
-          prodId INTEGER,
+          prodid INTEGER,
           details TEXT NOT NULL,
-          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          createdat TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
       `);
 
       // Create index for better performance
       await pool.query(`
         CREATE INDEX IF NOT EXISTS idx_audit_logs_user_action 
-        ON audit_logs(userId, action)
+        ON audit_logs(userid, action)
       `);
       
       await pool.query(`
         CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at 
-        ON audit_logs(createdAt)
+        ON audit_logs(createdat)
       `);
     } catch (error) {
       console.error('Failed to initialize schema:', error);
@@ -68,7 +68,7 @@ export class ActivityLogger {
       const pool = this.getPool();
       
       await pool.query(
-        `INSERT INTO audit_logs (userId, action, prodId, details, createdAt)
+        `INSERT INTO audit_logs (userid, action, prodid, details, createdat)
          VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)`,
         [userId, action, prodId, details]
       );
@@ -103,19 +103,19 @@ export class ActivityLogger {
       }
 
       if (filters.userId) {
-        whereClause += ` AND al.userId = $${paramIndex}`;
+        whereClause += ` AND al.userid = $${paramIndex}`;
         params.push(filters.userId);
         paramIndex++;
       }
 
       if (filters.dateFrom) {
-        whereClause += ` AND DATE(al.createdAt) >= $${paramIndex}`;
+        whereClause += ` AND DATE(al.createdat) >= $${paramIndex}`;
         params.push(filters.dateFrom);
         paramIndex++;
       }
 
       if (filters.dateTo) {
-        whereClause += ` AND DATE(al.createdAt) <= $${paramIndex}`;
+        whereClause += ` AND DATE(al.createdat) <= $${paramIndex}`;
         params.push(filters.dateTo);
         paramIndex++;
       }
@@ -124,7 +124,7 @@ export class ActivityLogger {
       const countResult = await pool.query(
         `SELECT COUNT(*) as total 
          FROM audit_logs al
-         LEFT JOIN users u ON al.userId = u.id
+         LEFT JOIN users u ON al.userid = u.id
          WHERE ${whereClause}`,
         params
       );
@@ -134,17 +134,17 @@ export class ActivityLogger {
       let query = `
         SELECT 
           al.id, 
-          al.userId, 
-          u.name as userName,
-          u.email as userEmail,
+          al.userid, 
+          u.name as username,
+          u.email as useremail,
           al.action, 
-          al.prodId, 
+          al.prodid, 
           al.details, 
-          al.createdAt
+          al.createdat
         FROM audit_logs al
-        LEFT JOIN users u ON al.userId = u.id
+        LEFT JOIN users u ON al.userid = u.id
         WHERE ${whereClause}
-        ORDER BY al.createdAt DESC
+        ORDER BY al.createdat DESC
       `;
 
       // Create a copy of params for the main query
@@ -157,12 +157,18 @@ export class ActivityLogger {
       }
 
       const result = await pool.query(query, queryParams);
-      const logs = result.rows as AuditLog[];
+      const logs = result.rows;
 
       return {
-        data: logs.map(log => ({
-          ...log,
-          createdAt: new Date(log.createdAt),
+        data: logs.map((log: any) => ({
+          id: log.id,
+          userId: log.userid,
+          userName: log.username || 'Unknown User',
+          userEmail: log.useremail || '',
+          action: log.action,
+          prodId: log.prodid,
+          details: log.details,
+          createdAt: log.createdat ? new Date(log.createdat) : new Date(),
         })),
         total,
         page: filters.page,
@@ -188,7 +194,7 @@ export class ActivityLogger {
       
       const result = await pool.query(
         `DELETE FROM audit_logs 
-         WHERE createdAt < CURRENT_TIMESTAMP - INTERVAL '1 day' * $1`,
+         WHERE createdat < CURRENT_TIMESTAMP - INTERVAL '1 day' * $1`,
         [daysToKeep]
       );
       

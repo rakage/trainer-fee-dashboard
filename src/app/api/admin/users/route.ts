@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search');
 
-    const users = UserService.getAllUsers(search || undefined);
+    const users = await UserService.getAllUsers(search || undefined);
     
     // Log the activity
     await ActivityLogger.log(
