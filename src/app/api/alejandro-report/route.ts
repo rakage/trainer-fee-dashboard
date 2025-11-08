@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/middleware';
 import { DatabaseService } from '@/lib/database';
-import { ParamReportingGrpService } from '@/lib/sqlite';
+import { ParamReportingGrpService } from '@/lib/postgres';
 
 export async function GET(request: NextRequest) {
   try {
@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     const reportData = await DatabaseService.getAlejandroReport(year, month);
 
     // Get reporting group parameters
-    const reportingGroupParams = ParamReportingGrpService.getAll();
+    const reportingGroupParams = await ParamReportingGrpService.getAll();
 
     // Calculate Alejandro totals
     const enrichedReportData = reportData.map((row: any) => {

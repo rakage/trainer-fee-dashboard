@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { UserService } from '@/lib/sqlite';
+import { UserService } from '@/lib/postgres';
 import { ActivityLogger } from '@/lib/activity-logger';
 import { UserRole } from '@/types';
 
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user already exists
-    const existingUser = UserService.findByEmail(email);
+    const existingUser = await UserService.findByEmail(email);
     if (existingUser) {
       return NextResponse.json(
         { error: 'User with this email already exists' },

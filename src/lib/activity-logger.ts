@@ -1,5 +1,5 @@
-import { Database } from 'better-sqlite3';
-import { getDatabase } from './sqlite';
+import { Pool } from 'pg';
+import { getPool } from './postgres';
 import { AuditLog } from '@/types';
 
 interface LogFilters {
@@ -20,41 +20,39 @@ interface LogResult {
 }
 
 export class ActivityLogger {
-  private static db: Database | null = null;
-
-  private static getDB(): Database {
-    if (!this.db) {
-      this.db = getDatabase();
-      this.initializeSchema();
-    }
-    return this.db;
+  private static getPool(): Pool {
+    return getPool();
   }
 
-  private static initializeSchema() {
-    const db = this.getDB();
+  private static async initializeSchema() {
+    const pool = this.getPool();
     
-    // Create audit_logs table if it doesn't exist
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS audit_logs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        userId TEXT NOT NULL,
-        action TEXT NOT NULL,
-        prodId INTEGER,
-        details TEXT NOT NULL,
-        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+    try {
+      // Create audit_logs table if it doesn't exist
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS audit_logs (
+          id SERIAL PRIMARY KEY,
+          userId TEXT NOT NULL,
+          action TEXT NOT NULL,
+          prodId INTEGER,
+          details TEXT NOT NULL,
+          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
 
-    // Create index for better performance
-    db.exec(`
-      CREATE INDEX IF NOT EXISTS idx_audit_logs_user_action 
-      ON audit_logs(userId, action)
-    `);
-    
-    db.exec(`
-      CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at 
-      ON audit_logs(createdAt)
-    `);
+      // Create index for better performance
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_audit_logs_user_action 
+        ON audit_logs(userId, action)
+      `);
+      
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at 
+        ON audit_logs(createdAt)
+      `);
+    } catch (error) {
+      console.error('Failed to initialize schema:', error);
+    }
   }
 
   /**
@@ -67,14 +65,13 @@ export class ActivityLogger {
     details: string = ''
   ): Promise<void> {
     try {
-      const db = this.getDB();
+      const pool = this.getPool();
       
-      const stmt = db.prepare(`
-        INSERT INTO audit_logs (userId, action, prodId, details, createdAt)
-        VALUES (?, ?, ?, ?, datetime('now'))
-      `);
-      
-      stmt.run(userId, action, prodId, details);
+      await pool.query(
+        `INSERT INTO audit_logs (userId, action, prodId, details, createdAt)
+         VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)`,
+        [userId, action, prodId, details]
+      );
     } catch (error) {
       console.error('Failed to log activity:', error);
       // Don't throw error to prevent breaking the main application flow
@@ -86,45 +83,52 @@ export class ActivityLogger {
    */
   static async getLogs(filters: LogFilters = {}): Promise<LogResult> {
     try {
-      const db = this.getDB();
+      const pool = this.getPool();
       
       let whereClause = '1=1';
       const params: any[] = [];
+      let paramIndex = 1;
 
       // Build WHERE clause based on filters
       if (filters.search) {
-        whereClause += ` AND (al.details LIKE ? OR al.action LIKE ? OR u.name LIKE ? OR u.email LIKE ?)`;
+        whereClause += ` AND (al.details ILIKE $${paramIndex} OR al.action ILIKE $${paramIndex + 1} OR u.name ILIKE $${paramIndex + 2} OR u.email ILIKE $${paramIndex + 3})`;
         params.push(`%${filters.search}%`, `%${filters.search}%`, `%${filters.search}%`, `%${filters.search}%`);
+        paramIndex += 4;
       }
 
       if (filters.action) {
-        whereClause += ` AND al.action LIKE ?`;
+        whereClause += ` AND al.action ILIKE $${paramIndex}`;
         params.push(`%${filters.action}%`);
+        paramIndex++;
       }
 
       if (filters.userId) {
-        whereClause += ` AND al.userId = ?`;
+        whereClause += ` AND al.userId = $${paramIndex}`;
         params.push(filters.userId);
+        paramIndex++;
       }
 
       if (filters.dateFrom) {
-        whereClause += ` AND date(al.createdAt) >= ?`;
+        whereClause += ` AND DATE(al.createdAt) >= $${paramIndex}`;
         params.push(filters.dateFrom);
+        paramIndex++;
       }
 
       if (filters.dateTo) {
-        whereClause += ` AND date(al.createdAt) <= ?`;
+        whereClause += ` AND DATE(al.createdAt) <= $${paramIndex}`;
         params.push(filters.dateTo);
+        paramIndex++;
       }
 
       // Get total count
-      const countStmt = db.prepare(`
-        SELECT COUNT(*) as total 
-        FROM audit_logs al
-        LEFT JOIN users u ON al.userId = u.id
-        WHERE ${whereClause}
-      `);
-      const { total } = countStmt.get(...params) as { total: number };
+      const countResult = await pool.query(
+        `SELECT COUNT(*) as total 
+         FROM audit_logs al
+         LEFT JOIN users u ON al.userId = u.id
+         WHERE ${whereClause}`,
+        params
+      );
+      const total = parseInt(countResult.rows[0].total);
 
       // Build main query with pagination - join with users table to get user names
       let query = `
@@ -148,12 +152,12 @@ export class ActivityLogger {
       
       if (filters.page && filters.limit) {
         const offset = (filters.page - 1) * filters.limit;
-        query += ` LIMIT ? OFFSET ?`;
+        query += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
         queryParams.push(filters.limit, offset);
       }
 
-      const stmt = db.prepare(query);
-      const logs = stmt.all(...queryParams) as AuditLog[];
+      const result = await pool.query(query, queryParams);
+      const logs = result.rows as AuditLog[];
 
       return {
         data: logs.map(log => ({
@@ -180,15 +184,15 @@ export class ActivityLogger {
    */
   static async cleanupOldLogs(daysToKeep: number = 365): Promise<void> {
     try {
-      const db = this.getDB();
+      const pool = this.getPool();
       
-      const stmt = db.prepare(`
-        DELETE FROM audit_logs 
-        WHERE createdAt < datetime('now', '-${daysToKeep} days')
-      `);
+      const result = await pool.query(
+        `DELETE FROM audit_logs 
+         WHERE createdAt < CURRENT_TIMESTAMP - INTERVAL '1 day' * $1`,
+        [daysToKeep]
+      );
       
-      const result = stmt.run();
-      console.log(`Cleaned up ${result.changes} old audit log entries`);
+      console.log(`Cleaned up ${result.rowCount || 0} old audit log entries`);
     } catch (error) {
       console.error('Failed to cleanup old logs:', error);
     }

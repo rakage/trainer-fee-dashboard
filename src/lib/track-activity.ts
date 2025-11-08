@@ -1,4 +1,4 @@
-import { UserService } from './sqlite';
+import { UserService } from './postgres';
 
 /**
  * Track user activity by updating their last_active_at timestamp

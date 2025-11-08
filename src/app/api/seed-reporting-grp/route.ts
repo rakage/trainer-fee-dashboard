@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/middleware';
-import { ParamReportingGrpService } from '@/lib/sqlite';
+import { ParamReportingGrpService } from '@/lib/postgres';
 
 export async function POST(request: NextRequest) {
   try {

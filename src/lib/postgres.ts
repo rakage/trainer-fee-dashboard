@@ -2,27 +2,215 @@ import { Pool, PoolClient } from 'pg';
 import bcrypt from 'bcryptjs';
 import { User, UserRole } from '@/types';
 
+// Check if we're in build phase - don't initialize anything
+const isBuildPhase = process.env.NEXT_PHASE === 'phase-production-build' || 
+                      process.env.NEXT_PHASE === 'phase-export';
+
 // PostgreSQL connection pool
-const poolConfig = {
-  host: process.env.POSTGRES_HOST || 'localhost',
-  port: parseInt(process.env.POSTGRES_PORT || '5432'),
-  database: process.env.POSTGRES_DATABASE || 'postgres',
-  user: process.env.POSTGRES_USER || 'postgres',
-  password: process.env.POSTGRES_PASSWORD || '',
-  max: 10,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 30000,
-};
+function getPoolConfig() {
+  return {
+    host: process.env.POSTGRES_HOST || 'localhost',
+    port: parseInt(process.env.POSTGRES_PORT || '5432'),
+    database: process.env.POSTGRES_DATABASE || 'postgres',
+    user: process.env.POSTGRES_USER || 'postgres',
+    password: process.env.POSTGRES_PASSWORD || '',
+    max: 10,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 30000,
+  };
+}
 
 let pool: Pool | null = null;
+let cleanupRegistered = false;
+let tablesInitialized = false;
+
+async function initializeTables() {
+  if (tablesInitialized || isBuildPhase) return;
+  
+  const pool = getPool();
+  try {
+    // Create users table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        name TEXT NOT NULL,
+        password TEXT,
+        role TEXT NOT NULL DEFAULT 'viewer',
+        provider TEXT DEFAULT 'credentials',
+        last_active_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)`);
+
+    // Create fee_params table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS fee_params (
+        id SERIAL PRIMARY KEY,
+        program TEXT NOT NULL,
+        category TEXT NOT NULL,
+        venue TEXT NOT NULL,
+        attendance TEXT NOT NULL,
+        percent REAL NOT NULL,
+        concat_key TEXT NOT NULL UNIQUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_fee_concat ON fee_params(concat_key)`);
+
+    // Create trainer_splits table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS trainer_splits (
+        id SERIAL PRIMARY KEY,
+        prod_id INTEGER NOT NULL,
+        row_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        percent REAL NOT NULL,
+        trainer_fee REAL NOT NULL DEFAULT 0,
+        cash_received REAL NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(prod_id, row_id)
+      )
+    `);
+    
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_trainer_splits_prod_id ON trainer_splits(prod_id)`);
+
+    // Create expenses table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS expenses (
+        id SERIAL PRIMARY KEY,
+        prod_id INTEGER NOT NULL,
+        row_id INTEGER NOT NULL,
+        description TEXT NOT NULL,
+        amount REAL NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(prod_id, row_id)
+      )
+    `);
+    
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_expenses_prod_id ON expenses(prod_id)`);
+
+    // Create audit_log table (note: singular, not plural)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS audit_log (
+        id SERIAL PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        action TEXT NOT NULL,
+        prod_id INTEGER NOT NULL,
+        details TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_audit_log_prod_id ON audit_log(prod_id)`);
+    
+    // Also create audit_logs (plural) as an alias/view or table for compatibility
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS audit_logs (
+        id SERIAL PRIMARY KEY,
+        userId TEXT NOT NULL,
+        action TEXT NOT NULL,
+        prodId INTEGER,
+        details TEXT NOT NULL,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_audit_logs_user_action ON audit_logs(userId, action)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(createdAt)`);
+
+    // Create grace_price_conversion table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS grace_price_conversion (
+        id SERIAL PRIMARY KEY,
+        event_type TEXT NOT NULL,
+        event_type_key TEXT NOT NULL,
+        venue TEXT,
+        jpy_price REAL NOT NULL,
+        eur_price REAL NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_grace_price_event_type_key ON grace_price_conversion(event_type_key)`);
+
+    // Create param_reporting_grp table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS param_reporting_grp (
+        id SERIAL PRIMARY KEY,
+        reporting_group TEXT NOT NULL UNIQUE,
+        split TEXT NOT NULL,
+        trainer_percent REAL NOT NULL,
+        alejandro_percent REAL NOT NULL,
+        price REAL,
+        repeater_price REAL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_param_reporting_grp_name ON param_reporting_grp(reporting_group)`);
+
+    tablesInitialized = true;
+    console.log('PostgreSQL tables initialized successfully');
+  } catch (error) {
+    console.error('Error initializing PostgreSQL tables:', error);
+  }
+}
 
 function getPool(): Pool {
+  // Don't create pool during build time or if window is defined (browser)
+  if (isBuildPhase || typeof window !== 'undefined' || process.env.NODE_ENV === 'test') {
+    // Return a stub during build - this won't actually be used
+    return {} as Pool;
+  }
+  
   if (!pool) {
-    pool = new Pool(poolConfig);
+    try {
+      pool = new Pool(getPoolConfig());
+    } catch (error) {
+      console.error('Failed to create PostgreSQL pool:', error);
+      return {} as Pool;
+    }
     
     pool.on('error', (err) => {
       console.error('PostgreSQL pool error:', err);
     });
+    
+    // Initialize tables asynchronously
+    initializeTables().catch(err => {
+      console.error('Failed to initialize tables:', err);
+    });
+    
+    // Register cleanup handlers only once (not during build)
+    if (!cleanupRegistered && !isBuildPhase) {
+      cleanupRegistered = true;
+      
+      const cleanup = () => {
+        if (pool) {
+          pool.end().catch((err) => {
+            console.error('Error closing pool:', err);
+          });
+          pool = null;
+        }
+      };
+      
+      // Handle process termination gracefully
+      if (typeof process !== 'undefined') {
+        process.on('SIGINT', cleanup);
+        process.on('SIGTERM', cleanup);
+        process.on('beforeExit', cleanup);
+      }
+    }
     
     console.log('Connected to PostgreSQL database');
   }
@@ -31,10 +219,16 @@ function getPool(): Pool {
 }
 
 export async function closePool(): Promise<void> {
+  if (isBuildPhase) return;
+  
   if (pool) {
-    await pool.end();
-    pool = null;
-    console.log('PostgreSQL connection closed');
+    try {
+      await pool.end();
+      pool = null;
+      console.log('PostgreSQL connection closed');
+    } catch (error) {
+      console.error('Error closing pool:', error);
+    }
   }
 }
 
@@ -970,8 +1164,9 @@ export class UserService {
 }
 
 // Initialize demo users and seed data on startup for development
-if (process.env.NODE_ENV === 'development') {
-  (async () => {
+// Only run when server actually starts, not during build
+async function initializeData() {
+  if (process.env.NODE_ENV === 'development' && typeof window === 'undefined') {
     try {
       await UserService.createDemoUsers();
       
@@ -1023,8 +1218,11 @@ if (process.env.NODE_ENV === 'development') {
     } catch (e) {
       console.error('Initialization error:', e);
     }
-  })();
+  }
 }
+
+// Export initialization function to be called by server startup
+export { initializeData };
 
 export { getPool };
 export default getPool;

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { UserService } from '@/lib/sqlite';
+import { UserService } from '@/lib/postgres';
 import { ActivityLogger } from '@/lib/activity-logger';
 import bcrypt from 'bcryptjs';
 
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get current user from database
-    const user = UserService.findById(session.user.id);
+    const user = await UserService.findById(session.user.id);
     if (!user) {
       return NextResponse.json(
         { error: 'User not found' },

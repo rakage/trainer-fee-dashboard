@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { FeeParamService } from '@/lib/sqlite';
+import { FeeParamService } from '@/lib/postgres';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { ActivityLogger } from '@/lib/activity-logger';
@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const params = FeeParamService.list();
+    const params = await FeeParamService.list();
     return NextResponse.json({ 
       success: true, 
       data: params.map(p => ({
@@ -71,13 +71,14 @@ export async function POST(request: NextRequest) {
       attendance.trim()
     );
     
-    const existing = FeeParamService.list().find(p => p.concat_key === concatKey);
+    const allParams = await FeeParamService.list();
+    const existing = allParams.find(p => p.concat_key === concatKey);
     const isUpdate = !!existing;
 
     // Convert percentage to decimal
     const percentDecimal = percent / 100;
 
-    FeeParamService.upsertParam({
+    await FeeParamService.upsertParam({
       program: program.trim(),
       category: category.trim(),
       venue: venue.trim(),
@@ -132,7 +133,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     const paramId = parseInt(id);
-    const existing = FeeParamService.getById(paramId);
+    const existing = await FeeParamService.getById(paramId);
     
     if (!existing) {
       return NextResponse.json(

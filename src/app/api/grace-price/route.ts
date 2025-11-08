@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole } from '@/lib/middleware';
-import { GracePriceService } from '@/lib/sqlite';
+import { GracePriceService } from '@/lib/postgres';
 
 export async function GET(request: NextRequest) {
   // Check authentication and require admin role
@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const priceConversions = GracePriceService.getAll();
+    const priceConversions = await GracePriceService.getAll();
     return NextResponse.json({
       success: true,
       data: priceConversions,

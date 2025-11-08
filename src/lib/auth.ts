@@ -2,7 +2,7 @@ import { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import GoogleProvider from 'next-auth/providers/google';
 import { User, UserRole } from '@/types';
-import { UserService } from './sqlite';
+import { UserService } from './postgres';
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -71,7 +71,7 @@ export const authOptions: NextAuthOptions = {
       if (account?.provider === 'google') {
         // Handle Google OAuth user creation/update
         try {
-          const existingUser = UserService.findByEmail(user.email!);
+          const existingUser = await UserService.findByEmail(user.email!);
           if (!existingUser) {
             // Create new user with default viewer role
             const newUser = await UserService.createUser({
@@ -100,7 +100,7 @@ export const authOptions: NextAuthOptions = {
       } else if (account?.provider === 'credentials') {
         // Log credentials login
         try {
-          const existingUser = UserService.findByEmail(user.email!);
+          const existingUser = await UserService.findByEmail(user.email!);
           if (existingUser) {
             const { ActivityLogger } = await import('./activity-logger');
             await ActivityLogger.logLogin(existingUser.id, `User logged in via credentials: ${user.name} (${user.email})`);
@@ -119,7 +119,7 @@ export const authOptions: NextAuthOptions = {
       try {
         if (token?.sub) {
           const { ActivityLogger } = await import('./activity-logger');
-          const user = UserService.findById(token.sub);
+          const user = await UserService.findById(token.sub);
           if (user) {
             await ActivityLogger.logLogout(user.id, `User logged out: ${user.name} (${user.email})`);
           }

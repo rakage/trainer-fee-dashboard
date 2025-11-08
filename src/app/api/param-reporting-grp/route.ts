@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/middleware';
-import { ParamReportingGrpService } from '@/lib/sqlite';
+import { ParamReportingGrpService } from '@/lib/postgres';
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,11 +10,11 @@ export async function GET(request: NextRequest) {
     }
 
     // Auto-seed if table is empty
-    const reportingGroups = ParamReportingGrpService.getAll();
+    const reportingGroups = await ParamReportingGrpService.getAll();
     if (reportingGroups.length === 0) {
-      ParamReportingGrpService.seedDefaults();
+      await ParamReportingGrpService.seedDefaults();
       // Get data again after seeding
-      const seededData = ParamReportingGrpService.getAll();
+      const seededData = await ParamReportingGrpService.getAll();
       return NextResponse.json(seededData);
     }
 

@@ -534,7 +534,7 @@ export class DatabaseService {
       };
     }
 
-    // Group orders by key characteristics and calculate trainer fees using SQLite
+    // Group orders by key characteristics and calculate trainer fees using PostgreSQL
     const tickets: EventTicket[] = [];
     const eventRow = orderResult.recordset[0];
 
@@ -559,8 +559,8 @@ export class DatabaseService {
 
     // Convert grouped data to tickets and calculate trainer fee percentages
     for (const group of Object.values(groupedOrders) as any[]) {
-      // Get the trainer fee percentage from SQLite using the concat key
-      const feePercent = this.getTrainerFeePercent(group.ConcatTrainerPercentKey);
+      // Get the trainer fee percentage from PostgreSQL using the concat key
+      const feePercent = await this.getTrainerFeePercent(group.ConcatTrainerPercentKey);
 
       let unitPrice = group.UnitPrice;
       let priceTotal = group.UnitPrice * group.Quantity;
@@ -641,9 +641,9 @@ export class DatabaseService {
 
   static async getTrainerSplits(prodId: number): Promise<TrainerSplit[]> {
     try {
-      // Use SQLite for trainer splits (app-specific data)
-      const { TrainerSplitService } = require('./sqlite');
-      const rows = TrainerSplitService.getByProdId(prodId);
+      // Use PostgreSQL for trainer splits (app-specific data)
+      const { TrainerSplitService } = require('./postgres');
+      const rows = await TrainerSplitService.getByProdId(prodId);
 
       return rows.map(
         (row: any, index: number): TrainerSplit => ({
@@ -658,16 +658,16 @@ export class DatabaseService {
         })
       );
     } catch (error: any) {
-      console.error('Error getting trainer splits from SQLite:', error);
+      console.error('Error getting trainer splits from PostgreSQL:', error);
       return [];
     }
   }
 
   static async saveTrainerSplit(split: TrainerSplit): Promise<void> {
     try {
-      // Use SQLite for trainer splits (app-specific data)
-      const { TrainerSplitService } = require('./sqlite');
-      TrainerSplitService.upsert({
+      // Use PostgreSQL for trainer splits (app-specific data)
+      const { TrainerSplitService } = require('./postgres');
+      await TrainerSplitService.upsert({
         prod_id: split.ProdID,
         row_id: split.RowId,
         name: split.Name,
@@ -676,27 +676,27 @@ export class DatabaseService {
         cash_received: split.CashReceived,
       });
     } catch (error) {
-      console.error('Error saving trainer split to SQLite:', error);
+      console.error('Error saving trainer split to PostgreSQL:', error);
       throw error;
     }
   }
 
   static async deleteTrainerSplit(prodId: number, rowId: number): Promise<void> {
     try {
-      // Use SQLite for trainer splits (app-specific data)
-      const { TrainerSplitService } = require('./sqlite');
-      TrainerSplitService.delete(prodId, rowId);
+      // Use PostgreSQL for trainer splits (app-specific data)
+      const { TrainerSplitService } = require('./postgres');
+      await TrainerSplitService.delete(prodId, rowId);
     } catch (error) {
-      console.error('Error deleting trainer split from SQLite:', error);
+      console.error('Error deleting trainer split from PostgreSQL:', error);
       throw error;
     }
   }
 
   static async getEventExpenses(prodId: number): Promise<any[]> {
     try {
-      // Use SQLite for expenses (app-specific data)
-      const { ExpenseService } = require('./sqlite');
-      const rows = ExpenseService.getByProdId(prodId);
+      // Use PostgreSQL for expenses (app-specific data)
+      const { ExpenseService } = require('./postgres');
+      const rows = await ExpenseService.getByProdId(prodId);
 
       return rows.map((row: any, index: number): any => ({
         id: index + 1,
@@ -706,46 +706,46 @@ export class DatabaseService {
         Amount: row.amount,
       }));
     } catch (error: any) {
-      console.error('Error getting expenses from SQLite:', error);
+      console.error('Error getting expenses from PostgreSQL:', error);
       return [];
     }
   }
 
   static async saveEventExpense(expense: any): Promise<void> {
     try {
-      // Use SQLite for expenses (app-specific data)
-      const { ExpenseService } = require('./sqlite');
-      ExpenseService.upsert({
+      // Use PostgreSQL for expenses (app-specific data)
+      const { ExpenseService } = require('./postgres');
+      await ExpenseService.upsert({
         prod_id: expense.ProdID,
         row_id: expense.RowId,
         description: expense.Description,
         amount: expense.Amount,
       });
     } catch (error) {
-      console.error('Error saving expense to SQLite:', error);
+      console.error('Error saving expense to PostgreSQL:', error);
       throw error;
     }
   }
 
   static async deleteEventExpense(prodId: number, rowId: number): Promise<void> {
     try {
-      // Use SQLite for expenses (app-specific data)
-      const { ExpenseService } = require('./sqlite');
-      ExpenseService.delete(prodId, rowId);
+      // Use PostgreSQL for expenses (app-specific data)
+      const { ExpenseService } = require('./postgres');
+      await ExpenseService.delete(prodId, rowId);
     } catch (error) {
-      console.error('Error deleting expense from SQLite:', error);
+      console.error('Error deleting expense from PostgreSQL:', error);
       throw error;
     }
   }
 
-  static getTrainerFeePercent(concatKey: string): number {
+  static async getTrainerFeePercent(concatKey: string): Promise<number> {
     try {
-      // Import SQLite service to get fee percentage
-      const { FeeParamService } = require('./sqlite');
+      // Import PostgreSQL service to get fee percentage
+      const { FeeParamService } = require('./postgres');
       const parts = concatKey.split('-');
       if (parts.length >= 4) {
         const [program, category, venue, attendance] = parts;
-        const percent = FeeParamService.getPercent(program, category, venue, attendance);
+        const percent = await FeeParamService.getPercent(program, category, venue, attendance);
         return percent || 0;
       }
       return 0;
@@ -762,11 +762,11 @@ export class DatabaseService {
     details: string
   ): Promise<void> {
     try {
-      // Use SQLite for audit logging (app-specific data)
-      const { AuditService } = require('./sqlite');
-      AuditService.log(userId, action, prodId, details);
+      // Use PostgreSQL for audit logging (app-specific data)
+      const { AuditService } = require('./postgres');
+      await AuditService.log(userId, action, prodId, details);
     } catch (error) {
-      console.error('Failed to log audit event to SQLite:', error);
+      console.error('Failed to log audit event to PostgreSQL:', error);
       // Don't throw error for audit logging failures
     }
   }
@@ -778,13 +778,13 @@ export class DatabaseService {
     venue?: string
   ): Promise<{ jpyPrice: number; eurPrice: number } | null> {
     try {
-      const { GracePriceService } = require('./sqlite');
+      const { GracePriceService } = require('./postgres');
       let eventTypeKey = `${program}-${category}-${tierLevel === 'Free' ? '' : tierLevel}`;
       if (venue === 'Online') {
         eventTypeKey += '-Online';
       }
 
-      const conversions = GracePriceService.getAll();
+      const conversions = await GracePriceService.getAll();
       
       console.log('--- Database Lookup ---');
       console.log(`Looking for: ${eventTypeKey}`);
@@ -1683,13 +1683,13 @@ export class DatabaseService {
       const result = await request.query(query);
       const events = result.recordset;
 
-      // Now get expenses data for each event using SQLite
-      const { ExpenseService } = require('./sqlite');
+      // Now get expenses data for each event using PostgreSQL
+      const { ExpenseService } = require('./postgres');
 
       // Add expenses data to each event
-      const eventsWithExpenses = events.map((event: any) => {
+      const eventsWithExpenses = await Promise.all(events.map(async (event: any) => {
         try {
-          const expenses = ExpenseService.getByProdId(event.ProdID);
+          const expenses = await ExpenseService.getByProdId(event.ProdID);
           const totalExpenses = expenses.reduce(
             (sum: number, expense: any) => sum + (expense.amount || 0),
             0
@@ -1742,7 +1742,7 @@ export class DatabaseService {
           const concatKey = `${program}-${category}-${venue}-${attendance}`;
 
           // Get the proper trainer fee percentage
-          const trainerFeePercent = this.getTrainerFeePercent(concatKey);
+          const trainerFeePercent = await this.getTrainerFeePercent(concatKey);
 
           // Calculate Alejandro Fee: (Total Revenue - Total Expenses) * Trainer Fee %
           // Note: trainerFeePercent is already in decimal format (0.3 for 30%)
@@ -1767,7 +1767,7 @@ export class DatabaseService {
             NetRevenue: event.TotalRevenue,
           };
         }
-      });
+      }));
 
       return eventsWithExpenses;
     } catch (error) {

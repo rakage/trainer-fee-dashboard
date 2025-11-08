@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getConnection } from '@/lib/database';
 import { requireRole } from '@/lib/middleware';
-import { GracePriceService, FeeParamService, UserService } from '@/lib/sqlite';
+import { GracePriceService, FeeParamService, UserService } from '@/lib/postgres';
 
 // Sample data from the specification
 const sampleEvent = {
