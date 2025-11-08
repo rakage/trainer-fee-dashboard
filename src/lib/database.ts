@@ -1,6 +1,13 @@
 ﻿import sql, { ConnectionPool, Request } from 'mssql';
 import { Pool as PgPool, PoolClient } from 'pg';
 import { EventListResponse, EventDetail, EventTicket, TrainerSplit } from '@/types';
+import {
+  TrainerSplitService,
+  ExpenseService,
+  FeeParamService,
+  AuditService,
+  GracePriceService,
+} from './postgres';
 
 interface DatabaseConfig {
   server: string;
@@ -642,7 +649,6 @@ export class DatabaseService {
   static async getTrainerSplits(prodId: number): Promise<TrainerSplit[]> {
     try {
       // Use PostgreSQL for trainer splits (app-specific data)
-      const { TrainerSplitService } = require('./postgres');
       const rows = await TrainerSplitService.getByProdId(prodId);
 
       return rows.map(
@@ -666,7 +672,6 @@ export class DatabaseService {
   static async saveTrainerSplit(split: TrainerSplit): Promise<void> {
     try {
       // Use PostgreSQL for trainer splits (app-specific data)
-      const { TrainerSplitService } = require('./postgres');
       await TrainerSplitService.upsert({
         prod_id: split.ProdID,
         row_id: split.RowId,
@@ -684,7 +689,6 @@ export class DatabaseService {
   static async deleteTrainerSplit(prodId: number, rowId: number): Promise<void> {
     try {
       // Use PostgreSQL for trainer splits (app-specific data)
-      const { TrainerSplitService } = require('./postgres');
       await TrainerSplitService.delete(prodId, rowId);
     } catch (error) {
       console.error('Error deleting trainer split from PostgreSQL:', error);
@@ -695,7 +699,7 @@ export class DatabaseService {
   static async getEventExpenses(prodId: number): Promise<any[]> {
     try {
       // Use PostgreSQL for expenses (app-specific data)
-      const { ExpenseService } = require('./postgres');
+
       const rows = await ExpenseService.getByProdId(prodId);
 
       return rows.map((row: any, index: number): any => ({
@@ -714,7 +718,7 @@ export class DatabaseService {
   static async saveEventExpense(expense: any): Promise<void> {
     try {
       // Use PostgreSQL for expenses (app-specific data)
-      const { ExpenseService } = require('./postgres');
+
       await ExpenseService.upsert({
         prod_id: expense.ProdID,
         row_id: expense.RowId,
@@ -730,7 +734,7 @@ export class DatabaseService {
   static async deleteEventExpense(prodId: number, rowId: number): Promise<void> {
     try {
       // Use PostgreSQL for expenses (app-specific data)
-      const { ExpenseService } = require('./postgres');
+
       await ExpenseService.delete(prodId, rowId);
     } catch (error) {
       console.error('Error deleting expense from PostgreSQL:', error);
@@ -741,7 +745,7 @@ export class DatabaseService {
   static async getTrainerFeePercent(concatKey: string): Promise<number> {
     try {
       // Import PostgreSQL service to get fee percentage
-      const { FeeParamService } = require('./postgres');
+
       const parts = concatKey.split('-');
       if (parts.length >= 4) {
         const [program, category, venue, attendance] = parts;
@@ -763,7 +767,7 @@ export class DatabaseService {
   ): Promise<void> {
     try {
       // Use PostgreSQL for audit logging (app-specific data)
-      const { AuditService } = require('./postgres');
+
       await AuditService.log(userId, action, prodId, details);
     } catch (error) {
       console.error('Failed to log audit event to PostgreSQL:', error);
@@ -778,7 +782,7 @@ export class DatabaseService {
     venue?: string
   ): Promise<{ jpyPrice: number; eurPrice: number } | null> {
     try {
-      const { GracePriceService } = require('./postgres');
+
       let eventTypeKey = `${program}-${category}-${tierLevel === 'Free' ? '' : tierLevel}`;
       if (venue === 'Online') {
         eventTypeKey += '-Online';
@@ -1684,7 +1688,7 @@ export class DatabaseService {
       const events = result.recordset;
 
       // Now get expenses data for each event using PostgreSQL
-      const { ExpenseService } = require('./postgres');
+
 
       // Add expenses data to each event
       const eventsWithExpenses = await Promise.all(events.map(async (event: any) => {
