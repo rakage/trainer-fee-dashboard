@@ -21,6 +21,7 @@ import {
   TrainersEventsData,
 } from '@/components/dashboard/columns/trainers-events-columns';
 import { MultiSelect } from '@/components/ui/multi-select';
+import { EventDetailsModal } from '@/components/dashboard/event-details-modal';
 
 const monthOptions = [
   { value: 'all', label: 'All Months' },
@@ -63,6 +64,8 @@ export default function TrainersEventsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [cardsLoading, setCardsLoading] = useState(false);
   const [tableLoading, setTableLoading] = useState(false);
+  const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Reset pagination when sorting changes
   React.useEffect(() => {
@@ -212,6 +215,11 @@ export default function TrainersEventsPage() {
     setSelectedCategories([]);
     setSearchQuery('');
     setPagination({ pageIndex: 0, pageSize: 10 }); // Reset to first page
+  };
+
+  const handleRowClick = (prodid: number) => {
+    setSelectedEventId(prodid);
+    setIsModalOpen(true);
   };
 
   const exportToCSV = () => {
@@ -501,9 +509,16 @@ export default function TrainersEventsPage() {
               sorting={sorting}
               onSortingChange={setSorting}
               isLoading={isFetching}
+              onRowClick={(row) => handleRowClick(row.prodid)}
             />
           </CardContent>
         </Card>
+
+        <EventDetailsModal
+          prodid={selectedEventId}
+          open={isModalOpen}
+          onOpenChange={setIsModalOpen}
+        />
       </div>
     </DashboardLayout>
   );
