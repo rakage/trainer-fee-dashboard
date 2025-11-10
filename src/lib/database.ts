@@ -3230,14 +3230,22 @@ export class DatabaseService {
       const pgPool = await getPostgresConnection();
       const result = await pgPool.query(
         `SELECT 
-          prodid,
-          prodname,
-          trainer as maintrainer,
-          location,
-          country,
-          status_event as status
-        FROM public.trainer_productivity
-        WHERE prodid = $1
+          tp.prodid,
+          tp.prodname,
+          tp.trainer as maintrainer,
+          tp.location,
+          tp.country,
+          tp.status_event as status,
+          tp.totalrevenue as revenue,
+          tp.revenueaftercommission - COALESCE(e.total_expenses, 0) as profit,
+          COALESCE(e.total_expenses, 0) as expenses
+        FROM public.trainer_productivity tp
+        LEFT JOIN (
+          SELECT prod_id, SUM(amount) as total_expenses
+          FROM expenses
+          GROUP BY prod_id
+        ) e ON tp.prodid = e.prod_id
+        WHERE tp.prodid = $1
         LIMIT 1`,
         [prodid]
       );

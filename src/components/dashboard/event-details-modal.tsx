@@ -28,6 +28,9 @@ interface EventDetails {
   location: string | null;
   country: string;
   status: string;
+  revenue: number;
+  profit: number;
+  expenses: number;
 }
 
 interface Ticket {
@@ -93,7 +96,7 @@ export function EventDetailsModal({ prodid, open, onOpenChange }: EventDetailsMo
               </div>
               <div className="col-span-2">
                 <h3 className="text-sm font-medium text-muted-foreground">Product Name</h3>
-                <p className="text-lg">{eventDetails.prodname}</p>
+                <p className="text-lg break-words">{eventDetails.prodname || 'N/A'}</p>
               </div>
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground">Main Trainer</h3>
@@ -103,10 +106,28 @@ export function EventDetailsModal({ prodid, open, onOpenChange }: EventDetailsMo
                 <h3 className="text-sm font-medium text-muted-foreground">Country</h3>
                 <p className="text-lg">{eventDetails.country}</p>
               </div>
-              <div className="col-span-2">
+              <div>
                 <h3 className="text-sm font-medium text-muted-foreground">Location</h3>
                 <p className="text-lg">
                   {eventDetails.location || <span className="text-muted-foreground">N/A</span>}
+                </p>
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground">Revenue</h3>
+                <p className="text-lg font-semibold text-green-600">
+                  {formatCurrency(eventDetails.revenue)}
+                </p>
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground">Expenses</h3>
+                <p className="text-lg font-semibold text-red-600">
+                  {formatCurrency(eventDetails.expenses)}
+                </p>
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground">Profit</h3>
+                <p className="text-lg font-semibold text-blue-600">
+                  {formatCurrency(eventDetails.profit)}
                 </p>
               </div>
             </div>
