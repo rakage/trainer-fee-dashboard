@@ -3354,6 +3354,44 @@ export class DatabaseService {
       const pool = await getConnection();
       const request = new Request(pool);
 
+      // First get the event details to check if it's in Japan
+      const eventInfoQuery = `
+        SELECT TOP 1
+          p.id as ProdID,
+          p.name as ProdName,
+          c.name as Category,
+          sao2.name as Program,
+          sao.Name as Country,
+          CASE 
+            WHEN p.name LIKE '%Online%' and p.name LIKE '%Global%' THEN 'OnlineGlobal'
+            WHEN p.name LIKE '%Online%' or p.name LIKE '%En Linea%' or p.name LIKE '%En Línea%' THEN 'Online'
+            WHEN p.name LIKE '%Venue,%' THEN 'Venue'
+            WHEN p.name LIKE '%Presencial%' THEN 'Venue'
+            WHEN p.name LIKE 'ON DEMAND!%' THEN 'On Demand'
+            WHEN p.name LIKE 'ISOLATION INSPIRATION Workshop%' or p.name LIKE 'SALSATION Workshop with%' THEN 'Venue'
+            WHEN p.id = 68513 THEN 'Venue'
+            WHEN p.name like '%THE SALSATION BLAST%' or p.name like '%SALSATION Method Training%' THEN 'Venue'
+            ELSE NULL
+          END AS Location
+        FROM product p
+        LEFT JOIN Product_Category_Mapping pcm ON p.id = pcm.ProductId
+        LEFT JOIN Category c ON pcm.CategoryId = c.id
+        LEFT JOIN Product_SpecificationAttribute_Mapping psm ON p.Id = psm.productid
+        LEFT JOIN SpecificationAttributeOption sao ON psm.SpecificationAttributeOptionId = sao.Id 
+        LEFT JOIN SpecificationAttribute sa ON sao.SpecificationAttributeId = sa.Id
+        LEFT JOIN Product_SpecificationAttribute_Mapping psm2 ON p.Id = psm2.productid
+        LEFT JOIN SpecificationAttributeOption sao2 ON psm2.SpecificationAttributeOptionId = sao2.Id 
+        LEFT JOIN SpecificationAttribute sa2 ON sao2.SpecificationAttributeId = sa2.Id
+        WHERE sa.id = 10
+          AND sa2.id = 6
+          AND p.id = @prodid
+      `;
+
+      const eventInfoRequest = new Request(pool);
+      eventInfoRequest.input('prodid', sql.Int, prodid);
+      const eventInfoResult = await eventInfoRequest.query(eventInfoQuery);
+      const eventInfo = eventInfoResult.recordset[0];
+
       const query = `
         WITH base_order as (
           select distinct
@@ -3520,6 +3558,60 @@ export class DatabaseService {
 
       request.input('prodid', sql.Int, prodid);
       const result = await request.query(query);
+
+      // Apply JPY conversion if the event is in Japan
+      if (eventInfo) {
+        const isJapan = 
+          eventInfo.Country?.toLowerCase().includes('japan') ||
+          eventInfo.Country?.toLowerCase().includes('jp');
+
+        if (isJapan) {
+          console.log('\n=== APPLYING JPY CONVERSION TO TICKETS ===');
+          console.log(`Event: ${eventInfo.ProdName}`);
+          console.log(`Country: ${eventInfo.Country}`);
+          
+          // Apply conversion to each ticket
+          const convertedTickets = await Promise.all(
+            result.recordset.map(async (ticket: any) => {
+              if (ticket.TierLevel) {
+                try {
+                  const { program, category } = this.extractProgramAndCategory(eventInfo.ProdName || '');
+                  const tierLevel = ticket.TierLevel;
+                  const venue = eventInfo.Location || 'Unknown';
+
+                  console.log(`\nConverting ticket: TierLevel=${tierLevel}, PriceTotal=${ticket.PriceTotal}`);
+
+                  // Convert PriceTotal using grace price conversion
+                  const jpyAmount = await this.convertEurToJpy(
+                    ticket.PriceTotal,
+                    program,
+                    category,
+                    tierLevel,
+                    venue
+                  );
+
+                  if (jpyAmount !== null) {
+                    console.log(`✓ Converted: €${ticket.PriceTotal} → ¥${jpyAmount.toLocaleString('ja-JP')}`);
+                    return {
+                      ...ticket,
+                      PriceTotal: jpyAmount,
+                      UnitPrice: jpyAmount / (ticket.quantity || 1),
+                    };
+                  } else {
+                    console.log(`✗ No conversion found for TierLevel: ${tierLevel}`);
+                  }
+                } catch (error) {
+                  console.error('Error converting ticket price:', error);
+                }
+              }
+              return ticket;
+            })
+          );
+
+          console.log('=== END JPY CONVERSION ===\n');
+          return convertedTickets;
+        }
+      }
 
       return result.recordset;
     } catch (error) {
