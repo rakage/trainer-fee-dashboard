@@ -5,10 +5,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Trash2, Save } from 'lucide-react';
 import { EventDetail, Expense, SupportedCurrency } from '@/types';
 import { formatCurrency } from '@/lib/utils';
-import { formatCurrencyAmount } from '@/lib/currency';
+import { formatCurrencyAmount, getCurrencyOptions } from '@/lib/currency';
 
 interface ExpensesEditorProps {
   eventId: number;
@@ -26,6 +27,7 @@ export function ExpensesEditor({ eventId, event, trainerFee, trainerName, onExpe
       ProdID: eventId,
       RowId: 1,
       Description: '',
+      Currency: (event.Currency as SupportedCurrency) || 'EUR',
       Amount: 0,
     }
   ]);
@@ -108,6 +110,7 @@ export function ExpensesEditor({ eventId, event, trainerFee, trainerName, onExpe
       ProdID: eventId,
       RowId: expenses.length + 1,
       Description: '',
+      Currency: (event.Currency as SupportedCurrency) || 'EUR',
       Amount: 0,
     };
     setExpenses([...expenses, newRow]);
@@ -228,6 +231,7 @@ export function ExpensesEditor({ eventId, event, trainerFee, trainerName, onExpe
               <TableHeader className="sticky top-0 bg-white z-10">
                 <TableRow>
                   <TableHead>Description</TableHead>
+                  <TableHead className="w-[140px]">Currency</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
                   <TableHead className="w-[50px]"></TableHead>
                 </TableRow>
@@ -242,6 +246,23 @@ export function ExpensesEditor({ eventId, event, trainerFee, trainerName, onExpe
                         placeholder="Expense description"
                         className="min-w-[200px]"
                       />
+                    </TableCell>
+                    <TableCell>
+                      <Select
+                        value={expense.Currency || 'EUR'}
+                        onValueChange={(value) => updateExpense(index, 'Currency', value as SupportedCurrency)}
+                      >
+                        <SelectTrigger className="w-[120px]">
+                          <SelectValue placeholder="Currency" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {getCurrencyOptions().map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end">

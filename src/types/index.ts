@@ -68,6 +68,7 @@ export interface Expense {
   ProdID: number;
   RowId: number;
   Description: string;
+  Currency?: SupportedCurrency;
   Amount: number;
 }
 

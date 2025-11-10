@@ -89,6 +89,7 @@ async function initializeTables() {
         prod_id INTEGER NOT NULL,
         row_id INTEGER NOT NULL,
         description TEXT NOT NULL,
+        currency TEXT DEFAULT 'EUR',
         amount REAL NOT NULL DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -97,6 +98,13 @@ async function initializeTables() {
     `);
     
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_expenses_prod_id ON expenses(prod_id)`);
+
+    // Add currency column if it doesn't exist (for existing databases)
+    try {
+      await pool.query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'EUR'`);
+    } catch (error) {
+      // Column already exists or error occurred, ignore
+    }
 
     // Create audit_log table (note: singular, not plural)
     await pool.query(`
@@ -296,6 +304,7 @@ export class ExpenseService {
     prod_id: number;
     row_id: number;
     description: string;
+    currency?: string;
     amount: number;
   }): Promise<void> {
     const client = getPool();
@@ -308,15 +317,15 @@ export class ExpenseService {
     if (existing.rows.length > 0) {
       await client.query(
         `UPDATE expenses 
-         SET description = $1, amount = $2, updated_at = CURRENT_TIMESTAMP 
-         WHERE prod_id = $3 AND row_id = $4`,
-        [expense.description, expense.amount, expense.prod_id, expense.row_id]
+         SET description = $1, currency = $2, amount = $3, updated_at = CURRENT_TIMESTAMP 
+         WHERE prod_id = $4 AND row_id = $5`,
+        [expense.description, expense.currency || 'EUR', expense.amount, expense.prod_id, expense.row_id]
       );
     } else {
       await client.query(
-        `INSERT INTO expenses (prod_id, row_id, description, amount) 
-         VALUES ($1, $2, $3, $4)`,
-        [expense.prod_id, expense.row_id, expense.description, expense.amount]
+        `INSERT INTO expenses (prod_id, row_id, description, currency, amount) 
+         VALUES ($1, $2, $3, $4, $5)`,
+        [expense.prod_id, expense.row_id, expense.description, expense.currency || 'EUR', expense.amount]
       );
     }
   }

@@ -707,6 +707,7 @@ export class DatabaseService {
         ProdID: row.prod_id,
         RowId: row.row_id,
         Description: row.description,
+        Currency: row.currency || 'EUR',
         Amount: row.amount,
       }));
     } catch (error: any) {
@@ -723,6 +724,7 @@ export class DatabaseService {
         prod_id: expense.ProdID,
         row_id: expense.RowId,
         description: expense.Description,
+        currency: expense.Currency,
         amount: expense.Amount,
       });
     } catch (error) {

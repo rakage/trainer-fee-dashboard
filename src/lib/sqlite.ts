@@ -152,6 +152,7 @@ function initializeTables() {
       prod_id INTEGER NOT NULL,
       row_id INTEGER NOT NULL,
       description TEXT NOT NULL,
+      currency TEXT DEFAULT 'EUR',
       amount REAL NOT NULL DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -159,6 +160,13 @@ function initializeTables() {
     )
   `
   ).run();
+
+  // Add currency column if it doesn't exist (for existing databases)
+  try {
+    db.prepare('ALTER TABLE expenses ADD COLUMN currency TEXT DEFAULT \'EUR\'').run();
+  } catch (error) {
+    // Column already exists, ignore error
+  }
 
   // Create audit log table
   db.prepare(
@@ -339,6 +347,7 @@ export class ExpenseService {
     prod_id: number;
     row_id: number;
     description: string;
+    currency?: string;
     amount: number;
   }): void {
     const database = getDatabase();
@@ -350,20 +359,20 @@ export class ExpenseService {
         .prepare(
           `
         UPDATE expenses 
-        SET description = ?, amount = ?, updated_at = CURRENT_TIMESTAMP 
+        SET description = ?, currency = ?, amount = ?, updated_at = CURRENT_TIMESTAMP 
         WHERE prod_id = ? AND row_id = ?
       `
         )
-        .run(expense.description, expense.amount, expense.prod_id, expense.row_id);
+        .run(expense.description, expense.currency || 'EUR', expense.amount, expense.prod_id, expense.row_id);
     } else {
       database
         .prepare(
           `
-        INSERT INTO expenses (prod_id, row_id, description, amount) 
-        VALUES (?, ?, ?, ?)
+        INSERT INTO expenses (prod_id, row_id, description, currency, amount) 
+        VALUES (?, ?, ?, ?, ?)
       `
         )
-        .run(expense.prod_id, expense.row_id, expense.description, expense.amount);
+        .run(expense.prod_id, expense.row_id, expense.description, expense.currency || 'EUR', expense.amount);
     }
   }
 
