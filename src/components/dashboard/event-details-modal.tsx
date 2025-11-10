@@ -31,6 +31,7 @@ interface EventDetails {
   revenue: number;
   profit: number;
   expenses: number;
+  currency?: string;
 }
 
 interface Ticket {
@@ -61,6 +62,10 @@ export function EventDetailsModal({ prodid, open, onOpenChange }: EventDetailsMo
 
   const eventDetails: EventDetails | null = data?.eventDetails || null;
   const tickets: Ticket[] = data?.tickets || [];
+
+  // Determine currency symbol
+  const currency = eventDetails?.currency || 'EUR';
+  const currencySymbol = currency === 'JPY' ? '¥' : '€';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -115,19 +120,28 @@ export function EventDetailsModal({ prodid, open, onOpenChange }: EventDetailsMo
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground">Revenue</h3>
                 <p className="text-lg font-semibold text-green-600">
-                  {formatCurrency(eventDetails.revenue)}
+                  {currencySymbol}{currency === 'JPY' 
+                    ? Math.round(eventDetails.revenue).toLocaleString('ja-JP')
+                    : eventDetails.revenue.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                  }
                 </p>
               </div>
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground">Expenses</h3>
                 <p className="text-lg font-semibold text-red-600">
-                  {formatCurrency(eventDetails.expenses)}
+                  {currencySymbol}{currency === 'JPY' 
+                    ? Math.round(eventDetails.expenses).toLocaleString('ja-JP')
+                    : eventDetails.expenses.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                  }
                 </p>
               </div>
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground">Profit</h3>
                 <p className="text-lg font-semibold text-blue-600">
-                  {formatCurrency(eventDetails.profit)}
+                  {currencySymbol}{currency === 'JPY' 
+                    ? Math.round(eventDetails.profit).toLocaleString('ja-JP')
+                    : eventDetails.profit.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                  }
                 </p>
               </div>
             </div>
@@ -161,7 +175,10 @@ export function EventDetailsModal({ prodid, open, onOpenChange }: EventDetailsMo
                           <TableCell>{new Date(ticket.EventDate).toLocaleDateString()}</TableCell>
                           <TableCell className="text-right">{ticket.quantity}</TableCell>
                           <TableCell className="text-right">
-                            {formatCurrency(ticket.PriceTotal)}
+                            {currencySymbol}{currency === 'JPY' 
+                              ? Math.round(ticket.PriceTotal).toLocaleString('ja-JP')
+                              : ticket.PriceTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                            }
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline">{ticket.PaymentMethod}</Badge>
