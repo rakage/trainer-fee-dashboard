@@ -77,15 +77,15 @@ let pgPool: PgPool | null = null;
 export async function getPostgresConnection(): Promise<PgPool> {
   if (!pgPool) {
     pgPool = new PgPool(pgConfig);
-    
+
     pgPool.on('error', (err) => {
       console.error('PostgreSQL pool error:', err);
       pgPool = null;
     });
-    
+
     console.log('Connected to PostgreSQL database');
   }
-  
+
   return pgPool;
 }
 
@@ -116,7 +116,7 @@ export async function getConnection(): Promise<ConnectionPool> {
       pool = null;
     }
   }
-  
+
   // Need to create a new connection
   if (pool && !pool.connected && !pool.connecting) {
     console.log('Pool exists but not connected, closing and recreating...');
@@ -127,16 +127,16 @@ export async function getConnection(): Promise<ConnectionPool> {
     }
     pool = null;
   }
-  
+
   // Create new pool
   pool = new sql.ConnectionPool(config);
-  
+
   // Set up event listeners to track connection state
   pool.on('error', (err) => {
     console.error('Database pool error:', err);
     pool = null;
   });
-  
+
   try {
     await pool.connect();
     console.log('Connected to MSSQL database');
@@ -145,7 +145,7 @@ export async function getConnection(): Promise<ConnectionPool> {
     pool = null;
     throw err;
   }
-  
+
   return pool;
 }
 
@@ -583,13 +583,13 @@ export class DatabaseService {
           const { program, category } = this.extractProgramAndCategory(eventRow.ProdName || '');
           const tierLevel = group.TierLevel;
           const venue = eventRow.Location || 'Unknown';
-          
+
           // Generate event_type_key to match against database
           let eventTypeKey = `${program}-${category}-${tierLevel === 'Free' ? '' : tierLevel}`;
           if (venue === 'Online') {
             eventTypeKey += '-Online';
           }
-          
+
           console.log('\n=== JPY CONVERSION ATTEMPT ===');
           console.log(`Event: ${eventRow.ProdName}`);
           console.log(`Country: ${eventRow.Country}`);
@@ -598,7 +598,13 @@ export class DatabaseService {
           console.log(`EUR Unit Price: ${unitPrice}`);
 
           // Convert EUR to JPY
-          const jpyAmount = await this.convertEurToJpy(unitPrice, program, category, tierLevel, venue);
+          const jpyAmount = await this.convertEurToJpy(
+            unitPrice,
+            program,
+            category,
+            tierLevel,
+            venue
+          );
           if (jpyAmount !== null) {
             unitPrice = jpyAmount;
             priceTotal = jpyAmount * group.Quantity;
@@ -784,23 +790,24 @@ export class DatabaseService {
     venue?: string
   ): Promise<{ jpyPrice: number; eurPrice: number } | null> {
     try {
-
       let eventTypeKey = `${program}-${category}-${tierLevel === 'Free' ? '' : tierLevel}`;
       if (venue === 'Online') {
         eventTypeKey += '-Online';
       }
 
       const conversions = await GracePriceService.getAll();
-      
+
       console.log('--- Database Lookup ---');
       console.log(`Looking for: ${eventTypeKey}`);
       console.log(`Available keys in database (${conversions.length} total):`);
       conversions.forEach((c: any) => {
-        console.log(`  - ${c.eventTypeKey} (JPY: ¥${c.jpyPrice.toLocaleString('ja-JP')}, EUR: €${c.eurPrice})`);
+        console.log(
+          `  - ${c.eventTypeKey} (JPY: ¥${c.jpyPrice.toLocaleString('ja-JP')}, EUR: €${c.eurPrice})`
+        );
       });
-      
+
       const conversion = conversions.find((c: any) => c.eventTypeKey === eventTypeKey);
-      
+
       if (conversion) {
         console.log(`Match found: ${eventTypeKey}`);
       } else {
@@ -1691,89 +1698,90 @@ export class DatabaseService {
 
       // Now get expenses data for each event using PostgreSQL
 
-
       // Add expenses data to each event
-      const eventsWithExpenses = await Promise.all(events.map(async (event: any) => {
-        try {
-          const expenses = await ExpenseService.getByProdId(event.ProdID);
-          const totalExpenses = expenses.reduce(
-            (sum: number, expense: any) => sum + (expense.amount || 0),
-            0
-          );
+      const eventsWithExpenses = await Promise.all(
+        events.map(async (event: any) => {
+          try {
+            const expenses = await ExpenseService.getByProdId(event.ProdID);
+            const totalExpenses = expenses.reduce(
+              (sum: number, expense: any) => sum + (expense.amount || 0),
+              0
+            );
 
-          // Calculate the net revenue (Total Revenue - Total Expenses)
-          const netRevenue = event.TotalRevenue - totalExpenses;
+            // Calculate the net revenue (Total Revenue - Total Expenses)
+            const netRevenue = event.TotalRevenue - totalExpenses;
 
-          // Determine the trainer fee percentage based on event characteristics
-          // We need to construct the ConcatTrainerPercentKey from the event data
-          // Format: Program-Category-Venue-Attendance
-          const program = event.Program || '';
-          const category = event.Category || '';
+            // Determine the trainer fee percentage based on event characteristics
+            // We need to construct the ConcatTrainerPercentKey from the event data
+            // Format: Program-Category-Venue-Attendance
+            const program = event.Program || '';
+            const category = event.Category || '';
 
-          // Determine venue/location based on event name patterns (similar to existing logic)
-          let venue = 'Venue'; // Default
-          if (event.ProdName) {
-            const prodNameLower = event.ProdName.toLowerCase();
-            if (prodNameLower.includes('online') && prodNameLower.includes('global')) {
-              venue = 'OnlineGlobal';
-            } else if (
-              prodNameLower.includes('online') ||
-              prodNameLower.includes('en linea') ||
-              prodNameLower.includes('en línea')
-            ) {
-              venue = 'Online';
-            } else if (prodNameLower.includes('venue,') || prodNameLower.includes('presencial')) {
-              venue = 'Venue';
-            } else if (prodNameLower.includes('on demand')) {
-              venue = 'On Demand';
-            } else if (
-              prodNameLower.includes('isolation inspiration workshop') ||
-              prodNameLower.includes('salsation workshop with')
-            ) {
-              venue = 'Venue';
-            } else if (event.ProdID === 68513) {
-              venue = 'Venue'; // Cruise Training
-            } else if (
-              prodNameLower.includes('the salsation blast') ||
-              prodNameLower.includes('salsation method training')
-            ) {
-              venue = 'Venue';
+            // Determine venue/location based on event name patterns (similar to existing logic)
+            let venue = 'Venue'; // Default
+            if (event.ProdName) {
+              const prodNameLower = event.ProdName.toLowerCase();
+              if (prodNameLower.includes('online') && prodNameLower.includes('global')) {
+                venue = 'OnlineGlobal';
+              } else if (
+                prodNameLower.includes('online') ||
+                prodNameLower.includes('en linea') ||
+                prodNameLower.includes('en línea')
+              ) {
+                venue = 'Online';
+              } else if (prodNameLower.includes('venue,') || prodNameLower.includes('presencial')) {
+                venue = 'Venue';
+              } else if (prodNameLower.includes('on demand')) {
+                venue = 'On Demand';
+              } else if (
+                prodNameLower.includes('isolation inspiration workshop') ||
+                prodNameLower.includes('salsation workshop with')
+              ) {
+                venue = 'Venue';
+              } else if (event.ProdID === 68513) {
+                venue = 'Venue'; // Cruise Training
+              } else if (
+                prodNameLower.includes('the salsation blast') ||
+                prodNameLower.includes('salsation method training')
+              ) {
+                venue = 'Venue';
+              }
             }
+
+            // For attendance, we use the most common scenario for Alejandro's events
+            // This might need adjustment based on actual event data
+            const attendance = 'Attended'; // Default assumption
+
+            const concatKey = `${program}-${category}-${venue}-${attendance}`;
+
+            // Get the proper trainer fee percentage
+            const trainerFeePercent = await this.getTrainerFeePercent(concatKey);
+
+            // Calculate Alejandro Fee: (Total Revenue - Total Expenses) * Trainer Fee %
+            // Note: trainerFeePercent is already in decimal format (0.3 for 30%)
+            const alejandroFee = netRevenue * trainerFeePercent;
+
+            return {
+              ...event,
+              TotalExpenses: totalExpenses,
+              AlejandroFee: alejandroFee,
+              ExpenseCount: expenses.length,
+              TrainerFeePercent: trainerFeePercent,
+              NetRevenue: netRevenue,
+            };
+          } catch (error) {
+            console.error(`Error getting expenses for ProdID ${event.ProdID}:`, error);
+            return {
+              ...event,
+              TotalExpenses: 0,
+              AlejandroFee: 0, // Default to 0 if calculation fails
+              ExpenseCount: 0,
+              TrainerFeePercent: 0,
+              NetRevenue: event.TotalRevenue,
+            };
           }
-
-          // For attendance, we use the most common scenario for Alejandro's events
-          // This might need adjustment based on actual event data
-          const attendance = 'Attended'; // Default assumption
-
-          const concatKey = `${program}-${category}-${venue}-${attendance}`;
-
-          // Get the proper trainer fee percentage
-          const trainerFeePercent = await this.getTrainerFeePercent(concatKey);
-
-          // Calculate Alejandro Fee: (Total Revenue - Total Expenses) * Trainer Fee %
-          // Note: trainerFeePercent is already in decimal format (0.3 for 30%)
-          const alejandroFee = netRevenue * trainerFeePercent;
-
-          return {
-            ...event,
-            TotalExpenses: totalExpenses,
-            AlejandroFee: alejandroFee,
-            ExpenseCount: expenses.length,
-            TrainerFeePercent: trainerFeePercent,
-            NetRevenue: netRevenue,
-          };
-        } catch (error) {
-          console.error(`Error getting expenses for ProdID ${event.ProdID}:`, error);
-          return {
-            ...event,
-            TotalExpenses: 0,
-            AlejandroFee: 0, // Default to 0 if calculation fails
-            ExpenseCount: 0,
-            TrainerFeePercent: 0,
-            NetRevenue: event.TotalRevenue,
-          };
-        }
-      }));
+        })
+      );
 
       return eventsWithExpenses;
     } catch (error) {
@@ -1839,32 +1847,51 @@ export class DatabaseService {
   }
   */
 
-  static async getTrainersEventsSummary(year?: number, month?: number, search?: string, trainers?: string[], programs?: string[], categories?: string[]) {
+  static async getTrainersEventsSummary(
+    year?: number,
+    month?: number,
+    search?: string,
+    trainers?: string[],
+    programs?: string[],
+    categories?: string[]
+  ) {
     try {
       const pool = await getPostgresConnection();
-      
+
       const params: any[] = [];
       let paramIndex = 1;
-      
+
       // Build WHERE conditions
       const conditions: string[] = [];
-      
+
       if (year) {
         conditions.push(`year = $${paramIndex}`);
         params.push(year);
         paramIndex++;
       }
-      
+
       if (month) {
         // Convert month number to month name (database stores full month names)
-        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
-                           'July', 'August', 'September', 'October', 'November', 'December'];
+        const monthNames = [
+          'January',
+          'February',
+          'March',
+          'April',
+          'May',
+          'June',
+          'July',
+          'August',
+          'September',
+          'October',
+          'November',
+          'December',
+        ];
         const monthName = monthNames[month - 1];
         conditions.push(`month = $${paramIndex}`);
         params.push(monthName);
         paramIndex++;
       }
-      
+
       if (search) {
         conditions.push(`(
           CAST(prodid AS TEXT) ILIKE $${paramIndex}
@@ -1878,21 +1905,21 @@ export class DatabaseService {
         params.push(`%${search}%`);
         paramIndex++;
       }
-      
+
       if (trainers && trainers.length > 0) {
         const trainerPlaceholders = trainers.map((_, i) => `$${paramIndex + i}`).join(', ');
         conditions.push(`trainer IN (${trainerPlaceholders})`);
         params.push(...trainers);
         paramIndex += trainers.length;
       }
-      
+
       if (programs && programs.length > 0) {
         const programPlaceholders = programs.map((_, i) => `$${paramIndex + i}`).join(', ');
         conditions.push(`program IN (${programPlaceholders})`);
         params.push(...programs);
         paramIndex += programs.length;
       }
-      
+
       if (categories && categories.length > 0) {
         const categoryPlaceholders = categories.map((_, i) => `$${paramIndex + i}`).join(', ');
         conditions.push(`category IN (${categoryPlaceholders})`);
@@ -1901,7 +1928,7 @@ export class DatabaseService {
       }
 
       const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-      
+
       const query = `
         SELECT 
           COUNT(DISTINCT tp.prodid) AS "totalEvents",
@@ -1911,7 +1938,7 @@ export class DatabaseService {
           COALESCE(SUM(tp.revenueaftercommission), 0) - COALESCE(SUM(e.total_expenses), 0) AS "totalProfit"
         FROM public.trainer_productivity tp
         LEFT JOIN (
-          SELECT prod_id, SUM(amount) as total_expenses
+          SELECT prod_id, SUM(case when currency = 'JPY' then amount/171 else amount end) as total_expenses
           FROM expenses
           GROUP BY prod_id
         ) e ON tp.prodid = e.prod_id
@@ -1919,18 +1946,31 @@ export class DatabaseService {
       `;
 
       const result = await pool.query(query, params);
-      return result.rows[0] || { totalEvents: 0, uniqueTrainers: 0, totalTickets: 0, totalRevenue: 0, totalProfit: 0 };
+      return (
+        result.rows[0] || {
+          totalEvents: 0,
+          uniqueTrainers: 0,
+          totalTickets: 0,
+          totalRevenue: 0,
+          totalProfit: 0,
+        }
+      );
     } catch (error) {
       console.error('Error fetching trainers events summary:', error);
       throw error;
     }
   }
 
-  static async getTrainersEventsOld(year?: number, month?: number, page: number = 1, pageSize: number = 50) {
+  static async getTrainersEventsOld(
+    year?: number,
+    month?: number,
+    page: number = 1,
+    pageSize: number = 50
+  ) {
     try {
       const pool = await getConnection();
       const request = pool.request();
-      
+
       // Set a longer timeout for this complex query (120 seconds)
       (request as any).timeout = 120000;
 
@@ -1940,7 +1980,7 @@ export class DatabaseService {
       if (month) {
         request.input('month', sql.Int, month);
       }
-      
+
       // Pagination parameters
       const offset = (page - 1) * pageSize;
       request.input('offset', sql.Int, offset);
@@ -2194,8 +2234,8 @@ export class DatabaseService {
             and o.paymentstatusid in ('30','35')
             and p.id in ('54958')
             and p.id not in ('53000', '55053')
-            ${year ? "AND YEAR(o.PaidDateUtc) = @year" : "AND (o.PaidDateUtc like '%2024%' or o.PaidDateUtc like '%2025%')"}
-            ${month ? "AND MONTH(o.PaidDateUtc) = @month" : ''}
+            ${year ? 'AND YEAR(o.PaidDateUtc) = @year' : "AND (o.PaidDateUtc like '%2024%' or o.PaidDateUtc like '%2025%')"}
+            ${month ? 'AND MONTH(o.PaidDateUtc) = @month' : ''}
             )
         ) as SummaryData
       `;
@@ -2211,7 +2251,7 @@ export class DatabaseService {
   static async getUniqueTrainers(): Promise<{ trainer: string }[]> {
     let retries = 0;
     const maxRetries = 2;
-    
+
     while (retries <= maxRetries) {
       try {
         const pool = await getPostgresConnection();
@@ -2227,28 +2267,31 @@ export class DatabaseService {
         const result = await pool.query(query);
         return result.rows;
       } catch (error: any) {
-        console.error(`Error fetching unique trainers (attempt ${retries + 1}/${maxRetries + 1}):`, error);
-        
+        console.error(
+          `Error fetching unique trainers (attempt ${retries + 1}/${maxRetries + 1}):`,
+          error
+        );
+
         if (error.code === 'ECONNCLOSED' && retries < maxRetries) {
           retries++;
           console.log(`Retrying getUniqueTrainers... (attempt ${retries + 1})`);
           // Reset the pool to force reconnection
           pgPool = null;
-          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+          await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait 1 second before retry
           continue;
         }
-        
+
         throw error;
       }
     }
-    
+
     throw new Error('Failed to fetch unique trainers after retries');
   }
 
   static async getUniquePrograms(): Promise<{ program: string }[]> {
     let retries = 0;
     const maxRetries = 2;
-    
+
     while (retries <= maxRetries) {
       try {
         const pool = await getPostgresConnection();
@@ -2264,27 +2307,30 @@ export class DatabaseService {
         const result = await pool.query(query);
         return result.rows;
       } catch (error: any) {
-        console.error(`Error fetching unique programs (attempt ${retries + 1}/${maxRetries + 1}):`, error);
-        
+        console.error(
+          `Error fetching unique programs (attempt ${retries + 1}/${maxRetries + 1}):`,
+          error
+        );
+
         if (error.code === 'ECONNCLOSED' && retries < maxRetries) {
           retries++;
           console.log(`Retrying getUniquePrograms... (attempt ${retries + 1})`);
           pgPool = null;
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          await new Promise((resolve) => setTimeout(resolve, 1000));
           continue;
         }
-        
+
         throw error;
       }
     }
-    
+
     throw new Error('Failed to fetch unique programs after retries');
   }
 
   static async getUniqueCategories(): Promise<{ category: string }[]> {
     let retries = 0;
     const maxRetries = 2;
-    
+
     while (retries <= maxRetries) {
       try {
         const pool = await getPostgresConnection();
@@ -2300,53 +2346,79 @@ export class DatabaseService {
         const result = await pool.query(query);
         return result.rows;
       } catch (error: any) {
-        console.error(`Error fetching unique categories (attempt ${retries + 1}/${maxRetries + 1}):`, error);
-        
+        console.error(
+          `Error fetching unique categories (attempt ${retries + 1}/${maxRetries + 1}):`,
+          error
+        );
+
         if (error.code === 'ECONNCLOSED' && retries < maxRetries) {
           retries++;
           console.log(`Retrying getUniqueCategories... (attempt ${retries + 1})`);
           pgPool = null;
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          await new Promise((resolve) => setTimeout(resolve, 1000));
           continue;
         }
-        
+
         throw error;
       }
     }
-    
+
     throw new Error('Failed to fetch unique categories after retries');
   }
 
-  static async getTrainersEvents(year?: number, month?: number, page: number = 1, pageSize: number = 50, search?: string, trainers?: string[], programs?: string[], categories?: string[], sortBy: string = 'eventdate', sortOrder: string = 'desc') {
+  static async getTrainersEvents(
+    year?: number,
+    month?: number,
+    page: number = 1,
+    pageSize: number = 50,
+    search?: string,
+    trainers?: string[],
+    programs?: string[],
+    categories?: string[],
+    sortBy: string = 'eventdate',
+    sortOrder: string = 'desc'
+  ) {
     let retries = 0;
     const maxRetries = 1;
-    
+
     while (retries <= maxRetries) {
       try {
         const pool = await getPostgresConnection();
-        
+
         const params: any[] = [];
         let paramIndex = 1;
-        
+
         // Build WHERE conditions
         const conditions: string[] = [];
-        
+
         if (year) {
           conditions.push(`year = $${paramIndex}`);
           params.push(year);
           paramIndex++;
         }
-        
+
         if (month) {
           // Convert month number to month name (database stores full month names)
-          const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
-                             'July', 'August', 'September', 'October', 'November', 'December'];
+          const monthNames = [
+            'January',
+            'February',
+            'March',
+            'April',
+            'May',
+            'June',
+            'July',
+            'August',
+            'September',
+            'October',
+            'November',
+            'December',
+          ];
           const monthName = monthNames[month - 1];
           conditions.push(`month = $${paramIndex}`);
           params.push(monthName);
           paramIndex++;
         }
-        
+
         if (search) {
           conditions.push(`(
             CAST(prodid AS TEXT) ILIKE $${paramIndex}
@@ -2360,46 +2432,61 @@ export class DatabaseService {
           params.push(`%${search}%`);
           paramIndex++;
         }
-        
+
         if (trainers && trainers.length > 0) {
           const trainerPlaceholders = trainers.map((_, i) => `$${paramIndex + i}`).join(', ');
           conditions.push(`trainer IN (${trainerPlaceholders})`);
           params.push(...trainers);
           paramIndex += trainers.length;
         }
-        
+
         if (programs && programs.length > 0) {
           const programPlaceholders = programs.map((_, i) => `$${paramIndex + i}`).join(', ');
           conditions.push(`program IN (${programPlaceholders})`);
           params.push(...programs);
           paramIndex += programs.length;
         }
-        
+
         if (categories && categories.length > 0) {
           const categoryPlaceholders = categories.map((_, i) => `$${paramIndex + i}`).join(', ');
           conditions.push(`category IN (${categoryPlaceholders})`);
           params.push(...categories);
           paramIndex += categories.length;
         }
-        
+
         const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-        
+
         // Sorting - validate column name to prevent SQL injection
         const validSortColumns = [
-          'prodid', 'prodname', 'category', 'program', 'eventdate', 'productprice',
-          'vendor', 'country', 'stockquantity', 'status_event', 'month', 'year',
-          'trainer', 'cotrainer1', 'cotrainer2', 'cotrainer3', 'location',
-          'totalrevenue', 'totaltickets'
+          'prodid',
+          'prodname',
+          'category',
+          'program',
+          'eventdate',
+          'productprice',
+          'vendor',
+          'country',
+          'stockquantity',
+          'status_event',
+          'month',
+          'year',
+          'trainer',
+          'cotrainer1',
+          'cotrainer2',
+          'cotrainer3',
+          'location',
+          'totalrevenue',
+          'totaltickets',
         ];
         const sortColumn = validSortColumns.includes(sortBy) ? sortBy : 'eventdate';
         const sortDirection = sortOrder.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
-        
+
         // Pagination
         const offset = (page - 1) * pageSize;
         const limitClause = `LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
         params.push(pageSize, offset);
 
-      const query = `
+        const query = `
         SELECT 
           tp.prodid,
           tp.prodname,
@@ -3209,21 +3296,24 @@ export class DatabaseService {
                 end as CoTrainer3HomeCountry
         */ // END COMMENTED OUT OLD MS SQL QUERY
       } catch (error: any) {
-        console.error(`Error fetching trainers events (attempt ${retries + 1}/${maxRetries + 1}):`, error);
-        
+        console.error(
+          `Error fetching trainers events (attempt ${retries + 1}/${maxRetries + 1}):`,
+          error
+        );
+
         if ((error.code === 'ECONNCLOSED' || error.code === 'ETIMEOUT') && retries < maxRetries) {
           retries++;
           console.log(`Retrying getTrainersEvents... (attempt ${retries + 1})`);
           // Reset the pool to force reconnection
           pgPool = null;
-          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+          await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait 1 second before retry
           continue;
         }
-        
+
         throw error;
       }
     }
-    
+
     throw new Error('Failed to fetch trainers events after retries');
   }
 
