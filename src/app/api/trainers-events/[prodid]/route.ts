@@ -50,6 +50,23 @@ export async function GET(
         if (expenseRecords.length > 0) {
           console.log(`\nConverting ${expenseRecords.length} expense(s) to JPY:`);
           
+          // Get a representative conversion rate from Grace Price Conversion table
+          // Use the "Regular" tier as a baseline since it's the most common
+          const gracePriceData = await DatabaseService.getGracePriceConversion(
+            'Salsation',
+            'Instructor training', 
+            'Regular',
+            'Venue'
+          );
+          
+          // Calculate conversion rate from Grace Price table
+          // Default fallback is approximately 171 (36100 JPY / 211.11 EUR for Regular tier)
+          const eurToJpyRate = gracePriceData && gracePriceData.eurPrice > 0
+            ? gracePriceData.jpyPrice / gracePriceData.eurPrice
+            : 171;
+          
+          console.log(`Using EUR/JPY conversion rate: ${eurToJpyRate.toFixed(2)} (from Grace Price Conversion)`);
+          
           // Convert each expense based on its currency
           const convertedExpenses = await Promise.all(
             expenseRecords.map(async (expense: any) => {
@@ -60,19 +77,14 @@ export async function GET(
                 console.log(`  - ${expense.Description}: ¥${expense.Amount.toLocaleString('ja-JP')} (already JPY)`);
                 return expense.Amount;
               } else if (expenseCurrency === 'EUR') {
-                // Convert EUR to JPY using a standard exchange rate
-                // For consistency with ticket conversion, we could use a fixed rate
-                // Common EUR/JPY rate is around 160-170
-                const eurToJpyRate = 165; // Standard conversion rate
+                // Convert EUR to JPY using Grace Price conversion rate
                 const jpyAmount = expense.Amount * eurToJpyRate;
                 console.log(`  - ${expense.Description}: €${expense.Amount} → ¥${jpyAmount.toLocaleString('ja-JP')}`);
                 return jpyAmount;
               } else {
-                // For other currencies, convert to JPY (simplified - using EUR as intermediate)
-                // In production, you might want to use actual exchange rates
-                const eurToJpyRate = 165;
+                // For other currencies, use the same conversion rate (assuming similar to EUR)
                 const jpyAmount = expense.Amount * eurToJpyRate;
-                console.log(`  - ${expense.Description}: ${expenseCurrency}${expense.Amount} → ¥${jpyAmount.toLocaleString('ja-JP')} (via EUR)`);
+                console.log(`  - ${expense.Description}: ${expenseCurrency}${expense.Amount} → ¥${jpyAmount.toLocaleString('ja-JP')} (via Grace rate)`);
                 return jpyAmount;
               }
             })
