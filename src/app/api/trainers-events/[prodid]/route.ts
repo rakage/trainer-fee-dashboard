@@ -4,7 +4,7 @@ import { DatabaseService } from '@/lib/database';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { prodid: string } }
+  context: { params: Promise<{ prodid: string }> }
 ) {
   try {
     const authResult = await requireAuth(request);
@@ -12,6 +12,7 @@ export async function GET(
       return authResult.error;
     }
 
+    const params = await context.params;
     const prodid = parseInt(params.prodid);
     if (isNaN(prodid)) {
       return NextResponse.json({ error: 'Invalid product ID' }, { status: 400 });
