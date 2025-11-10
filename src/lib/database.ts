@@ -597,18 +597,20 @@ export class DatabaseService {
           console.log(`Generated event_type_key: ${eventTypeKey}`);
           console.log(`EUR Unit Price: ${unitPrice}`);
 
-          // Convert EUR to JPY
-          const jpyAmount = await this.convertEurToJpy(
-            unitPrice,
+          // Get Grace Price data - use FIXED JPY price instead of converting EUR amount
+          const gracePriceData = await this.getGracePriceConversion(
             program,
             category,
             tierLevel,
             venue
           );
-          if (jpyAmount !== null) {
-            unitPrice = jpyAmount;
-            priceTotal = jpyAmount * group.Quantity;
-            console.log(`✓ MATCH FOUND - Converted to JPY: ¥${jpyAmount.toLocaleString('ja-JP')}`);
+          
+          if (gracePriceData) {
+            // Use the fixed JPY price from Grace table (not conversion rate)
+            unitPrice = gracePriceData.jpyPrice;
+            priceTotal = gracePriceData.jpyPrice * group.Quantity;
+            console.log(`✓ MATCH FOUND - Using fixed JPY price: ¥${gracePriceData.jpyPrice.toLocaleString('ja-JP')}`);
+            console.log(`  Grace Price: JPY ¥${gracePriceData.jpyPrice}, EUR €${gracePriceData.eurPrice}`);
           } else {
             console.log('✗ NO MATCH - No conversion found in database');
           }
@@ -3579,26 +3581,32 @@ export class DatabaseService {
                   const tierLevel = ticket.TierLevel;
                   const venue = eventInfo.Location || 'Unknown';
 
-                  console.log(`\nConverting ticket: TierLevel=${tierLevel}, PriceTotal=${ticket.PriceTotal}`);
+                  console.log(`\nConverting ticket: TierLevel=${tierLevel}, PriceTotal=€${ticket.PriceTotal}`);
+                  console.log(`  Program: ${program}, Category: ${category}, Venue: ${venue}`);
 
-                  // Convert PriceTotal using grace price conversion
-                  const jpyAmount = await this.convertEurToJpy(
-                    ticket.PriceTotal,
+                  // Get the Grace Price data to check if we should use fixed price or conversion
+                  const gracePriceData = await this.getGracePriceConversion(
                     program,
                     category,
                     tierLevel,
                     venue
                   );
 
-                  if (jpyAmount !== null) {
-                    console.log(`✓ Converted: €${ticket.PriceTotal} → ¥${jpyAmount.toLocaleString('ja-JP')}`);
+                  if (gracePriceData) {
+                    console.log(`  Grace Price: JPY ¥${gracePriceData.jpyPrice}, EUR €${gracePriceData.eurPrice}`);
+                    
+                    // For Japan events, use the FIXED JPY price from Grace table
+                    // This ensures consistent pricing regardless of EUR discounts
+                    const jpyAmount = gracePriceData.jpyPrice;
+                    
+                    console.log(`✓ Using fixed JPY price: ¥${jpyAmount.toLocaleString('ja-JP')}`);
                     return {
                       ...ticket,
-                      PriceTotal: jpyAmount,
-                      UnitPrice: jpyAmount / (ticket.quantity || 1),
+                      PriceTotal: jpyAmount * (ticket.quantity || 1),
+                      UnitPrice: jpyAmount,
                     };
                   } else {
-                    console.log(`✗ No conversion found for TierLevel: ${tierLevel}`);
+                    console.log(`✗ No Grace Price found for: ${program}-${category}-${tierLevel}`);
                   }
                 } catch (error) {
                   console.error('Error converting ticket price:', error);
