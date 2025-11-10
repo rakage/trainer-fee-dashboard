@@ -598,11 +598,13 @@ export class DatabaseService {
           console.log(`EUR Unit Price: ${unitPrice}`);
 
           // Get Grace Price data - use FIXED JPY price instead of converting EUR amount
+          // Pass the EUR amount to match the correct entry when duplicates exist
           const gracePriceData = await this.getGracePriceConversion(
             program,
             category,
             tierLevel,
-            venue
+            venue,
+            unitPrice  // Pass EUR amount for matching
           );
           
           if (gracePriceData) {
@@ -789,7 +791,8 @@ export class DatabaseService {
     program: string,
     category: string,
     tierLevel: string,
-    venue?: string
+    venue?: string,
+    eurAmount?: number
   ): Promise<{ jpyPrice: number; eurPrice: number } | null> {
     try {
       let eventTypeKey = `${program}-${category}-${tierLevel === 'Free' ? '' : tierLevel}`;
@@ -800,21 +803,49 @@ export class DatabaseService {
       const conversions = await GracePriceService.getAll();
 
       console.log('--- Database Lookup ---');
-      console.log(`Looking for: ${eventTypeKey}`);
-      console.log(`Available keys in database (${conversions.length} total):`);
-      conversions.forEach((c: any) => {
-        console.log(
-          `  - ${c.eventTypeKey} (JPY: ¥${c.jpyPrice.toLocaleString('ja-JP')}, EUR: €${c.eurPrice})`
-        );
-      });
+      console.log(`Looking for: ${eventTypeKey}${eurAmount ? ` (EUR amount: €${eurAmount})` : ''}`);
 
-      const conversion = conversions.find((c: any) => c.eventTypeKey === eventTypeKey);
-
-      if (conversion) {
-        console.log(`Match found: ${eventTypeKey}`);
-      } else {
+      // Filter all matches (in case of duplicates)
+      const matches = conversions.filter((c: any) => c.eventTypeKey === eventTypeKey);
+      
+      if (matches.length === 0) {
         console.log(`No match for: ${eventTypeKey}`);
+        return null;
       }
+
+      let conversion: any = null;
+
+      // If EUR amount is provided and there are multiple matches, find closest EUR match
+      if (eurAmount && matches.length > 1) {
+        console.log(`⚠ Multiple matches found (${matches.length}). Matching by EUR amount:`);
+        matches.forEach((m: any) => {
+          console.log(`  - JPY: ¥${m.jpyPrice.toLocaleString('ja-JP')}, EUR: €${m.eurPrice}`);
+        });
+
+        // Find the entry with EUR price closest to the actual EUR amount paid
+        conversion = matches.reduce((prev: any, current: any) => {
+          const prevDiff = Math.abs(prev.eurPrice - eurAmount);
+          const currentDiff = Math.abs(current.eurPrice - eurAmount);
+          return currentDiff < prevDiff ? current : prev;
+        });
+
+        console.log(`  → Selected closest match: JPY ¥${conversion.jpyPrice.toLocaleString('ja-JP')}, EUR €${conversion.eurPrice}`);
+      } else if (matches.length > 1) {
+        // No EUR amount provided, use highest JPY price
+        console.log(`⚠ Multiple matches found (${matches.length}). Using highest JPY price:`);
+        conversion = matches.reduce((prev: any, current: any) => {
+          return current.jpyPrice > prev.jpyPrice ? current : prev;
+        });
+        matches.forEach((m: any) => {
+          console.log(`  - JPY: ¥${m.jpyPrice.toLocaleString('ja-JP')}, EUR: €${m.eurPrice}${m === conversion ? ' ← SELECTED' : ''}`);
+        });
+      } else {
+        // Single match
+        conversion = matches[0];
+        console.log(`Match found: ${eventTypeKey}`);
+      }
+
+      console.log(`Using: JPY ¥${conversion.jpyPrice.toLocaleString('ja-JP')}, EUR €${conversion.eurPrice}`);
 
       return conversion
         ? {
@@ -3585,11 +3616,13 @@ export class DatabaseService {
                   console.log(`  Program: ${program}, Category: ${category}, Venue: ${venue}`);
 
                   // Get the Grace Price data to check if we should use fixed price or conversion
+                  // Pass the EUR amount to match the correct entry when duplicates exist
                   const gracePriceData = await this.getGracePriceConversion(
                     program,
                     category,
                     tierLevel,
-                    venue
+                    venue,
+                    ticket.PriceTotal  // Pass EUR amount for matching
                   );
 
                   if (gracePriceData) {
