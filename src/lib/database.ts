@@ -3612,17 +3612,17 @@ export class DatabaseService {
                   const tierLevel = ticket.TierLevel;
                   const venue = eventInfo.Location || 'Unknown';
 
-                  console.log(`\nConverting ticket: TierLevel=${tierLevel}, PriceTotal=€${ticket.PriceTotal}`);
+                  console.log(`\nConverting ticket: TierLevel=${tierLevel}, UnitPrice=€${ticket.UnitPrice}, PriceTotal=€${ticket.PriceTotal}`);
                   console.log(`  Program: ${program}, Category: ${category}, Venue: ${venue}`);
 
                   // Get the Grace Price data to check if we should use fixed price or conversion
-                  // Pass the EUR amount to match the correct entry when duplicates exist
+                  // Pass the EUR UNIT PRICE (not total) to match the correct entry when duplicates exist
                   const gracePriceData = await this.getGracePriceConversion(
                     program,
                     category,
                     tierLevel,
                     venue,
-                    ticket.PriceTotal  // Pass EUR amount for matching
+                    ticket.UnitPrice  // Pass EUR unit price for matching (not PriceTotal)
                   );
 
                   if (gracePriceData) {
