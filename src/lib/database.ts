@@ -1882,7 +1882,7 @@ export class DatabaseService {
 
   static async getTrainersEventsSummary(
     year?: number,
-    month?: number,
+    months?: number[],
     search?: string,
     trainers?: string[],
     programs?: string[],
@@ -1903,8 +1903,8 @@ export class DatabaseService {
         paramIndex++;
       }
 
-      if (month) {
-        // Convert month number to month name (database stores full month names)
+      if (months && months.length > 0) {
+        // Convert month numbers to month names (database stores full month names)
         const monthNames = [
           'January',
           'February',
@@ -1919,10 +1919,11 @@ export class DatabaseService {
           'November',
           'December',
         ];
-        const monthName = monthNames[month - 1];
-        conditions.push(`month = $${paramIndex}`);
-        params.push(monthName);
-        paramIndex++;
+        const selectedMonthNames = months.map(m => monthNames[m - 1]);
+        const monthPlaceholders = selectedMonthNames.map((_, i) => `$${paramIndex + i}`).join(', ');
+        conditions.push(`month IN (${monthPlaceholders})`);
+        params.push(...selectedMonthNames);
+        paramIndex += selectedMonthNames.length;
       }
 
       if (search) {
@@ -2401,7 +2402,7 @@ export class DatabaseService {
 
   static async getTrainersEvents(
     year?: number,
-    month?: number,
+    months?: number[],
     page: number = 1,
     pageSize: number = 50,
     search?: string,
@@ -2430,8 +2431,8 @@ export class DatabaseService {
           paramIndex++;
         }
 
-        if (month) {
-          // Convert month number to month name (database stores full month names)
+        if (months && months.length > 0) {
+          // Convert month numbers to month names (database stores full month names)
           const monthNames = [
             'January',
             'February',
@@ -2446,10 +2447,11 @@ export class DatabaseService {
             'November',
             'December',
           ];
-          const monthName = monthNames[month - 1];
-          conditions.push(`month = $${paramIndex}`);
-          params.push(monthName);
-          paramIndex++;
+          const selectedMonthNames = months.map(m => monthNames[m - 1]);
+          const monthPlaceholders = selectedMonthNames.map((_, i) => `$${paramIndex + i}`).join(', ');
+          conditions.push(`month IN (${monthPlaceholders})`);
+          params.push(...selectedMonthNames);
+          paramIndex += selectedMonthNames.length;
         }
 
         if (search) {

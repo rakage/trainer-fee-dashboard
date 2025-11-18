@@ -11,7 +11,8 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const year = searchParams.get('year') ? parseInt(searchParams.get('year')!) : undefined;
-    const month = searchParams.get('month') ? parseInt(searchParams.get('month')!) : undefined;
+    const monthsParam = searchParams.get('months');
+    const months = monthsParam ? monthsParam.split(',').map(m => parseInt(m.trim())).filter(m => !isNaN(m)) : undefined;
     const page = searchParams.get('page') ? parseInt(searchParams.get('page')!) : 1;
     const pageSize = searchParams.get('pageSize') ? parseInt(searchParams.get('pageSize')!) : 50;
     const search = searchParams.get('search') || undefined;
@@ -25,9 +26,9 @@ export async function GET(request: NextRequest) {
     const sortOrder = searchParams.get('sortOrder') || 'desc';
 
     // Get paginated data for current page (sequential to avoid pool contention)
-    const trainersEvents = await DatabaseService.getTrainersEvents(year, month, page, pageSize, search, trainers, programs, categories, sortBy, sortOrder);
-    // Get global summary using ONLY year/month/search/trainers/programs/categories filters (not affected by pagination)
-    const summary = await DatabaseService.getTrainersEventsSummary(year, month, search, trainers, programs, categories);
+    const trainersEvents = await DatabaseService.getTrainersEvents(year, months, page, pageSize, search, trainers, programs, categories, sortBy, sortOrder);
+    // Get global summary using ONLY year/months/search/trainers/programs/categories filters (not affected by pagination)
+    const summary = await DatabaseService.getTrainersEventsSummary(year, months, search, trainers, programs, categories);
     const totalCount = summary.totalEvents || 0;
     const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 

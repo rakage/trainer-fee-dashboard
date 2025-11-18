@@ -24,7 +24,6 @@ import { MultiSelect } from '@/components/ui/multi-select';
 import { EventDetailsModal } from '@/components/dashboard/event-details-modal';
 
 const monthOptions = [
-  { value: 'all', label: 'All Months' },
   { value: '1', label: 'January' },
   { value: '2', label: 'February' },
   { value: '3', label: 'March' },
@@ -48,8 +47,9 @@ const yearOptions = [
 export default function TrainersEventsPage() {
   const [filters, setFilters] = useState({
     year: 'all',
-    month: 'all',
   });
+  const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
+  const [debouncedMonths, setDebouncedMonths] = useState<string[]>([]);
   const [selectedTrainers, setSelectedTrainers] = useState<string[]>([]);
   const [debouncedTrainers, setDebouncedTrainers] = useState<string[]>([]);
   const [selectedPrograms, setSelectedPrograms] = useState<string[]>([]);
@@ -71,6 +71,15 @@ export default function TrainersEventsPage() {
   React.useEffect(() => {
     setPagination((prev) => ({ ...prev, pageIndex: 0 }));
   }, [sorting]);
+
+  // Debounce months selection
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedMonths(selectedMonths);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [selectedMonths]);
 
   // Debounce trainer selection
   React.useEffect(() => {
@@ -160,11 +169,11 @@ export default function TrainersEventsPage() {
     isFetching,
     refetch,
   } = useQuery({
-    queryKey: ['trainers-events', filters.year, filters.month, pagination.pageIndex, pagination.pageSize, searchQuery, debouncedTrainers, debouncedPrograms, debouncedCategories, sorting],
+    queryKey: ['trainers-events', filters.year, debouncedMonths, pagination.pageIndex, pagination.pageSize, searchQuery, debouncedTrainers, debouncedPrograms, debouncedCategories, sorting],
     queryFn: async ({ signal }) => {
       const params = new URLSearchParams();
       if (filters.year && filters.year !== 'all') params.set('year', filters.year);
-      if (filters.month && filters.month !== 'all') params.set('month', filters.month);
+      if (debouncedMonths.length > 0) params.set('months', debouncedMonths.join(','));
       params.set('page', String(pagination.pageIndex + 1)); // API uses 1-based indexing
       params.set('pageSize', String(pagination.pageSize));
       if (searchQuery) params.set('search', searchQuery);
@@ -209,7 +218,8 @@ export default function TrainersEventsPage() {
   };
 
   const clearFilters = () => {
-    setFilters({ year: 'all', month: 'all' });
+    setFilters({ year: 'all' });
+    setSelectedMonths([]);
     setSelectedTrainers([]);
     setSelectedPrograms([]);
     setSelectedCategories([]);
@@ -323,21 +333,17 @@ export default function TrainersEventsPage() {
               </div>
               <div>
                 <Label htmlFor="month">Month</Label>
-                <Select
-                  value={filters.month}
-                  onValueChange={(value) => handleFilterChange('month', value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select month" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {monthOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <MultiSelect
+                  options={monthOptions}
+                  selected={selectedMonths}
+                  onChange={(values) => {
+                    setSelectedMonths(values);
+                    if (values.length !== selectedMonths.length || !values.every((v, i) => v === selectedMonths[i])) {
+                      setPagination({ pageIndex: 0, pageSize: 10 });
+                    }
+                  }}
+                  placeholder="Select months..."
+                />
               </div>
               <div>
                 <Label htmlFor="trainers">Main Trainer</Label>
