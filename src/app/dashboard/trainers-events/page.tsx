@@ -390,6 +390,7 @@ export default function TrainersEventsPage() {
                   placeholder={isLoadingTrainers ? "Loading trainers..." : "Select trainers..."}
                   searchPlaceholder="Search trainers..."
                   disabled={isLoadingTrainers}
+                  maxDisplay={1}
                 />
               </div>
               <div>
@@ -406,6 +407,7 @@ export default function TrainersEventsPage() {
                   placeholder={isLoadingPrograms ? "Loading programs..." : "Select programs..."}
                   searchPlaceholder="Search programs..."
                   disabled={isLoadingPrograms}
+                  maxDisplay={1}
                 />
               </div>
               <div>
@@ -422,6 +424,7 @@ export default function TrainersEventsPage() {
                   placeholder={isLoadingCategories ? "Loading categories..." : "Select categories..."}
                   searchPlaceholder="Search categories..."
                   disabled={isLoadingCategories}
+                  maxDisplay={1}
                 />
               </div>
               <div>
@@ -438,6 +441,7 @@ export default function TrainersEventsPage() {
                   placeholder={isLoadingCountries ? "Loading countries..." : "Select countries..."}
                   searchPlaceholder="Search countries..."
                   disabled={isLoadingCountries}
+                  maxDisplay={1}
                 />
               </div>
               <div className="flex items-end">
