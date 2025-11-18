@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 export interface Option {
   label: string;
   value: string;
+  shortLabel?: string; // Optional abbreviated label for display in badges
 }
 
 interface MultiSelectProps {
@@ -80,7 +81,7 @@ export function MultiSelect({
                       className="mr-1"
                       onClick={(e) => handleRemove(value, e)}
                     >
-                      {option?.label}
+                      {option?.shortLabel || option?.label}
                       <X className="ml-1 h-3 w-3 cursor-pointer" />
                     </Badge>
                   );

@@ -24,18 +24,18 @@ import { MultiSelect } from '@/components/ui/multi-select';
 import { EventDetailsModal } from '@/components/dashboard/event-details-modal';
 
 const monthOptions = [
-  { value: '1', label: 'Jan' },
-  { value: '2', label: 'Feb' },
-  { value: '3', label: 'Mar' },
-  { value: '4', label: 'Apr' },
-  { value: '5', label: 'May' },
-  { value: '6', label: 'Jun' },
-  { value: '7', label: 'Jul' },
-  { value: '8', label: 'Aug' },
-  { value: '9', label: 'Sep' },
-  { value: '10', label: 'Oct' },
-  { value: '11', label: 'Nov' },
-  { value: '12', label: 'Dec' },
+  { value: '1', label: 'January', shortLabel: 'Jan' },
+  { value: '2', label: 'February', shortLabel: 'Feb' },
+  { value: '3', label: 'March', shortLabel: 'Mar' },
+  { value: '4', label: 'April', shortLabel: 'Apr' },
+  { value: '5', label: 'May', shortLabel: 'May' },
+  { value: '6', label: 'June', shortLabel: 'Jun' },
+  { value: '7', label: 'July', shortLabel: 'Jul' },
+  { value: '8', label: 'August', shortLabel: 'Aug' },
+  { value: '9', label: 'September', shortLabel: 'Sep' },
+  { value: '10', label: 'October', shortLabel: 'Oct' },
+  { value: '11', label: 'November', shortLabel: 'Nov' },
+  { value: '12', label: 'December', shortLabel: 'Dec' },
 ];
 
 const yearOptions = [
