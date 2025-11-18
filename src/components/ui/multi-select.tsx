@@ -21,6 +21,7 @@ interface MultiSelectProps {
   selected: string[];
   onChange: (selected: string[]) => void;
   placeholder?: string;
+  searchPlaceholder?: string;
   className?: string;
   disabled?: boolean;
 }
@@ -30,6 +31,7 @@ export function MultiSelect({
   selected,
   onChange,
   placeholder = 'Select items...',
+  searchPlaceholder = 'Search...',
   className,
   disabled = false,
 }: MultiSelectProps) {
@@ -106,7 +108,7 @@ export function MultiSelect({
         <div className="flex items-center border-b px-3">
           <input
             type="text"
-            placeholder="Search trainers..."
+            placeholder={searchPlaceholder}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground"
@@ -142,7 +144,7 @@ export function MultiSelect({
           {options.filter((option) =>
             option.label.toLowerCase().includes(searchQuery.toLowerCase())
           ).length === 0 && (
-            <div className="py-6 text-center text-sm">No trainers found.</div>
+            <div className="py-6 text-center text-sm">No items found.</div>
           )}
         </div>
       </PopoverContent>

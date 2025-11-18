@@ -24,18 +24,18 @@ import { MultiSelect } from '@/components/ui/multi-select';
 import { EventDetailsModal } from '@/components/dashboard/event-details-modal';
 
 const monthOptions = [
-  { value: '1', label: 'January' },
-  { value: '2', label: 'February' },
-  { value: '3', label: 'March' },
-  { value: '4', label: 'April' },
+  { value: '1', label: 'Jan' },
+  { value: '2', label: 'Feb' },
+  { value: '3', label: 'Mar' },
+  { value: '4', label: 'Apr' },
   { value: '5', label: 'May' },
-  { value: '6', label: 'June' },
-  { value: '7', label: 'July' },
-  { value: '8', label: 'August' },
-  { value: '9', label: 'September' },
-  { value: '10', label: 'October' },
-  { value: '11', label: 'November' },
-  { value: '12', label: 'December' },
+  { value: '6', label: 'Jun' },
+  { value: '7', label: 'Jul' },
+  { value: '8', label: 'Aug' },
+  { value: '9', label: 'Sep' },
+  { value: '10', label: 'Oct' },
+  { value: '11', label: 'Nov' },
+  { value: '12', label: 'Dec' },
 ];
 
 const yearOptions = [
@@ -343,6 +343,7 @@ export default function TrainersEventsPage() {
                     }
                   }}
                   placeholder="Select months..."
+                  searchPlaceholder="Search months..."
                 />
               </div>
               <div>
@@ -358,6 +359,7 @@ export default function TrainersEventsPage() {
                     }
                   }}
                   placeholder={isLoadingTrainers ? "Loading trainers..." : "Select trainers..."}
+                  searchPlaceholder="Search trainers..."
                   disabled={isLoadingTrainers}
                 />
               </div>
@@ -373,6 +375,7 @@ export default function TrainersEventsPage() {
                     }
                   }}
                   placeholder={isLoadingPrograms ? "Loading programs..." : "Select programs..."}
+                  searchPlaceholder="Search programs..."
                   disabled={isLoadingPrograms}
                 />
               </div>
@@ -388,6 +391,7 @@ export default function TrainersEventsPage() {
                     }
                   }}
                   placeholder={isLoadingCategories ? "Loading categories..." : "Select categories..."}
+                  searchPlaceholder="Search categories..."
                   disabled={isLoadingCategories}
                 />
               </div>
