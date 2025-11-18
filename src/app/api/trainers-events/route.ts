@@ -22,13 +22,15 @@ export async function GET(request: NextRequest) {
     const programs = programsParam ? programsParam.split(',').filter(p => p.trim()) : undefined;
     const categoriesParam = searchParams.get('categories');
     const categories = categoriesParam ? categoriesParam.split(',').filter(c => c.trim()) : undefined;
+    const countriesParam = searchParams.get('countries');
+    const countries = countriesParam ? countriesParam.split(',').filter(c => c.trim()) : undefined;
     const sortBy = searchParams.get('sortBy') || 'eventdate';
     const sortOrder = searchParams.get('sortOrder') || 'desc';
 
     // Get paginated data for current page (sequential to avoid pool contention)
-    const trainersEvents = await DatabaseService.getTrainersEvents(year, months, page, pageSize, search, trainers, programs, categories, sortBy, sortOrder);
-    // Get global summary using ONLY year/months/search/trainers/programs/categories filters (not affected by pagination)
-    const summary = await DatabaseService.getTrainersEventsSummary(year, months, search, trainers, programs, categories);
+    const trainersEvents = await DatabaseService.getTrainersEvents(year, months, page, pageSize, search, trainers, programs, categories, countries, sortBy, sortOrder);
+    // Get global summary using ONLY year/months/search/trainers/programs/categories/countries filters (not affected by pagination)
+    const summary = await DatabaseService.getTrainersEventsSummary(year, months, search, trainers, programs, categories, countries);
     const totalCount = summary.totalEvents || 0;
     const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 

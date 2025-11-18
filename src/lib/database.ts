@@ -1886,7 +1886,8 @@ export class DatabaseService {
     search?: string,
     trainers?: string[],
     programs?: string[],
-    categories?: string[]
+    categories?: string[],
+    countries?: string[]
   ) {
     try {
       const pool = await getPostgresConnection();
@@ -1961,6 +1962,13 @@ export class DatabaseService {
         paramIndex += categories.length;
       }
 
+      if (countries && countries.length > 0) {
+        const countryPlaceholders = countries.map((_, i) => `$${paramIndex + i}`).join(', ');
+        conditions.push(`country IN (${countryPlaceholders})`);
+        params.push(...countries);
+        paramIndex += countries.length;
+      }
+
       const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
       const query = `
@@ -1976,7 +1984,7 @@ export class DatabaseService {
           FROM expenses
           GROUP BY prod_id
         ) e ON tp.prodid = e.prod_id
-        ${whereClause.replace(/\b(prodid|year|month|trainer|program|category|location)\b/g, 'tp.$1')}
+        ${whereClause.replace(/\b(prodid|year|month|trainer|program|category|country|location)\b/g, 'tp.$1')}
       `;
 
       const result = await pool.query(query, params);
@@ -2400,6 +2408,41 @@ export class DatabaseService {
     throw new Error('Failed to fetch unique categories after retries');
   }
 
+  static async getUniqueCountries(): Promise<{ country: string }[]> {
+    let retries = 0;
+    const maxRetries = 2;
+
+    while (retries <= maxRetries) {
+      try {
+        const pool = await getPostgresConnection();
+        const query = `
+          SELECT DISTINCT country
+          FROM public.trainer_productivity
+          WHERE country IS NOT NULL
+            AND country <> ''
+          ORDER BY country
+        `;
+        const result = await pool.query(query);
+        return result.rows;
+      } catch (error: any) {
+        console.error(
+          `Error fetching unique countries (attempt ${retries + 1}/${maxRetries + 1}):`,
+          error
+        );
+        if (error.code === 'ECONNCLOSED' && retries < maxRetries) {
+          retries++;
+          console.log(`Retrying getUniqueCountries... (attempt ${retries + 1})`);
+          pgPool = null;
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    throw new Error('Failed to fetch unique countries after retries');
+  }
+
   static async getTrainersEvents(
     year?: number,
     months?: number[],
@@ -2409,6 +2452,7 @@ export class DatabaseService {
     trainers?: string[],
     programs?: string[],
     categories?: string[],
+    countries?: string[],
     sortBy: string = 'eventdate',
     sortOrder: string = 'desc'
   ) {
@@ -2487,6 +2531,13 @@ export class DatabaseService {
           conditions.push(`category IN (${categoryPlaceholders})`);
           params.push(...categories);
           paramIndex += categories.length;
+        }
+
+        if (countries && countries.length > 0) {
+          const countryPlaceholders = countries.map((_, i) => `$${paramIndex + i}`).join(', ');
+          conditions.push(`country IN (${countryPlaceholders})`);
+          params.push(...countries);
+          paramIndex += countries.length;
         }
 
         const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';

@@ -56,6 +56,8 @@ export default function TrainersEventsPage() {
   const [debouncedPrograms, setDebouncedPrograms] = useState<string[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [debouncedCategories, setDebouncedCategories] = useState<string[]>([]);
+  const [selectedCountries, setSelectedCountries] = useState<string[]>([]);
+  const [debouncedCountries, setDebouncedCountries] = useState<string[]>([]);
   const [pagination, setPagination] = useState({
     pageIndex: 0,
     pageSize: 10,
@@ -107,6 +109,15 @@ export default function TrainersEventsPage() {
 
     return () => clearTimeout(timer);
   }, [selectedCategories]);
+
+  // Debounce country selection
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedCountries(selectedCountries);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [selectedCountries]);
 
   const { data: trainersData, isLoading: isLoadingTrainers, error: trainersError } = useQuery({
     queryKey: ['trainers-list'],
@@ -164,12 +175,27 @@ export default function TrainersEventsPage() {
     },
   });
 
+  const { data: countriesData, isLoading: isLoadingCountries } = useQuery({
+    queryKey: ['countries-list'],
+    queryFn: async () => {
+      const response = await fetch('/api/trainers-events/countries');
+      if (!response.ok) {
+        throw new Error('Failed to fetch countries');
+      }
+      const data = await response.json();
+      return data.countries.map((c: { country: string }) => ({
+        value: c.country,
+        label: c.country,
+      }));
+    },
+  });
+
   const {
     data: response,
     isFetching,
     refetch,
   } = useQuery({
-    queryKey: ['trainers-events', filters.year, debouncedMonths, pagination.pageIndex, pagination.pageSize, searchQuery, debouncedTrainers, debouncedPrograms, debouncedCategories, sorting],
+    queryKey: ['trainers-events', filters.year, debouncedMonths, pagination.pageIndex, pagination.pageSize, searchQuery, debouncedTrainers, debouncedPrograms, debouncedCategories, debouncedCountries, sorting],
     queryFn: async ({ signal }) => {
       const params = new URLSearchParams();
       if (filters.year && filters.year !== 'all') params.set('year', filters.year);
@@ -180,6 +206,7 @@ export default function TrainersEventsPage() {
       if (debouncedTrainers.length > 0) params.set('trainers', debouncedTrainers.join(','));
       if (debouncedPrograms.length > 0) params.set('programs', debouncedPrograms.join(','));
       if (debouncedCategories.length > 0) params.set('categories', debouncedCategories.join(','));
+      if (debouncedCountries.length > 0) params.set('countries', debouncedCountries.join(','));
       if (sorting.length > 0) {
         params.set('sortBy', sorting[0].id);
         params.set('sortOrder', sorting[0].desc ? 'desc' : 'asc');
@@ -223,6 +250,7 @@ export default function TrainersEventsPage() {
     setSelectedTrainers([]);
     setSelectedPrograms([]);
     setSelectedCategories([]);
+    setSelectedCountries([]);
     setSearchQuery('');
     setPagination({ pageIndex: 0, pageSize: 10 }); // Reset to first page
   };
@@ -312,7 +340,7 @@ export default function TrainersEventsPage() {
             <CardTitle>Filters</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
               <div>
                 <Label htmlFor="year">Year</Label>
                 <Select
@@ -394,6 +422,22 @@ export default function TrainersEventsPage() {
                   placeholder={isLoadingCategories ? "Loading categories..." : "Select categories..."}
                   searchPlaceholder="Search categories..."
                   disabled={isLoadingCategories}
+                />
+              </div>
+              <div>
+                <Label htmlFor="countries">Country</Label>
+                <MultiSelect
+                  options={countriesData || []}
+                  selected={selectedCountries}
+                  onChange={(values) => {
+                    setSelectedCountries(values);
+                    if (values.length !== selectedCountries.length || !values.every((v, i) => v === selectedCountries[i])) {
+                      setPagination({ pageIndex: 0, pageSize: 10 });
+                    }
+                  }}
+                  placeholder={isLoadingCountries ? "Loading countries..." : "Select countries..."}
+                  searchPlaceholder="Search countries..."
+                  disabled={isLoadingCountries}
                 />
               </div>
               <div className="flex items-end">
