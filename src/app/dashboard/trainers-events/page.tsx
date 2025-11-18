@@ -344,6 +344,7 @@ export default function TrainersEventsPage() {
                   }}
                   placeholder="Select months..."
                   searchPlaceholder="Search months..."
+                  maxDisplay={1}
                 />
               </div>
               <div>

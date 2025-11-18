@@ -25,6 +25,7 @@ interface MultiSelectProps {
   searchPlaceholder?: string;
   className?: string;
   disabled?: boolean;
+  maxDisplay?: number; // Maximum number of items to display before showing "+X more"
 }
 
 export function MultiSelect({
@@ -35,6 +36,7 @@ export function MultiSelect({
   searchPlaceholder = 'Search...',
   className,
   disabled = false,
+  maxDisplay = 2,
 }: MultiSelectProps) {
   const [open, setOpen] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState('');
@@ -72,7 +74,7 @@ export function MultiSelect({
               <span className="text-muted-foreground">{placeholder}</span>
             ) : (
               <>
-                {selected.slice(0, 2).map((value) => {
+                {selected.slice(0, maxDisplay).map((value) => {
                   const option = options.find((opt) => opt.value === value);
                   return (
                     <Badge
@@ -86,9 +88,9 @@ export function MultiSelect({
                     </Badge>
                   );
                 })}
-                {selected.length > 2 && (
+                {selected.length > maxDisplay && (
                   <Badge variant="secondary" className="mr-1">
-                    +{selected.length - 2} more
+                    +{selected.length - maxDisplay} more
                   </Badge>
                 )}
               </>
