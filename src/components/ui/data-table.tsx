@@ -57,6 +57,9 @@ interface DataTableProps<TData, TValue> {
   sorting?: SortingState;
   onSortingChange?: (sorting: SortingState) => void;
   isLoading?: boolean;
+  // Row selection props
+  rowSelection?: RowSelectionState;
+  onRowSelectionChange?: (rowSelection: RowSelectionState) => void;
 }
 
 export function DataTable<TData, TValue>({
@@ -79,11 +82,13 @@ export function DataTable<TData, TValue>({
   sorting: controlledSorting,
   onSortingChange,
   isLoading = false,
+  rowSelection: controlledRowSelection,
+  onRowSelectionChange,
 }: Readonly<DataTableProps<TData, TValue>>) {
   const [internalSorting, setInternalSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
-  const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
+  const [internalRowSelection, setInternalRowSelection] = React.useState<RowSelectionState>({});
   const [globalFilter, setGlobalFilter] = React.useState('');
   const [internalPagination, setInternalPagination] = React.useState({ pageIndex: 0, pageSize: 10 });
   
@@ -96,6 +101,7 @@ export function DataTable<TData, TValue>({
 
   const paginationState = controlledPagination || internalPagination;
   const sortingState = controlledSorting || internalSorting;
+  const rowSelectionState = controlledRowSelection || internalRowSelection;
   
   // Handle pagination changes - support both direct values and updater functions
   const handlePaginationChange = React.useCallback(
@@ -119,6 +125,18 @@ export function DataTable<TData, TValue>({
       }
     },
     [onSortingChange]
+  );
+
+  // Handle row selection changes
+  const handleRowSelectionChange = React.useCallback(
+    (updaterOrValue: any) => {
+      if (onRowSelectionChange) {
+        onRowSelectionChange(updaterOrValue);
+      } else {
+        setInternalRowSelection(updaterOrValue);
+      }
+    },
+    [onRowSelectionChange]
   );
 
   // Sync inputValue with external searchValue for server-side search
@@ -147,7 +165,7 @@ export function DataTable<TData, TValue>({
     getSortedRowModel: manualSorting ? undefined : getSortedRowModel(),
     getFilteredRowModel: isServerSideSearch ? undefined : getFilteredRowModel(),
     onColumnVisibilityChange: setColumnVisibility,
-    onRowSelectionChange: setRowSelection,
+    onRowSelectionChange: handleRowSelectionChange,
     onGlobalFilterChange: isServerSideSearch ? undefined : setGlobalFilter,
     manualPagination,
     manualSorting,
@@ -156,7 +174,7 @@ export function DataTable<TData, TValue>({
       sorting: sortingState,
       columnFilters,
       columnVisibility,
-      rowSelection,
+      rowSelection: rowSelectionState,
       globalFilter: isServerSideSearch ? '' : globalFilter,
       pagination: paginationState,
     },

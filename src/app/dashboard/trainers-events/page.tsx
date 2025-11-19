@@ -68,6 +68,7 @@ export default function TrainersEventsPage() {
   const [tableLoading, setTableLoading] = useState(false);
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [rowSelection, setRowSelection] = useState({});
 
   // Reset pagination when sorting changes
   React.useEffect(() => {
@@ -261,7 +262,12 @@ export default function TrainersEventsPage() {
   };
 
   const exportToCSV = () => {
-    if (eventsData.length === 0) return;
+    const selectedRowIndices = Object.keys(rowSelection).filter(key => rowSelection[key as keyof typeof rowSelection]);
+    const dataToExport = selectedRowIndices.length > 0 
+      ? selectedRowIndices.map(index => eventsData[parseInt(index)])
+      : eventsData;
+
+    if (dataToExport.length === 0) return;
 
     const headers = [
       'Product ID',
@@ -283,7 +289,7 @@ export default function TrainersEventsPage() {
 
     const csvContent = [
       headers.join(','),
-      ...eventsData.map((row: any) =>
+      ...dataToExport.map((row: any) =>
         [
           row.prodid,
           `"${row.prodname.replace(/"/g, '""')}"`,
@@ -307,7 +313,8 @@ export default function TrainersEventsPage() {
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `trainers-events-page${pagination.pageIndex + 1}-${new Date().toISOString().split('T')[0]}.csv`;
+    const exportType = selectedRowIndices.length > 0 ? 'selected' : 'page';
+    link.download = `trainers-events-${exportType}-${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
   };
 
@@ -323,16 +330,6 @@ export default function TrainersEventsPage() {
       <div className="container mx-auto p-6 space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold">Trainer&apos;s Events</h1>
-          <div className="flex gap-2">
-            <Button onClick={() => refetch()} variant="outline">
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Refresh
-            </Button>
-            <Button onClick={exportToCSV} disabled={eventsData.length === 0}>
-              <Download className="w-4 h-4 mr-2" />
-              Export Page CSV
-            </Button>
-          </div>
         </div>
 
         <Card>
@@ -549,7 +546,25 @@ export default function TrainersEventsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Events Report (Page {pagination.pageIndex + 1} of {paginationInfo.totalPages} - {paginationInfo.totalCount} total events)</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle>Events Report (Page {pagination.pageIndex + 1} of {paginationInfo.totalPages} - {paginationInfo.totalCount} total events)</CardTitle>
+              <div className="flex gap-2">
+                <Button onClick={() => refetch()} variant="outline" size="sm">
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Refresh
+                </Button>
+                <Button 
+                  onClick={exportToCSV} 
+                  disabled={eventsData.length === 0}
+                  size="sm"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  {Object.keys(rowSelection).filter(key => rowSelection[key as keyof typeof rowSelection]).length > 0 
+                    ? `Export Selected (${Object.keys(rowSelection).filter(key => rowSelection[key as keyof typeof rowSelection]).length})`
+                    : 'Export Page CSV'}
+                </Button>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <DataTable
@@ -559,7 +574,7 @@ export default function TrainersEventsPage() {
               onSearchChange={handleSearchChange}
               searchPlaceholder="Search by Product ID, Name, Country, Trainer, Program, Category, or Location..."
               enableColumnVisibility={true}
-              enableRowSelection={false}
+              enableRowSelection={true}
               manualPagination={true}
               manualSorting={true}
               pageCount={paginationInfo.totalPages}
@@ -569,6 +584,8 @@ export default function TrainersEventsPage() {
               onSortingChange={setSorting}
               isLoading={isFetching}
               onRowClick={(row) => handleRowClick(row.prodid)}
+              rowSelection={rowSelection}
+              onRowSelectionChange={setRowSelection}
             />
           </CardContent>
         </Card>
