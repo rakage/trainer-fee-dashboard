@@ -75,6 +75,11 @@ export default function TrainersEventsPage() {
     setPagination((prev) => ({ ...prev, pageIndex: 0 }));
   }, [sorting]);
 
+  // Clear row selection when page changes
+  React.useEffect(() => {
+    setRowSelection({});
+  }, [pagination.pageIndex]);
+
   // Debounce months selection
   React.useEffect(() => {
     const timer = setTimeout(() => {
@@ -262,9 +267,9 @@ export default function TrainersEventsPage() {
   };
 
   const exportToCSV = () => {
-    const selectedRowIndices = Object.keys(rowSelection).filter(key => rowSelection[key as keyof typeof rowSelection]);
-    const dataToExport = selectedRowIndices.length > 0 
-      ? selectedRowIndices.map(index => eventsData[parseInt(index)])
+    const selectedProdIds = Object.keys(rowSelection).filter(key => rowSelection[key as keyof typeof rowSelection]);
+    const dataToExport = selectedProdIds.length > 0 
+      ? eventsData.filter((row: TrainersEventsData) => selectedProdIds.includes(String(row.prodid)))
       : eventsData;
 
     if (dataToExport.length === 0) return;
@@ -313,7 +318,7 @@ export default function TrainersEventsPage() {
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    const exportType = selectedRowIndices.length > 0 ? 'selected' : 'page';
+    const exportType = selectedProdIds.length > 0 ? 'selected' : 'page';
     link.download = `trainers-events-${exportType}-${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
   };
@@ -586,6 +591,7 @@ export default function TrainersEventsPage() {
               onRowClick={(row) => handleRowClick(row.prodid)}
               rowSelection={rowSelection}
               onRowSelectionChange={setRowSelection}
+              getRowId={(row) => String(row.prodid)}
             />
           </CardContent>
         </Card>

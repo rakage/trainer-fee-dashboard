@@ -60,6 +60,7 @@ interface DataTableProps<TData, TValue> {
   // Row selection props
   rowSelection?: RowSelectionState;
   onRowSelectionChange?: (rowSelection: RowSelectionState) => void;
+  getRowId?: (row: TData) => string;
 }
 
 export function DataTable<TData, TValue>({
@@ -84,6 +85,7 @@ export function DataTable<TData, TValue>({
   isLoading = false,
   rowSelection: controlledRowSelection,
   onRowSelectionChange,
+  getRowId,
 }: Readonly<DataTableProps<TData, TValue>>) {
   const [internalSorting, setInternalSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
@@ -158,6 +160,7 @@ export function DataTable<TData, TValue>({
   const table = useReactTable({
     data,
     columns,
+    getRowId,
     onSortingChange: handleSortingChange,
     onColumnFiltersChange: setColumnFilters,
     getCoreRowModel: getCoreRowModel(),
