@@ -75,11 +75,6 @@ export default function TrainersEventsPage() {
     setPagination((prev) => ({ ...prev, pageIndex: 0 }));
   }, [sorting]);
 
-  // Clear row selection when page changes
-  React.useEffect(() => {
-    setRowSelection({});
-  }, [pagination.pageIndex]);
-
   // Debounce months selection
   React.useEffect(() => {
     const timer = setTimeout(() => {
@@ -266,11 +261,41 @@ export default function TrainersEventsPage() {
     setIsModalOpen(true);
   };
 
-  const exportToCSV = () => {
+  const exportToCSV = async () => {
     const selectedProdIds = Object.keys(rowSelection).filter(key => rowSelection[key as keyof typeof rowSelection]);
-    const dataToExport = selectedProdIds.length > 0 
-      ? eventsData.filter((row: TrainersEventsData) => selectedProdIds.includes(String(row.prodid)))
-      : eventsData;
+    
+    let dataToExport: TrainersEventsData[] = [];
+    
+    if (selectedProdIds.length > 0) {
+      // Fetch selected events from API
+      try {
+        const params = new URLSearchParams();
+        if (filters.year && filters.year !== 'all') params.set('year', filters.year);
+        if (debouncedMonths.length > 0) params.set('months', debouncedMonths.join(','));
+        if (debouncedTrainers.length > 0) params.set('trainers', debouncedTrainers.join(','));
+        if (debouncedPrograms.length > 0) params.set('programs', debouncedPrograms.join(','));
+        if (debouncedCategories.length > 0) params.set('categories', debouncedCategories.join(','));
+        if (debouncedCountries.length > 0) params.set('countries', debouncedCountries.join(','));
+        if (searchQuery) params.set('search', searchQuery);
+        params.set('page', '1');
+        params.set('pageSize', '10000'); // Get all matching records
+        
+        const response = await fetch(`/api/trainers-events?${params.toString()}`);
+        if (!response.ok) throw new Error('Failed to fetch events');
+        const result = await response.json();
+        
+        // Filter to only include selected IDs
+        dataToExport = result.data.filter((row: TrainersEventsData) => 
+          selectedProdIds.includes(String(row.prodid))
+        );
+      } catch (error) {
+        console.error('Error fetching selected events:', error);
+        alert('Failed to export selected events. Please try again.');
+        return;
+      }
+    } else {
+      dataToExport = eventsData;
+    }
 
     if (dataToExport.length === 0) return;
 
@@ -558,6 +583,15 @@ export default function TrainersEventsPage() {
                   <RefreshCw className="w-4 h-4 mr-2" />
                   Refresh
                 </Button>
+                {Object.keys(rowSelection).filter(key => rowSelection[key as keyof typeof rowSelection]).length > 0 && (
+                  <Button 
+                    onClick={() => setRowSelection({})} 
+                    variant="outline" 
+                    size="sm"
+                  >
+                    Clear Selection
+                  </Button>
+                )}
                 <Button 
                   onClick={exportToCSV} 
                   disabled={eventsData.length === 0}
