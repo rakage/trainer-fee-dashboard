@@ -287,7 +287,29 @@ export default function TrainersEventsPage() {
         return;
       }
     } else {
-      dataToExport = eventsData;
+      // No selection - export all filtered data
+      try {
+        const params = new URLSearchParams();
+        if (filters.year && filters.year !== 'all') params.set('year', filters.year);
+        if (debouncedMonths.length > 0) params.set('months', debouncedMonths.join(','));
+        if (debouncedTrainers.length > 0) params.set('trainers', debouncedTrainers.join(','));
+        if (debouncedPrograms.length > 0) params.set('programs', debouncedPrograms.join(','));
+        if (debouncedCategories.length > 0) params.set('categories', debouncedCategories.join(','));
+        if (debouncedCountries.length > 0) params.set('countries', debouncedCountries.join(','));
+        if (searchQuery) params.set('search', searchQuery);
+        params.set('page', '1');
+        params.set('pageSize', '10000'); // Get all matching records
+        
+        const response = await fetch(`/api/trainers-events?${params.toString()}`);
+        if (!response.ok) throw new Error('Failed to fetch events');
+        const result = await response.json();
+        
+        dataToExport = result.data;
+      } catch (error) {
+        console.error('Error fetching filtered events:', error);
+        alert('Failed to export filtered events. Please try again.');
+        return;
+      }
     }
 
     if (dataToExport.length === 0) return;
@@ -593,7 +615,7 @@ export default function TrainersEventsPage() {
                   <Download className="w-4 h-4 mr-2" />
                   {Object.keys(rowSelection).filter(key => rowSelection[key as keyof typeof rowSelection]).length > 0 
                     ? `Export Selected (${Object.keys(rowSelection).filter(key => rowSelection[key as keyof typeof rowSelection]).length})`
-                    : 'Export to CSV'}
+                    : 'Export Filtered Data'}
                 </Button>
               </div>
             </div>
