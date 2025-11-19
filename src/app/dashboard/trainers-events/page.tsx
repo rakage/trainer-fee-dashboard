@@ -305,7 +305,7 @@ export default function TrainersEventsPage() {
           row.cotrainer2 ? `"${row.cotrainer2.replace(/"/g, '""')}"` : '',
           row.cotrainer3 ? `"${row.cotrainer3.replace(/"/g, '""')}"` : '',
           row.totaltickets,
-          row.totalrevenue.toFixed(2),
+          Number(row.totalrevenue || 0).toFixed(2),
         ].join(',')
       ),
     ].join('\n');
@@ -561,7 +561,7 @@ export default function TrainersEventsPage() {
                   <Download className="w-4 h-4 mr-2" />
                   {Object.keys(rowSelection).filter(key => rowSelection[key as keyof typeof rowSelection]).length > 0 
                     ? `Export Selected (${Object.keys(rowSelection).filter(key => rowSelection[key as keyof typeof rowSelection]).length})`
-                    : 'Export Page CSV'}
+                    : 'Export to CSV'}
                 </Button>
               </div>
             </div>
