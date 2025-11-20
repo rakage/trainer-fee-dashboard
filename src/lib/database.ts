@@ -2604,7 +2604,14 @@ export class DatabaseService {
           'totalrevenue',
           'totaltickets',
         ];
-        const sortColumn = validSortColumns.includes(sortBy) ? sortBy : 'eventdate';
+        
+        // Map sort columns to actual database columns/expressions
+        const columnMapping: { [key: string]: string } = {
+          'totaltickets': '(tp.paidtickets + tp.ticketsfree)',
+        };
+        
+        const sortBy_safe = validSortColumns.includes(sortBy) ? sortBy : 'eventdate';
+        const sortColumn = columnMapping[sortBy_safe] || (sortBy_safe.startsWith('tp.') ? sortBy_safe : 'tp.' + sortBy_safe);
         const sortDirection = sortOrder.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
 
         // Pagination
@@ -2681,7 +2688,7 @@ export class DatabaseService {
           GROUP BY prod_id
         ) e ON tp.prodid = e.prod_id
         ${whereClause.replace(/\b(prodid|year|month|trainer|program|category|location)\b/g, 'tp.$1')}
-        ORDER BY ${sortColumn.startsWith('tp.') ? sortColumn : 'tp.' + sortColumn} ${sortDirection}, tp.prodid DESC
+        ORDER BY ${sortColumn} ${sortDirection}, tp.prodid DESC
         ${limitClause}
       `;
 
