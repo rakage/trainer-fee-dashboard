@@ -201,7 +201,7 @@ export class DatabaseService {
         WHERE sa.id = 10
           AND sa2.id = 6
           AND (p.Published = 1 OR (p.id = '40963' AND p.Published = 0))
-          AND (pav.name LIKE '%2024%' OR pav.name LIKE '%2025%')
+          AND (pav.name LIKE '%2024%' OR pav.name LIKE '%2025%' OR pav.name LIKE '%2026%' )
           AND p.id NOT IN ('53000', '55053')
           AND (@q IS NULL OR (
             p.name LIKE '%' + @q + '%' OR 
@@ -298,7 +298,7 @@ export class DatabaseService {
         and o.orderstatusid = '30'
         and o.paymentstatusid in ('30','35')
         and (p.Published = 1 or (p.id = '40963' and p.Published = 0))
-        and (pav.name like '%2024%' or pav.name like '%2025%')
+        and (pav.name LIKE '%2024%' OR pav.name LIKE '%2025%' OR pav.name LIKE '%2026%' )
         and p.id not in ('54958', '53000', '55053')
         and p.id = @prodId
         UNION
@@ -467,7 +467,7 @@ export class DatabaseService {
           WHERE sa.id = 10
             AND sa2.id = 6
             AND (p.Published = 1 OR (p.id = '40963' AND p.Published = 0))
-            AND (pav.name LIKE '%2024%' OR pav.name LIKE '%2025%')
+            AND (pav.name LIKE '%2024%' OR pav.name LIKE '%2025%' OR pav.name LIKE '%2026%' )
             AND p.id NOT IN ('53000', '55053')
             AND p.id = @prodId
         ),
@@ -604,15 +604,19 @@ export class DatabaseService {
             category,
             tierLevel,
             venue,
-            unitPrice  // Pass EUR amount for matching
+            unitPrice // Pass EUR amount for matching
           );
-          
+
           if (gracePriceData) {
             // Use the fixed JPY price from Grace table (not conversion rate)
             unitPrice = gracePriceData.jpyPrice;
             priceTotal = gracePriceData.jpyPrice * group.Quantity;
-            console.log(`✓ MATCH FOUND - Using fixed JPY price: ¥${gracePriceData.jpyPrice.toLocaleString('ja-JP')}`);
-            console.log(`  Grace Price: JPY ¥${gracePriceData.jpyPrice}, EUR €${gracePriceData.eurPrice}`);
+            console.log(
+              `✓ MATCH FOUND - Using fixed JPY price: ¥${gracePriceData.jpyPrice.toLocaleString('ja-JP')}`
+            );
+            console.log(
+              `  Grace Price: JPY ¥${gracePriceData.jpyPrice}, EUR €${gracePriceData.eurPrice}`
+            );
           } else {
             console.log('✗ NO MATCH - No conversion found in database');
           }
@@ -807,7 +811,7 @@ export class DatabaseService {
 
       // Filter all matches (in case of duplicates)
       const matches = conversions.filter((c: any) => c.eventTypeKey === eventTypeKey);
-      
+
       if (matches.length === 0) {
         console.log(`No match for: ${eventTypeKey}`);
         return null;
@@ -829,7 +833,9 @@ export class DatabaseService {
           return currentDiff < prevDiff ? current : prev;
         });
 
-        console.log(`  → Selected closest match: JPY ¥${conversion.jpyPrice.toLocaleString('ja-JP')}, EUR €${conversion.eurPrice}`);
+        console.log(
+          `  → Selected closest match: JPY ¥${conversion.jpyPrice.toLocaleString('ja-JP')}, EUR €${conversion.eurPrice}`
+        );
       } else if (matches.length > 1) {
         // No EUR amount provided, use highest JPY price
         console.log(`⚠ Multiple matches found (${matches.length}). Using highest JPY price:`);
@@ -837,7 +843,9 @@ export class DatabaseService {
           return current.jpyPrice > prev.jpyPrice ? current : prev;
         });
         matches.forEach((m: any) => {
-          console.log(`  - JPY: ¥${m.jpyPrice.toLocaleString('ja-JP')}, EUR: €${m.eurPrice}${m === conversion ? ' ← SELECTED' : ''}`);
+          console.log(
+            `  - JPY: ¥${m.jpyPrice.toLocaleString('ja-JP')}, EUR: €${m.eurPrice}${m === conversion ? ' ← SELECTED' : ''}`
+          );
         });
       } else {
         // Single match
@@ -845,7 +853,9 @@ export class DatabaseService {
         console.log(`Match found: ${eventTypeKey}`);
       }
 
-      console.log(`Using: JPY ¥${conversion.jpyPrice.toLocaleString('ja-JP')}, EUR €${conversion.eurPrice}`);
+      console.log(
+        `Using: JPY ¥${conversion.jpyPrice.toLocaleString('ja-JP')}, EUR €${conversion.eurPrice}`
+      );
 
       return conversion
         ? {
@@ -1920,7 +1930,7 @@ export class DatabaseService {
           'November',
           'December',
         ];
-        const selectedMonthNames = months.map(m => monthNames[m - 1]);
+        const selectedMonthNames = months.map((m) => monthNames[m - 1]);
         const monthPlaceholders = selectedMonthNames.map((_, i) => `$${paramIndex + i}`).join(', ');
         conditions.push(`month IN (${monthPlaceholders})`);
         params.push(...selectedMonthNames);
@@ -2077,7 +2087,7 @@ export class DatabaseService {
             on sao2.SpecificationAttributeId = sa2.Id
             where sa.id = 10
             and sa2.id = 6
-            ${year ? "AND pav.name like '%' + CAST(@year AS VARCHAR(4)) + '%'" : "AND (pav.name like '%2024%' or pav.name like '%2025%')"}
+            ${year ? "AND pav.name like '%' + CAST(@year AS VARCHAR(4)) + '%'" : "AND (pav.name LIKE '%2024%' OR pav.name LIKE '%2025%' OR pav.name LIKE '%2026%' )"}
             ${month ? "AND MONTH(CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE)) = @month" : ''}
             and p.id not in ('53000', '55053')
             )
@@ -2190,7 +2200,7 @@ export class DatabaseService {
             and (p.Published = 1
             or (p.id = '40963' and p.Published = 0))
             and p.id not in ('54958', '53000', '55053')
-            ${year ? "AND pav.name like '%' + CAST(@year AS VARCHAR(4)) + '%'" : "AND (pav.name like '%2024%' or pav.name like '%2025%')"}
+            ${year ? "AND pav.name like '%' + CAST(@year AS VARCHAR(4)) + '%'" : "AND (pav.name LIKE '%2024%' OR pav.name LIKE '%2025%' OR pav.name LIKE '%2026%' )"}
             ${month ? "AND MONTH(CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE)) = @month" : ''}
             UNION
             select distinct
@@ -2491,8 +2501,10 @@ export class DatabaseService {
             'November',
             'December',
           ];
-          const selectedMonthNames = months.map(m => monthNames[m - 1]);
-          const monthPlaceholders = selectedMonthNames.map((_, i) => `$${paramIndex + i}`).join(', ');
+          const selectedMonthNames = months.map((m) => monthNames[m - 1]);
+          const monthPlaceholders = selectedMonthNames
+            .map((_, i) => `$${paramIndex + i}`)
+            .join(', ');
           conditions.push(`month IN (${monthPlaceholders})`);
           params.push(...selectedMonthNames);
           paramIndex += selectedMonthNames.length;
@@ -2699,7 +2711,7 @@ export class DatabaseService {
             and (p.Published = 1
             or (p.id = '40963' and p.Published = 0))
             and p.id not in ('54958', '53000', '55053')
-            ${year ? "AND pav.name like '%' + CAST(@year AS VARCHAR(4)) + '%'" : "AND (pav.name like '%2024%' or pav.name like '%2025%')"}
+            ${year ? "AND pav.name like '%' + CAST(@year AS VARCHAR(4)) + '%'" : "AND (pav.name LIKE '%2024%' OR pav.name LIKE '%2025%' OR pav.name LIKE '%2026%' )"}
             ${month ? "AND MONTH(CAST(SUBSTRING(pav.Name, CHARINDEX(',', pav.Name) + 2, CHARINDEX('-', pav.Name) - CHARINDEX(',', pav.Name) - 3) AS DATE)) = @month" : ''}
             UNION
             select distinct
@@ -3541,7 +3553,7 @@ export class DatabaseService {
             and sa2.id = 6
             and o.orderstatusid = '30'
             and o.paymentstatusid in ('30','35')
-            and (pav.name like '%2024%' or pav.name like '%2025%')
+            and (pav.name LIKE '%2024%' OR pav.name LIKE '%2025%' OR pav.name LIKE '%2026%' )
             and p.id = @prodid
             and p.id not in ('53000', '55053')
           UNION
@@ -3647,7 +3659,7 @@ export class DatabaseService {
 
       // Apply JPY conversion if the event is in Japan
       if (eventInfo) {
-        const isJapan = 
+        const isJapan =
           eventInfo.Country?.toLowerCase().includes('japan') ||
           eventInfo.Country?.toLowerCase().includes('jp');
 
@@ -3655,17 +3667,21 @@ export class DatabaseService {
           console.log('\n=== APPLYING JPY CONVERSION TO TICKETS ===');
           console.log(`Event: ${eventInfo.ProdName}`);
           console.log(`Country: ${eventInfo.Country}`);
-          
+
           // Apply conversion to each ticket
           const convertedTickets = await Promise.all(
             result.recordset.map(async (ticket: any) => {
               if (ticket.TierLevel) {
                 try {
-                  const { program, category } = this.extractProgramAndCategory(eventInfo.ProdName || '');
+                  const { program, category } = this.extractProgramAndCategory(
+                    eventInfo.ProdName || ''
+                  );
                   const tierLevel = ticket.TierLevel;
                   const venue = eventInfo.Location || 'Unknown';
 
-                  console.log(`\nConverting ticket: TierLevel=${tierLevel}, UnitPrice=€${ticket.UnitPrice}, PriceTotal=€${ticket.PriceTotal}`);
+                  console.log(
+                    `\nConverting ticket: TierLevel=${tierLevel}, UnitPrice=€${ticket.UnitPrice}, PriceTotal=€${ticket.PriceTotal}`
+                  );
                   console.log(`  Program: ${program}, Category: ${category}, Venue: ${venue}`);
 
                   // Get the Grace Price data to check if we should use fixed price or conversion
@@ -3675,16 +3691,18 @@ export class DatabaseService {
                     category,
                     tierLevel,
                     venue,
-                    ticket.UnitPrice  // Pass EUR unit price for matching (not PriceTotal)
+                    ticket.UnitPrice // Pass EUR unit price for matching (not PriceTotal)
                   );
 
                   if (gracePriceData) {
-                    console.log(`  Grace Price: JPY ¥${gracePriceData.jpyPrice}, EUR €${gracePriceData.eurPrice}`);
-                    
+                    console.log(
+                      `  Grace Price: JPY ¥${gracePriceData.jpyPrice}, EUR €${gracePriceData.eurPrice}`
+                    );
+
                     // For Japan events, use the FIXED JPY price from Grace table
                     // This ensures consistent pricing regardless of EUR discounts
                     const jpyAmount = gracePriceData.jpyPrice;
-                    
+
                     console.log(`✓ Using fixed JPY price: ¥${jpyAmount.toLocaleString('ja-JP')}`);
                     return {
                       ...ticket,
