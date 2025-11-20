@@ -1746,8 +1746,36 @@ export class DatabaseService {
         events.map(async (event: any) => {
           try {
             const expenses = await ExpenseService.getByProdId(event.ProdID);
+            
+            // Get EUR/JPY conversion rate from Grace Price Conversion table
+            // Use the "Regular" tier as a baseline since it's the most common
+            const gracePriceData = await this.getGracePriceConversion(
+              'Salsation',
+              'Instructor training',
+              'Regular',
+              'Venue'
+            );
+            
+            // Calculate conversion rate from Grace Price table
+            // Default fallback is approximately 171 (36100 JPY / 211.11 EUR for Regular tier)
+            const eurToJpyRate = gracePriceData && gracePriceData.eurPrice > 0
+              ? gracePriceData.jpyPrice / gracePriceData.eurPrice
+              : 171;
+            
+            // Convert expenses to EUR (sum with currency conversion for JPY expenses)
             const totalExpenses = expenses.reduce(
-              (sum: number, expense: any) => sum + (expense.amount || 0),
+              (sum: number, expense: any) => {
+                const amount = expense.amount || 0;
+                const currency = expense.currency || 'EUR';
+                
+                // Convert JPY to EUR using Grace Price conversion rate
+                if (currency === 'JPY') {
+                  return sum + (amount / eurToJpyRate);
+                } else {
+                  // Assume EUR or already in EUR
+                  return sum + amount;
+                }
+              },
               0
             );
 
