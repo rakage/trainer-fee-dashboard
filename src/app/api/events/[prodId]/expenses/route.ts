@@ -79,6 +79,17 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       }
     }
 
+    // Get existing expenses to determine which ones to delete
+    const existingExpenses = await DatabaseService.getEventExpenses(prodId);
+    const newRowIds = new Set(expenses.map(e => e.RowId));
+
+    // Delete expenses that are no longer in the list
+    for (const existingExpense of existingExpenses) {
+      if (!newRowIds.has(existingExpense.RowId)) {
+        await DatabaseService.deleteEventExpense(prodId, existingExpense.RowId);
+      }
+    }
+
     // Save each expense
     for (const expense of expenses) {
       expense.ProdID = prodId;
