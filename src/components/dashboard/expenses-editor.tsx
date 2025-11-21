@@ -278,15 +278,11 @@ export function ExpensesEditor({ eventId, event, trainerFee, trainerName, onExpe
                     </TableCell>
                     <TableCell className="w-[60px] p-2 text-center">
                       <span
-                        className={`inline-block rounded p-1 transition-colors ${
-                          expenses.length > 1
-                            ? 'cursor-pointer text-red-500 hover:text-red-700 hover:bg-red-50'
-                            : 'cursor-not-allowed text-gray-300 opacity-50'
-                        }`}
-                        onClick={() => expenses.length > 1 && removeRow(index)}
-                        title={expenses.length > 1 ? "Delete expense" : "Cannot delete the last expense"}
+                        className="inline-block rounded p-1 transition-colors cursor-pointer text-red-600 hover:text-red-800 hover:bg-red-100"
+                        onClick={() => removeRow(index)}
+                        title="Delete expense"
                       >
-                        <X className="h-4 w-4" />
+                        <X className="h-5 w-5 stroke-[2.5]" />
                       </span>
                     </TableCell>
                   </TableRow>
