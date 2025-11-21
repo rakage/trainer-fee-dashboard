@@ -3685,6 +3685,7 @@ export class DatabaseService {
         from finals_order
         where rn = 1
         ORDER BY DatePaid DESC
+        where Attendance <> 'Unattended' and PaymentStatus = '35'
       `;
 
       request.input('prodid', sql.Int, prodid);
