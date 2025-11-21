@@ -225,29 +225,29 @@ export function ExpensesEditor({ eventId, event, trainerFee, trainerName, onExpe
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="border rounded-lg">
+        <div className="border rounded-lg overflow-hidden">
           <div className="max-h-96 overflow-auto">
-            <Table>
+            <Table className="table-fixed w-full">
               <TableHeader className="sticky top-0 bg-white z-10">
                 <TableRow>
-                  <TableHead>Description</TableHead>
+                  <TableHead className="w-auto">Description</TableHead>
                   <TableHead className="w-[140px]">Currency</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
+                  <TableHead className="w-[120px] text-right">Amount</TableHead>
+                  <TableHead className="w-[60px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {expenses.map((expense, index) => (
                   <TableRow key={index}>
-                    <TableCell>
+                    <TableCell className="max-w-[300px] p-2">
                       <Input
                         value={expense.Description}
                         onChange={(e) => updateExpense(index, 'Description', e.target.value)}
                         placeholder="Expense description"
-                        className="min-w-[200px]"
+                        className="w-full"
                       />
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="w-[140px] p-2">
                       <Select
                         value={expense.Currency || 'EUR'}
                         onValueChange={(value) => updateExpense(index, 'Currency', value as SupportedCurrency)}
@@ -264,7 +264,7 @@ export function ExpensesEditor({ eventId, event, trainerFee, trainerName, onExpe
                         </SelectContent>
                       </Select>
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="w-[120px] text-right p-2">
                       <div className="flex justify-end">
                         <Input
                           type="text"
@@ -272,18 +272,18 @@ export function ExpensesEditor({ eventId, event, trainerFee, trainerName, onExpe
                           onChange={(e) => handleAmountChange(index, e.target.value)}
                           onBlur={(e) => handleAmountBlur(index, e.target.value)}
                           placeholder="0,00"
-                          className="w-24 text-right text-sm"
+                          className="w-20 text-right text-sm"
                         />
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="w-[60px] p-2">
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
                         onClick={() => removeRow(index)}
                         disabled={expenses.length === 1}
-                        className="relative z-20"
+                        className="relative z-20 pointer-events-auto"
                         title={expenses.length === 1 ? "Cannot delete the last expense row" : "Delete expense"}
                       >
                         <Trash2 className="h-4 w-4" />
