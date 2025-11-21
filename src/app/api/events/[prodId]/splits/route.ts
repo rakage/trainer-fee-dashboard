@@ -88,6 +88,17 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       );
     }
 
+    // Get existing splits to determine which ones to delete
+    const existingSplits = await DatabaseService.getTrainerSplits(prodId);
+    const newRowIds = new Set(splits.map(s => s.RowId));
+
+    // Delete splits that are no longer in the list
+    for (const existingSplit of existingSplits) {
+      if (!newRowIds.has(existingSplit.RowId)) {
+        await DatabaseService.deleteTrainerSplit(prodId, existingSplit.RowId);
+      }
+    }
+
     // Save each split
     for (const split of splits) {
       split.ProdID = prodId;

@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Trash2, Save } from 'lucide-react';
+import { Plus, Save, X } from 'lucide-react';
 import { EventDetail, Commission, TrainerSplit, SupportedCurrency } from '@/types';
 import { formatCurrency, formatGermanDecimal, parseGermanDecimal, calculateEventOverview } from '@/lib/utils';
 import { formatCurrencyAmount } from '@/lib/currency';
@@ -158,7 +158,7 @@ export function TrainerSplitsEditor({ eventId, event, commissions, displayCurren
                 <TableHead className="text-right">Trainer Fee</TableHead>
                 <TableHead className="text-right">Cash Received</TableHead>
                 <TableHead className="text-right">Payable</TableHead>
-                <TableHead className="w-[50px]"></TableHead>
+                <TableHead className="w-[60px]"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -221,15 +221,14 @@ export function TrainerSplitsEditor({ eventId, event, commissions, displayCurren
                   <TableCell className="text-right font-mono">
                     {formatCurrencyAmount((split.TrainerFee || 0) - split.CashReceived, targetCurrency)}
                   </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="sm"
+                  <TableCell className="w-[60px] p-2 text-center">
+                    <span
+                      className="inline-block rounded p-1 transition-colors cursor-pointer text-red-600 hover:text-red-800 hover:bg-red-100"
                       onClick={() => removeRow(index)}
-                      disabled={splits.length === 1}
+                      title="Delete trainer split"
                     >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                      <X className="h-5 w-5 stroke-[2.5]" />
+                    </span>
                   </TableCell>
                 </TableRow>
               ))}
@@ -239,11 +238,11 @@ export function TrainerSplitsEditor({ eventId, event, commissions, displayCurren
 
         <div className="flex items-center justify-between pt-4 border-t">
           <div className="flex items-center space-x-4">
-            <Button variant="outline" onClick={addRow}>
+            <Button type="button" variant="outline" onClick={addRow}>
               <Plus className="h-4 w-4 mr-2" />
               Add Row
             </Button>
-            <Button onClick={handleSave} disabled={saving || !isValidTotal}>
+            <Button type="button" onClick={handleSave} disabled={saving || !isValidTotal}>
               <Save className="h-4 w-4 mr-2" />
               {saving ? 'Saving...' : 'Save Splits'}
             </Button>
