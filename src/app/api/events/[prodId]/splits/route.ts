@@ -69,18 +69,23 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       );
     }
 
+    // Filter out empty splits (cleared rows)
+    const validSplits = splits.filter(split => 
+      split.Name?.trim() && split.Percent > 0
+    );
+
     // Validate splits data
-    for (const split of splits) {
-      if (!split.Name || split.Percent < 0 || split.Percent > 100) {
+    for (const split of validSplits) {
+      if (split.Percent < 0 || split.Percent > 100) {
         return NextResponse.json(
-          { success: false, error: 'Invalid split data' },
+          { success: false, error: 'Invalid split data: Percent must be between 0 and 100' },
           { status: 400 }
         );
       }
     }
 
     // Check that percentages don't exceed 100%
-    const totalPercent = splits.reduce((sum, split) => sum + split.Percent, 0);
+    const totalPercent = validSplits.reduce((sum, split) => sum + split.Percent, 0);
     if (totalPercent > 100) {
       return NextResponse.json(
         { success: false, error: 'Total percentage cannot exceed 100%' },
@@ -90,7 +95,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
     // Get existing splits to determine which ones to delete
     const existingSplits = await DatabaseService.getTrainerSplits(prodId);
-    const newRowIds = new Set(splits.map(s => s.RowId));
+    const newRowIds = new Set(validSplits.map(s => s.RowId));
 
     // Delete splits that are no longer in the list
     for (const existingSplit of existingSplits) {
@@ -99,14 +104,14 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       }
     }
 
-    // Save each split
-    for (const split of splits) {
+    // Save each valid split
+    for (const split of validSplits) {
       split.ProdID = prodId;
       await DatabaseService.saveTrainerSplit(split);
     }
 
     // Log activity
-    const splitDetails = splits.map(s => `${s.Name}: ${s.Percent}%`).join(', ');
+    const splitDetails = validSplits.map(s => `${s.Name}: ${s.Percent}%`).join(', ') || 'No splits';
     if (authResult.user?.id) {
       await ActivityLogger.log(
         authResult.user.id,

@@ -69,11 +69,16 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       );
     }
 
+    // Filter out empty expenses (cleared rows)
+    const validExpenses = expenses.filter(expense => 
+      expense.Description?.trim() && expense.Amount > 0
+    );
+
     // Validate expenses data
-    for (const expense of expenses) {
-      if (!expense.Description?.trim() || expense.Amount < 0) {
+    for (const expense of validExpenses) {
+      if (expense.Amount < 0) {
         return NextResponse.json(
-          { success: false, error: 'Invalid expense data: Description required and amount must be positive' },
+          { success: false, error: 'Invalid expense data: Amount must be positive' },
           { status: 400 }
         );
       }
@@ -81,7 +86,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
     // Get existing expenses to determine which ones to delete
     const existingExpenses = await DatabaseService.getEventExpenses(prodId);
-    const newRowIds = new Set(expenses.map(e => e.RowId));
+    const newRowIds = new Set(validExpenses.map(e => e.RowId));
 
     // Delete expenses that are no longer in the list
     for (const existingExpense of existingExpenses) {
@@ -90,14 +95,14 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       }
     }
 
-    // Save each expense
-    for (const expense of expenses) {
+    // Save each valid expense
+    for (const expense of validExpenses) {
       expense.ProdID = prodId;
       await DatabaseService.saveEventExpense(expense);
     }
 
     // Log activity
-    const expenseDetails = expenses.map(e => `${e.Description}: $${e.Amount}`).join(', ');
+    const expenseDetails = validExpenses.map(e => `${e.Description}: $${e.Amount}`).join(', ') || 'No expenses';
     if (authResult.user?.id) {
       await ActivityLogger.log(
         authResult.user.id,
