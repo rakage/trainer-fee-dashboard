@@ -118,8 +118,22 @@ export function ExpensesEditor({ eventId, event, trainerFee, trainerName, onExpe
   };
 
   const removeRow = (index: number) => {
-    setExpenses(expenses.filter((_, i) => i !== index));
-    setAmountDisplays(amountDisplays.filter((_, i) => i !== index));
+    // If it's the last row, clear it instead of removing
+    if (expenses.length === 1) {
+      const clearedExpense: Expense = {
+        ProdID: eventId,
+        RowId: 1,
+        Description: '',
+        Currency: (event.Currency as SupportedCurrency) || 'EUR',
+        Amount: 0,
+      };
+      setExpenses([clearedExpense]);
+      setAmountDisplays(['0,00']);
+    } else {
+      // Remove the row
+      setExpenses(expenses.filter((_, i) => i !== index));
+      setAmountDisplays(amountDisplays.filter((_, i) => i !== index));
+    }
   };
 
   const updateExpense = (index: number, field: keyof Expense, value: any) => {

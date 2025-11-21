@@ -72,7 +72,22 @@ export function TrainerSplitsEditor({ eventId, event, commissions, displayCurren
   };
 
   const removeRow = (index: number) => {
-    setSplits(splits.filter((_, i) => i !== index));
+    // If it's the last row, clear it instead of removing
+    if (splits.length === 1) {
+      const clearedSplit: TrainerSplit = {
+        ProdID: eventId,
+        RowId: 1,
+        Name: '',
+        Percent: 0,
+        TrainerFee: 0,
+        CashReceived: 0,
+        Payable: 0,
+      };
+      setSplits([clearedSplit]);
+    } else {
+      // Remove the row
+      setSplits(splits.filter((_, i) => i !== index));
+    }
   };
 
   const updateSplit = (index: number, field: keyof TrainerSplit, value: any) => {
