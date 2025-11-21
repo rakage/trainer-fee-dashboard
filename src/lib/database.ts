@@ -221,8 +221,6 @@ export class DatabaseService {
         EventDate
       FROM finals
       WHERE rn = 1
-            AND EventDate >= DATEADD(MONTH, -5, GETDATE())
-            AND EventDate <= DATEFROMPARTS(YEAR(GETDATE()), 12, 31)
       ORDER BY EventDate DESC
     `);
 
@@ -360,7 +358,7 @@ export class DatabaseService {
         and o.paymentstatusid in ('30','35')
         and p.id = @prodId
         and p.id not in ('53000', '55053')
-        and (o.PaidDateUtc like '%2024%' or o.PaidDateUtc like '%2025%')
+        and (o.PaidDateUtc like '%2024%' or o.PaidDateUtc like '%2025%' or o.PaidDateUtc like '%2026%')
       )
       , finals as (
         select
@@ -1746,7 +1744,7 @@ export class DatabaseService {
         events.map(async (event: any) => {
           try {
             const expenses = await ExpenseService.getByProdId(event.ProdID);
-            
+
             // Get EUR/JPY conversion rate from Grace Price Conversion table
             // Use the "Regular" tier as a baseline since it's the most common
             const gracePriceData = await this.getGracePriceConversion(
@@ -1755,29 +1753,27 @@ export class DatabaseService {
               'Regular',
               'Venue'
             );
-            
+
             // Calculate conversion rate from Grace Price table
             // Default fallback is approximately 171 (36100 JPY / 211.11 EUR for Regular tier)
-            const eurToJpyRate = gracePriceData && gracePriceData.eurPrice > 0
-              ? gracePriceData.jpyPrice / gracePriceData.eurPrice
-              : 171;
-            
+            const eurToJpyRate =
+              gracePriceData && gracePriceData.eurPrice > 0
+                ? gracePriceData.jpyPrice / gracePriceData.eurPrice
+                : 171;
+
             // Convert expenses to EUR (sum with currency conversion for JPY expenses)
-            const totalExpenses = expenses.reduce(
-              (sum: number, expense: any) => {
-                const amount = expense.amount || 0;
-                const currency = expense.currency || 'EUR';
-                
-                // Convert JPY to EUR using Grace Price conversion rate
-                if (currency === 'JPY') {
-                  return sum + (amount / eurToJpyRate);
-                } else {
-                  // Assume EUR or already in EUR
-                  return sum + amount;
-                }
-              },
-              0
-            );
+            const totalExpenses = expenses.reduce((sum: number, expense: any) => {
+              const amount = expense.amount || 0;
+              const currency = expense.currency || 'EUR';
+
+              // Convert JPY to EUR using Grace Price conversion rate
+              if (currency === 'JPY') {
+                return sum + amount / eurToJpyRate;
+              } else {
+                // Assume EUR or already in EUR
+                return sum + amount;
+              }
+            }, 0);
 
             // Calculate the net revenue (Total Revenue - Total Expenses)
             const netRevenue = event.TotalRevenue - totalExpenses;
@@ -2604,14 +2600,16 @@ export class DatabaseService {
           'totalrevenue',
           'totaltickets',
         ];
-        
+
         // Map sort columns to actual database columns/expressions
         const columnMapping: { [key: string]: string } = {
-          'totaltickets': '(tp.paidtickets + tp.ticketsfree)',
+          totaltickets: '(tp.paidtickets + tp.ticketsfree)',
         };
-        
+
         const sortBy_safe = validSortColumns.includes(sortBy) ? sortBy : 'eventdate';
-        const sortColumn = columnMapping[sortBy_safe] || (sortBy_safe.startsWith('tp.') ? sortBy_safe : 'tp.' + sortBy_safe);
+        const sortColumn =
+          columnMapping[sortBy_safe] ||
+          (sortBy_safe.startsWith('tp.') ? sortBy_safe : 'tp.' + sortBy_safe);
         const sortDirection = sortOrder.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
 
         // Pagination
@@ -3655,7 +3653,7 @@ export class DatabaseService {
             and o.paymentstatusid in ('30','35')
             and p.id = @prodid
             and p.id not in ('53000', '55053')
-            and (o.PaidDateUtc like '%2024%' or o.PaidDateUtc like '%2025%')
+            and (o.PaidDateUtc like '%2024%' or o.PaidDateUtc like '%2025%' or o.PaidDateUtc like '%2026%')
         )
         , finals_order as (
           select
