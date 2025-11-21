@@ -278,11 +278,13 @@ export function ExpensesEditor({ eventId, event, trainerFee, trainerName, onExpe
                     </TableCell>
                     <TableCell className="w-[60px] p-2 text-center">
                       {expenses.length > 1 && (
-                        <X
-                          className="h-5 w-5 inline-block cursor-pointer text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
+                        <span
+                          className="inline-block cursor-pointer text-red-500 hover:text-red-700 hover:bg-red-50 rounded p-1 transition-colors"
                           onClick={() => removeRow(index)}
                           title="Delete expense"
-                        />
+                        >
+                          <X className="h-4 w-4" />
+                        </span>
                       )}
                     </TableCell>
                   </TableRow>
