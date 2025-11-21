@@ -278,10 +278,13 @@ export function ExpensesEditor({ eventId, event, trainerFee, trainerName, onExpe
                     </TableCell>
                     <TableCell>
                       <Button
+                        type="button"
                         variant="ghost"
                         size="sm"
                         onClick={() => removeRow(index)}
                         disabled={expenses.length === 1}
+                        className="relative z-20"
+                        title={expenses.length === 1 ? "Cannot delete the last expense row" : "Delete expense"}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -295,11 +298,11 @@ export function ExpensesEditor({ eventId, event, trainerFee, trainerName, onExpe
 
         <div className="flex items-center justify-between pt-4 border-t">
           <div className="flex items-center space-x-4">
-            <Button variant="outline" onClick={addRow}>
+            <Button type="button" variant="outline" onClick={addRow}>
               <Plus className="h-4 w-4 mr-2" />
               Add Expense
             </Button>
-            <Button onClick={handleSave} disabled={saving}>
+            <Button type="button" onClick={handleSave} disabled={saving}>
               <Save className="h-4 w-4 mr-2" />
               {saving ? 'Saving...' : 'Save Expenses'}
             </Button>
@@ -332,6 +335,7 @@ export function ExpensesEditor({ eventId, event, trainerFee, trainerName, onExpe
                   <span className="text-xs">%</span>
                   {calculatedPercentage > 0 && (
                     <Button
+                      type="button"
                       variant="ghost"
                       size="sm"
                       onClick={resetToCalculatedPercentage}
