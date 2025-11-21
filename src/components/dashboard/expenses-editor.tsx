@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Trash2, Save } from 'lucide-react';
+import { Plus, Save, X } from 'lucide-react';
 import { EventDetail, Expense, SupportedCurrency } from '@/types';
 import { formatCurrency } from '@/lib/utils';
 import { formatCurrencyAmount, getCurrencyOptions } from '@/lib/currency';
@@ -276,18 +276,14 @@ export function ExpensesEditor({ eventId, event, trainerFee, trainerName, onExpe
                         />
                       </div>
                     </TableCell>
-                    <TableCell className="w-[60px] p-2">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeRow(index)}
-                        disabled={expenses.length === 1}
-                        className="relative z-20 pointer-events-auto"
-                        title={expenses.length === 1 ? "Cannot delete the last expense row" : "Delete expense"}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                    <TableCell className="w-[60px] p-2 text-center">
+                      {expenses.length > 1 && (
+                        <X
+                          className="h-5 w-5 inline-block cursor-pointer text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
+                          onClick={() => removeRow(index)}
+                          title="Delete expense"
+                        />
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
